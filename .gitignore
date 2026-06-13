@@ -6,6 +6,7 @@ lib/EpdFont/fontsrc
 lib/I18n/I18nKeys.h
 lib/I18n/I18nStrings.h
 lib/I18n/I18nStrings.cpp
+src/components/icons/Icons.h
 *.generated.h
 .vs
 build
@@ -19,3 +20,4 @@ build
 lib/EpdFont/scripts/downloaded_fonts/
 lib/EpdFont/scripts/instanced_fonts/
 lib/EpdFont/scripts/output/
+fs_/

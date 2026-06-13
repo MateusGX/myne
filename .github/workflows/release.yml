@@ -2,7 +2,7 @@ name: Compile Release
 on:
   push:
     tags:
-      - '*'
+      - "v[0-9]+.[0-9]+.[0-9]+"
 
 jobs:
   build-release:
@@ -25,13 +25,13 @@ jobs:
       - name: Install PlatformIO Core
         run: uv pip install --system -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip
 
-      - name: Build CrossPoint
+      - name: Build Myne
         run: pio run -e gh_release
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: CrossPoint-${{ github.ref_name }}
+          name: Myne-${{ github.ref_name }}
           path: |
             .pio/build/gh_release/bootloader.bin
             .pio/build/gh_release/firmware.bin
