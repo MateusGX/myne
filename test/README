@@ -9,3 +9,51 @@ in the development cycle.
 
 More information about PlatformIO Unit Testing:
 - https://docs.platformio.org/en/latest/advanced/unit-testing/index.html
+
+## Native test suites
+
+In addition to the PlatformIO test runner, this directory contains standalone
+native test suites: each is a `.cpp` file compiled directly with `c++`
+(no PlatformIO/`pio` involved) via a `run_*_test.sh` script, and run as a
+plain host binary.
+
+| Suite | Test file | Run script |
+|---|---|---|
+| Differential rounding | `differential_rounding/DifferentialRoundingTest.cpp` | `run_differential_rounding_test.sh` |
+| Release JSON parser | `release_json_parser/ReleaseJsonParserTest.cpp` | `run_release_json_parser_test.sh` |
+| Streaming JSON parser | `streaming_json_parser/StreamingJsonParserTest.cpp` | `run_streaming_json_parser_test.sh` |
+| `lib/DataStore` TimeSeriesStore | `timeseries_store/TimeSeriesStoreTest.cpp` | `run_timeseries_store_test.sh` |
+| `lib/DataStore` RecordStore | `recordstore/RecordStoreTest.cpp` | `run_recordstore_test.sh` |
+| `lib/DataStore` BookStore | `bookstore/BookStoreTest.cpp` | `run_bookstore_test.sh` |
+| `lib/DataStore` ReadingLog | `readinglog/ReadingLogTest.cpp` | `run_readinglog_test.sh` |
+| `lib/DataStore` BookCatalog | `bookcatalog/BookCatalogTest.cpp` | `run_bookcatalog_test.sh` |
+
+Run any suite with:
+
+```bash
+./test/run_<suite>_test.sh
+```
+
+### DataStore suites
+
+The `timeseries_store`, `recordstore`, `bookstore`, `readinglog`, and
+`bookcatalog` suites cover `lib/DataStore/` (on-device physical-book catalog
+and reading-session storage, see `docs/book-catalog-format.md`). They:
+
+- Link the relevant `lib/DataStore/**` sources plus `lib/Logging/Logging.cpp`
+  against the POSIX-file-backed `HalStorage`/`ESP` stubs vendored by the
+  `env:simulator` PlatformIO environment at
+  `.pio/libdeps/simulator/simulator/src/`, and ArduinoJson at
+  `.pio/libdeps/simulator/ArduinoJson/src/`.
+- Require the `simulator` PlatformIO environment to have been fetched at
+  least once (so `.pio/libdeps/simulator/` exists), e.g. via `pio run -e simulator`.
+- Use the shared harness in `datastore_common/TestHarness.h`, which provides
+  `ASSERT_EQ`/`ASSERT_TRUE`/`ASSERT_FALSE`/`PASS()` macros and a
+  `TempStorageDir` RAII helper that points `Storage` at a fresh temporary
+  directory (via the `CROSSPOINT_SIM_SD`/`CROSSPOINT_EMU_SD` env vars used by
+  the vendored simulator) for each test, removing it afterwards.
+- Print `[SIM] open failed: ... No such file or directory` lines to stderr
+  for expected "file/dir doesn't exist yet" probes (e.g. `Storage.exists()`
+  checks before a directory is created) — this is normal simulator logging,
+  not a test failure. Each suite prints `=== Results: N passed, M failed ===`
+  at the end; a non-zero exit code indicates failure.
