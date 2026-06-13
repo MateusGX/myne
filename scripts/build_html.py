@@ -8,10 +8,9 @@ DIST_HTML = os.path.join(DASHBOARD_DIR, "dist", "index.html")
 OUT_DIR = os.path.join("src", "network", "html")
 OUT_HEADER = os.path.join(OUT_DIR, "DashboardHtml.generated.h")
 
-def build_dashboard():
-    print("Building React dashboard...")
+def run_npm(args):
     result = subprocess.run(
-        ["npm", "run", "build"],
+        ["npm"] + args,
         cwd=DASHBOARD_DIR,
         capture_output=True,
         text=True,
@@ -21,6 +20,14 @@ def build_dashboard():
         print(result.stderr, file=sys.stderr)
         sys.exit(1)
     print(result.stdout.strip())
+
+def build_dashboard():
+    if not os.path.isdir(os.path.join(DASHBOARD_DIR, "node_modules")):
+        print("Installing dashboard dependencies...")
+        run_npm(["ci"])
+
+    print("Building React dashboard...")
+    run_npm(["run", "build"])
 
 def generate_header(html_path: str, out_path: str):
     with open(html_path, "r", encoding="utf-8") as f:
