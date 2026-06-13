@@ -1,62 +1,20 @@
 # Translators
 
-Below is a list of users and languages CrossPoint may support in the future.
-Note because a language is below does not mean there is official support for the language at this time.
+Myne currently ships with **English** and **Portuguese** (see [i18n.md](./i18n.md) for the languages
+list and file format).
 
-## Contributing
+## Contributing a translation
 
-If you'd like to add your name to this list, please open a PR adding yourself and your Github link. Thank you!
+1. Copy `lib/I18n/translations/english.yaml` to a new file for your language (e.g.
+   `lib/I18n/translations/italian.yaml`), set `_language_name`, `_language_code`, and `_order`, and
+   translate the `STR_*` values.
+2. Run `python3 scripts/gen_i18n.py lib/I18n/translations lib/I18n/` to regenerate the generated I18n
+   files and check for issues.
+3. Keep translations concise — the e-ink UI has limited space for text.
+4. Open a PR with your new YAML file (the generated `I18nKeys.h`/`I18nStrings.{h,cpp}` are gitignored
+   and don't need to be committed).
 
-## French
-- [Spigaw](https://github.com/Spigaw)
-- [CaptainFrito](https://github.com/CaptainFrito)
+Updating an existing translation works the same way — edit the YAML file and regenerate.
 
-## German
-- [DavidOrtmann](https://github.com/DavidOrtmann)
-
-## Czech
-- [brbla](https://github.com/brbla)
-
-## Portuguese (Brazil)
-- [yagofarias](https://github.com/yagofarias)
-
-## Portuguese (Portugal)
-- [victordomingos](https://github.com/victordomingos)
-
-## Italian
-- [andreaturchet](https://github.com/andreaturchet)
-- [fragolinux](https://github.com/fragolinux)
-- [alan0ford](https://github.com/alan0ford)
-
-## Russian
-- [madebyKir](https://github.com/madebyKir)
-- [mrtnvgr](https://github.com/mrtnvgr)
-
-## Spanish
-- [yeyeto2788](https://github.com/yeyeto2788)
-- [Skrzakk](https://github.com/Skrzakk)
-- [pablohc](https://github.com/pablohc)
-- [DaniPhii](https://github.com/DaniPhii)
-
-## Swedish
-- [dawiik](https://github.com/dawiik)
-- [steka](https://github.com/steka)
-
-## Romanian
-- [ariel-lindemann](https://github.com/ariel-lindemann)
-
-## Catalan
-- [angeldenom](https://github.com/angeldenom)
-
-## Finnish
-- [plahteenlahti](https://github.com/plahteenlahti)
-
-## Ukrainian
-- [mirus-ua](https://github.com/mirus-ua)
-- [KymAndriy](https://github.com/KymAndriy)
-
-## Belarusian
-- [Dexif](https://github.com/dexif)
-
-## Danish
-- [hajisan](https://github.com/hajisan)
+If you're only fixing a few strings rather than adding a whole new language, a small PR touching just
+the relevant `STR_*` keys is just as welcome.

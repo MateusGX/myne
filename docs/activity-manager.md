@@ -10,7 +10,7 @@ This document explains the refactoring from the original per-activity render tas
 | Render mutex | Per-activity `renderingMutex` | Single global mutex in `ActivityManager` |
 | `RenderLock` | Inner class of `Activity` | Standalone class, acquires global mutex |
 | Subactivities | `ActivityWithSubactivity` base class | Activity stack managed by `ActivityManager` |
-| Navigation | Free functions in `main.cpp` | `activityManager.goHome()`, `goToReader()`, etc. |
+| Navigation | Free functions in `main.cpp` | `activityManager.goHome()`, `goToFileBrowser()`, etc. |
 | Subactivity results | Callback lambdas stored in parent | `startActivityForResult()` / `setResult()` / `finish()` |
 | `requestUpdate()` | Notifies activity's own render task | Delegates to `ActivityManager` (immediate or deferred) |
 
@@ -116,7 +116,7 @@ activityManager.goToSettings();
 activityManager.replaceActivity(std::make_unique<MyActivity>(renderer, mappedInput));
 ```
 
-`replaceActivity()` destroys the current activity and clears the stack. Use it for top-level navigation (home, reader, settings, etc.).
+`replaceActivity()` destroys the current activity and clears the stack. Use it for top-level navigation (home, file browser, settings, etc.).
 
 ### 3. Replace Subactivity Pattern
 

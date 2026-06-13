@@ -1,52 +1,32 @@
-# CrossPoint Reader
+# Myne
 
-CrossPoint is open-source e-reader firmware - community-built, fully hackable, free forever. It's maintained by a growing community of developers and readers who believe your device should do what you want - not what a manufacturer decided for you.
+Myne is a personal fork of [CrossPoint](https://github.com/crosspoint-reader/crosspoint-reader), repurposed away from EPUB reading and into a dedicated **physical book library and reading-session tracker**. Catalog the books on your shelf, log reading sessions against them, see your reading stats, and manage everything from the device or from a companion web dashboard over Wi-Fi.
 
-**Now running on:** ESP32C3-based Xteink [X4](https://www.xteink.com/products/xteink-x4) and [X3](https://www.xteink.com/products/xteink-x3).
+**Now running on:** ESP32C3-based Xteink [X4](https://www.xteink.com/products/xteink-x4).
 
-![CrossPoint Reader running on Xteink device](./docs/images/cover.jpg)
+## What can Myne do?
 
-## What can CrossPoint do?
+- **Physical book catalog**: add and edit entries for the books you own (title, author, location, volume), browse the catalog by first letter or by collection.
 
-- **Reader engine**: EPUB 2/3 rendering with embedded-style option, image handling, hyphenation, kerning, chapter navigation, footnotes, go-to-percent, auto page turn, orientation control, focus reading, KOReader progress sync and more. 
+- **Reading session tracking**: log reading sessions per book, track status (e.g. to-read / reading / finished), and review session history.
 
-- **Various formats**: native handling for `.epub`, `.xtc/.xtch`, `.txt`, and `.bmp`.
+- **Reading stats**: aggregated daily/monthly reading statistics.
 
-- **Screenshots.**
-
-- **Custom fonts**: install your favorite fonts on the SD card.
-
-- **Tilt page turn (X3 only)**.
-
-- **Library workflow**: folder browser, hidden-file toggle, long-press delete, recent books, SD-cache management.
+- **Library workflow**: SD card folder browser, hidden-file toggle, long-press delete.
 
 - **Wireless workflows**:
-  
-  - File transfer web UI
-  - EPUB Optimizer
-  - Web settings UI/API (edit many device settings from browser)
-  - WebSocket fast uploads
+
+  - File transfer web UI with WebSocket fast uploads
   - WebDAV handler
+  - Web settings UI/API (edit device settings from a browser)
   - AP mode (hotspot) and STA mode (join existing WiFi), both with QR helpers
-  - Calibre wireless connect flow
-  - OPDS browser with saved servers (up to 8), search, pagination, and direct download
   - OTA update checks and installs from GitHub releases
 
-- **Customization**: multiple themes (Classic, Lyra, Lyra Extended, RoundedRaff), sleep screen modes, front/side button remapping, status bar controls, power-button behavior, refresh cadence, and more.
+- **Companion dashboard**: a React web app (`dashboard/`) for managing your book catalog, collections, reading sessions, SD card files, and device settings from a browser.
 
-- **Localization**: 22 UI languages and counting.
+- **Customization**: sleep screen modes, front/side button remapping, status bar controls, power-button behavior, refresh cadence, and more.
 
-### Coming soon:
-
-- RTL support — Arabic, Hebrew, and Farsi.
-
-- Bookmarks.
-
-- Dictionary lookup — inline word lookup without leaving the reader.
-
-- More themes.
-
-- Much more! stay tuned.
+- **Localization**: English and Portuguese, with more languages welcome via [translations](./docs/translators.md).
 
 ---
 
@@ -54,7 +34,7 @@ CrossPoint is open-source e-reader firmware - community-built, fully hackable, f
 
 Some Xteink units purchased from third-party stores (e.g. AliExpress) ship with USB flashing locked from the factory.
 If your device is locked, you will need to use the **Xteink Unlocker** tool available at
-https://crosspointreader.com/#unlock-tool before you can flash CrossPoint.
+https://crosspointreader.com/#unlock-tool before you can flash custom firmware.
 
 **You do not need this tool if you bought your device directly from xteink.com.** Those units are not locked.
 
@@ -63,33 +43,21 @@ https://crosspointreader.com/#unlock-tool before you can flash CrossPoint.
 USB port or browser before assuming the device is locked. Only reach for the unlocker if the device still doesn't appear.
 
 > ### ⚠️ WARNING: READ THIS BEFORE USING THE UNLOCKER ⚠️
-> 
-> **The only officially supported firmwares in the unlock tool are CrossPoint and CrossInk.**
-> 
-> Flashing any other firmware on a USB-locked device may **permanently brick the device** or leave it **permanently
-> stuck on that firmware with no recovery path**. Once USB flashing is re-locked, your only way back is via OTA, and if
-> the firmware you flashed doesn't support OTA, **there is no way out**.
-> 
-> **The Papyrix fork has removed OTA update support from its code.** If you flash Papyrix onto a
-> USB-locked unit, you will have **zero update or recovery path** and will be stuck on it forever. **Do not flash
-> Papyrix (or any other unsupported firmware) on a locked device.**
+>
+> **The only officially supported firmwares in the unlock tool are CrossPoint and CrossInk. Myne is not on that list.**
+>
+> Flashing any firmware not on that list onto a USB-locked device may **permanently brick the device** or leave it **permanently
+> stuck on that firmware with no recovery path other than OTA**. Myne retains OTA update support (checking
+> [MateusGX/myne](https://github.com/MateusGX/myne) releases), so OTA-based recovery should remain possible — but if
+> you are unsure, flash official CrossPoint first and confirm OTA works before switching a USB-locked device to Myne.
 
 ## Install firmware
 
 ### Web installer (recommended)
 
 1. Connect your device to your computer via USB-C and wake/unlock the device
-2. Go to https://crosspointreader.com/#flash-tools, select device (X3 or X4), and choose an official CrossPoint release.
-
-### Web installer (specific version)
-
-1. Connect your device to your computer via USB-C and wake/unlock the device
-2. Download a `firmware.bin` from [Releases](https://github.com/crosspoint-reader/crosspoint-reader/releases), local build, or continuous integration artifact.
-3. Go to https://crosspointreader.com/#flash-tools, select device (X3 or X4), click "Custom .bin" and upload a `firmware.bin`.
-
-### Revert to Official Firmware
-
-To revert to the official firmware, you can also flash the latest official firmware using https://crosspointreader.com/#flash-tools.
+2. Download a `firmware.bin` from [Releases](https://github.com/MateusGX/myne/releases), a local build, or a continuous integration artifact.
+3. Go to https://crosspointreader.com/#flash-tools, select device (X4), click "Custom .bin" and upload the `firmware.bin`.
 
 ### Command line
 
@@ -99,7 +67,7 @@ To revert to the official firmware, you can also flash the latest official firmw
 pip install esptool
 ```
 
-2. Download `firmware.bin` from the [releases page](https://github.com/crosspoint-reader/crosspoint-reader/releases).
+2. Download `firmware.bin` from the [releases page](https://github.com/MateusGX/myne/releases).
 3. Connect your device via USB-C.
 4. Find the device port. On Linux, run `dmesg` after connecting. On macOS:
 
@@ -126,6 +94,7 @@ See [Development quick start](#development-quick-start) below.
 - [User Guide](./USER_GUIDE.md)
 - [Web server usage](./docs/webserver.md)
 - [Web server endpoints](./docs/webserver-endpoints.md)
+- [Book catalog & reading-log format](./docs/book-catalog-format.md)
 - [Project scope](./SCOPE.md)
 - [Contributing docs](./docs/contributing/README.md)
 
@@ -143,8 +112,8 @@ See [Development quick start](#development-quick-start) below.
 ### Setup
 
 ```bash
-git clone --recursive https://github.com/crosspoint-reader/crosspoint-reader
-cd crosspoint-reader
+git clone --recursive https://github.com/MateusGX/myne
+cd myne
 
 # if cloned without --recursive:
 git submodule update --init --recursive
@@ -166,7 +135,7 @@ pio run -e default
 
 ### Debugging
 
-After flashing the new features, it’s recommended to capture detailed logs from the serial port.
+After flashing the new features, it's recommended to capture detailed logs from the serial port.
 
 First, make sure all required Python packages are installed:
 
@@ -191,42 +160,40 @@ Minor adjustments may be required for Windows.
 
 ## Internals
 
-CrossPoint Reader is pretty aggressive about caching data down to the SD card to minimise RAM usage. The ESP32-C3 only has ~380KB of usable RAM, so we have to be careful. A lot of the decisions made in the design of the firmware were based on this constraint.
+Myne is pretty aggressive about caching data down to the SD card to minimise RAM usage. The ESP32-C3 only has ~380KB of usable RAM, so we have to be careful. A lot of the decisions made in the design of the firmware were based on this constraint.
 
-### Data caching
+### On-device storage
 
-The first time chapters of a book are loaded, they are cached to the SD card. Subsequent loads are served from the 
-cache. This cache directory exists at `.crosspoint` on the SD card. The structure is as follows:
+Book catalog entries, collections, reading sessions, and stats are stored on the SD card under `/.myne/`:
 
 ```text
-.crosspoint/
-├── epub_<hash>/         # one directory per book, named by content hash
-│   ├── progress.bin     # reading position (chapter, page, etc.)
-│   ├── cover.bmp        # generated cover image
-│   ├── book.bin         # metadata: title, author, spine, TOC
-│   └── sections/        # per-chapter layout cache
-│       ├── 0.bin
-│       ├── 1.bin
-│       └── ...
+.myne/
+├── books/            # one JSON file per physical book (id.json)
+├── catalog/          # alphabetical (A-Z, #) and per-collection NDJSON indexes + idx.bin
+├── collections.ndjson # collection ID registry
+├── notes/            # per-collection notes
+├── readings/         # reading session records (one JSON file per book)
+├── readings-sum/     # 17-byte binary reading summaries for fast lookups
+└── stats-cache/      # 40-byte binary stats cache for reading stats
 ```
 
-Removing `/.crosspoint` clears all cached metadata and forces a full regeneration on next open. Note: the cache isn't cleared automatically when you delete a book, and moving a file to a new path resets its reading progress.
-
-For more details on the internal file structures, see the [file formats document](./docs/file-formats.md).
+For the full on-disk layout, see [docs/book-catalog-format.md](./docs/book-catalog-format.md).
 
 ---
 
 ## Contributing
 
-Contributions are welcome. If you're new to the codebase, start with the [contributing docs](./docs/contributing/README.md). For things to work on, check the [ideas discussion board](https://github.com/crosspoint-reader/crosspoint-reader/discussions/categories/ideas) — leave a comment before starting so we don't duplicate effort.
+Contributions are welcome. If you're new to the codebase, start with the [contributing docs](./docs/contributing/README.md). For things to work on, check the [issues](https://github.com/MateusGX/myne/issues) — leave a comment before starting so we don't duplicate effort.
 
-Everyone here is a volunteer, so please be respectful and patient. For governance and community expectations, see [GOVERNANCE.md](./GOVERNANCE.md).
+Please be respectful and patient. For governance and community expectations, see [GOVERNANCE.md](./GOVERNANCE.md).
 
 ---
 
-## Community forks
+## Related projects
 
-One of the best things about open source is that anyone can take the code in a different direction. If you need something outside CrossPoint's [scope](./SCOPE.md), check out the community forks:
+Myne is one of many community forks of [CrossPoint](https://github.com/crosspoint-reader/crosspoint-reader), an open-source e-reader firmware. If you're looking for an EPUB e-reader rather than a physical-book tracker, CrossPoint and its other forks are a better fit:
+
+- [CrossPoint](https://github.com/crosspoint-reader/crosspoint-reader) — the upstream e-reader firmware Myne is forked from.
 
 - [CrossInk](https://github.com/uxjulia/CrossInk) — Typography and reading tracking: Bionic Reading (bolds word stems to create fixation points), guide dots between words, improved paragraph indents, and replaces the default fonts with ChareInk/Lexend/Bitter.
 
@@ -242,14 +209,12 @@ One of the best things about open source is that anyone can take the code in a d
 
 - ~~[PlusPoint](https://github.com/ngxson/pluspoint-reader) — custom JS apps support.~~ (Unmaintained)
 
-- [crosspoint-reader-papers3](https://github.com/juicecultus/crosspoint-reader-papers3) — Crosspoint port for M5Stack Paper S3. 
-
-**Note:** Many of these features will make their way into CrossPoint over time. We maintain a slower pace to ensure rock-solid stability and squash bugs before they reach your device.
+- [crosspoint-reader-papers3](https://github.com/juicecultus/crosspoint-reader-papers3) — Crosspoint port for M5Stack Paper S3.
 
 Want to build your own device? Be sure to check out the [de-link](https://github.com/iandchasse/de-link) project.
 
 ---
 
-CrossPoint Reader is **not affiliated with Xteink or any device manufacturer**.
+Myne is a personal, unofficial fork — **not affiliated with Xteink, any device manufacturer, or the CrossPoint project**.
 
-Huge shoutout to [diy-esp32-epub-reader](https://github.com/atomic14/diy-esp32-epub-reader), which inspired this project.
+Built on top of [CrossPoint](https://github.com/crosspoint-reader/crosspoint-reader). Huge shoutout to [diy-esp32-epub-reader](https://github.com/atomic14/diy-esp32-epub-reader), which inspired CrossPoint.

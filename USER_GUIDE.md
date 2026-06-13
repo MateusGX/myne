@@ -1,452 +1,319 @@
-# CrossPoint User Guide
+# Myne User Guide
 
-Welcome to the **CrossPoint** firmware. This guide outlines the hardware controls, navigation, and reading features of the device.
-
-- [CrossPoint User Guide](#crosspoint-user-guide)
-  - [1. Hardware Overview](#1-hardware-overview)
-    - [Button Layout](#button-layout)
-  - [2. Power \& Startup](#2-power--startup)
-    - [Power On / Off](#power-on--off)
-    - [First Launch](#first-launch)
-  - [3. Screens](#3-screens)
-    - [3.1 Home Screen](#31-home-screen)
-    - [3.2 Reading Mode](#32-reading-mode)
-    - [3.3 Browse Files Screen](#33-browse-files-screen)
-    - [3.4 Recent Books Screen](#34-recent-books-screen)
-    - [3.5 File Transfer Screen](#35-file-transfer-screen)
-      - [3.5.1 Calibre Wireless Transfers](#351-calibre-wireless-transfers)
-    - [3.6 Settings](#36-settings)
-      - [3.6.1 Display](#361-display)
-      - [3.6.2 Reader](#362-reader)
-      - [3.6.3 Controls](#363-controls)
-      - [3.6.4 System](#364-system)
-      - [3.6.5 OPDS Servers (Multiple Libraries)](#365-opds-servers-multiple-libraries)
-      - [3.6.6 Web Settings (WiFi + OPDS)](#366-web-settings-wifi--opds)
-      - [3.6.7 KOReader Sync Quick Setup](#367-koreader-sync-quick-setup)
-    - [3.7 Sleep Screen](#37-sleep-screen)
-  - [4. Reading Mode](#4-reading-mode)
-    - [Page Turning](#page-turning)
-    - [Chapter Navigation](#chapter-navigation)
-    - [System Navigation](#system-navigation)
-    - [Supported Languages](#supported-languages)
-  - [5. Chapter Selection Screen](#5-chapter-selection-screen)
-  - [6. Current Limitations \& Roadmap](#6-current-limitations--roadmap)
-  - [7. Troubleshooting Issues \& Escaping Bootloop](#7-troubleshooting-issues--escaping-bootloop)
-
-
-## 1. Hardware Overview
-
-The device utilises the standard buttons on the Xteink X4 (in the same layout as the manufacturer firmware, by default):
-
-### Button Layout
-| Location        | Buttons                                              |
-| --------------- | ---------------------------------------------------- |
-| **Bottom Edge** | **Back**, **Confirm**, **Left**, **Right**           |
-| **Right Side**  | **Power**, **Volume Up**, **Volume Down**, **Reset** |
-
-Button layout can be customized in the **[Controls Settings](#363-controls)**.
-
-### Taking a Screenshot
-When the Power Button and Volume Down button are pressed at the same time, it will take a screenshot and save it in the folder `screenshots/`.
-
-Alternatively, while reading a book, press the **Confirm** button to open the reader menu and select **Take screenshot**.
+Myne turns your Xteink X4 into a pocket library catalog and reading log. It does **not** display book
+content — instead, it helps you keep track of the physical books you own, log your reading sessions
+against them, and see your reading stats over time. This guide covers the on-device interface, the
+companion web dashboard, and device settings.
 
 ---
 
-## 2. Power & Startup
+## 1. Hardware & Controls
 
-### Power On / Off
+The X4 has a row of front buttons along the bottom edge, two side buttons, and a power button.
 
-To turn the device on or off, **press and hold the Power button for approximately half a second**.
-In the **[Controls Settings](#363-controls)** you can configure the power button to turn the device off with a short press instead of a long one.
+| Logical Button | Default Physical Location | Notes |
+|---|---|---|
+| **Back** | Front, leftmost | Remappable |
+| **Confirm** | Front, second from left | Remappable |
+| **Left** | Front, third from left | Remappable |
+| **Right** | Front, rightmost | Remappable |
+| **Up** | Side (top) | Fixed — also used for paging/scrolling up |
+| **Down** | Side (bottom) | Fixed — also used for paging/scrolling down |
+| **Power** | Side/top edge | Fixed |
 
-To reboot the device (for example after a firmware update or if it's frozen), press and release the Reset button, and then quickly press and hold the Power button for a few seconds.
+The four front buttons (**Back**, **Confirm**, **Left**, **Right**) can be remapped to any physical
+button via **Settings > Controls > Remap Front Buttons** — useful if you're left-handed or prefer a
+different layout. The **Up**/**Down** side buttons are always fixed and are used throughout the UI for
+scrolling lists and flipping between pages of items.
 
-### First Launch
-
-Upon turning the device on for the first time, you will be placed on the **[Home](#31-home-screen)** screen.
-
-> [!NOTE]
-> On subsequent restarts, the firmware will automatically reopen the last book you were reading.
+Throughout this guide:
+- **Confirm** opens/selects the highlighted item.
+- **Back** returns to the previous screen.
+- **Up**/**Down** move the selection or page through long lists.
+- **Left**/**Right** are used for secondary actions (creating, deleting, adjusting values) depending on
+  the screen.
 
 ---
 
-## 3. Screens
-
-### 3.1 Home Screen
-
-The Home screen is the main entry point to the firmware. From here you can navigate to **[Reading Mode](#4-reading-mode)** with the most recently read book, the **[Browse Files](#33-browse-files-screen)** screen, the **[Recent Books](#34-recent-books-screen)** screen, the **[File Transfer](#35-file-transfer-screen)** screen, or **[Settings](#36-settings)**.
-
-### 3.2 Reading Mode
-
-See [Reading Mode](#4-reading-mode) below for more information.
-
-### 3.3 Browse Files Screen
-
-The Browse Files screen acts as a file and folder browser.
-
-* **Navigate List:** Use **Left** (or **Volume Up**), or **Right** (or **Volume Down**) to move the selection cursor up and down through folders and books. You can also long-press these buttons to scroll a full page up or down.
-* **Open Selection:** Press **Confirm** to open a folder or read a selected book. 
-* **Delete Files:** Hold and release **Confirm** to delete the selected file. You will be given an option to either confirm or cancel deletion. Folder deletion is not supported.
-
-### 3.4 Recent Books Screen
-
-The Recent Books screen lists the most recently opened books in a chronological view, displaying title and author.
-
-### 3.5 File Transfer Screen
-
-The File Transfer screen allows you to upload new e-books to the device. When you enter the screen, you'll be prompted with a WiFi selection dialog and then your X4 will start hosting a web server.
-
-See the [webserver docs](./docs/webserver.md) for more information on how to connect to the web server and upload files.
-
-> [!TIP]
-> Advanced users can also manage files programmatically or via the command line using `curl`. See the [webserver docs](./docs/webserver.md) for details.
-
-### 3.5.1 Calibre Wireless Transfers
-
-CrossPoint supports sending books from Calibre using the CrossPoint Reader device plugin.
-
-1. Install the plugin in Calibre:
-   - Head to https://github.com/crosspoint-reader/calibre-plugins/releases to download the latest version of the crosspoint_reader plugin.
-   - Download the zip file.
-   - Open Calibre → Preferences → Plugins → Load plugin from file → Select the zip file.
-2. On the device: File Transfer → Connect to Calibre → Join a network.
-3. Make sure your computer is on the same WiFi network.
-4. In Calibre, click "Send to device" to transfer books.
-
-### 3.6 Settings
-
-The Settings screen allows you to configure the device's behavior. There are a few settings you can adjust:
-
-#### 3.6.1 Display
-
-- **Sleep Screen**: Which sleep screen to display when the device sleeps:
-  - "Dark" (default) - The default dark Crosspoint logo sleep screen
-  - "Light" - The same default sleep screen, on a white background
-  - "Custom" - Custom images from the SD card; see [Sleep Screen](#37-sleep-screen) below for more information
-  - "Cover" - The book cover image (Note: this is experimental and may not work as expected)
-  - "None" - A blank screen
-  - "Cover + Custom" - The book cover image, falls back to "Custom" behavior
-- **Sleep Screen Cover Mode**: How to display the book cover when "Cover" sleep screen is selected:
-  - "Fit" (default) - Scale the image down to fit centered on the screen, padding with white borders as necessary
-  - "Crop" - Scale the image down and crop as necessary to try to fill the screen (Note: this is experimental and may not work as expected)
-- **Sleep Screen Cover Filter**: What filter will be applied to the book cover when "Cover" sleep screen is selected:
-  - "None" (default) - The cover image will be converted to a grayscale image and displayed as it is
-  - "Contrast" - The image will be displayed as a black & white image without grayscale conversion
-  - "Inverted" - The image will be inverted as in white & black and will be displayed without grayscale conversion
-- **Status Bar**: Configure the status bar displayed while reading:
-  - "None" - No status bar
-  - "No Progress" - Show status bar without reading progress
-  - "Full w/ Percentage" - Show status bar with book progress (as percentage)
-  - "Full w/ Book Bar" - Show status bar with book progress (as bar)
-  - "Book Bar Only" - Show book progress (as bar)
-  - "Full w/ Chapter Bar" - Show status bar with chapter progress (as bar)
-- **Hide Battery %**: Configure where to suppress the battery percentage display in the status bar; the battery icon will still be shown:
-  - "Never" (default) - Always show battery percentage
-  - "In Reader" - Show battery percentage everywhere except in reading mode
-  - "Always" - Always hide battery percentage
-- **Refresh Frequency**: Set how often the screen does a full refresh while reading to reduce ghosting; options are every 1, 5, 10, 15, or 30 pages.
-
-- **UI Theme**: Set which UI theme to use:
-  - "Classic" - The original Crosspoint theme
-  - "Lyra" - The new theme for Crosspoint featuring rounded elements and menu icons
-  - "Lyra Extended" - Lyra, but displays 3 books instead of 1 on the **[Home Screen](#31-home-screen)**
-- **Sunlight Fading Fix**: Configure whether to enable a software-fix for the issue where white X4 models may fade when used in direct sunlight:
-  - "OFF" (default) - Disable the fix
-  - "ON" - Enable the fix
-
-#### 3.6.2 Reader
-- **Reader Font Family**: Choose the font used for reading:
-  - "Noto Serif" (default) - Google's serif font
-  - "Noto Sans" - Google's sans-serif font
-  - "Open Dyslexic" - Font designed for readers with dyslexia
-- **Reader Font Size**: Adjust the text size for reading; options are "Small", "Medium" (default), "Large", or "X Large".
-
-- **Reader Line Spacing**: Adjust the spacing between lines; options are "Tight", "Normal" (default), or "Wide".
-- **Reader Screen Margin**: Controls the screen margins in Reading Mode between 5 and 40 pixels in 5-pixel increments.
-- **Reader Paragraph Alignment**: Set the alignment of paragraphs; options are "Justified" (default), "Left", "Center", or "Right".
-- **Embedded Style**: Whether to use the EPUB file's embedded HTML and CSS stylisation and formatting; options are "ON" or "OFF".
-- **Hyphenation**: Whether to hyphenate text in Reading Mode; options are "ON" or "OFF".
-- **Reading Orientation**: Set the screen orientation for reading EPUB files:
-  - "Portrait" (default) - Standard portrait orientation
-  - "Landscape CW" - Landscape, rotated clockwise
-  - "Inverted" - Portrait, upside down
-  - "Landscape CCW" - Landscape, rotated counter-clockwise
-- **Extra Paragraph Spacing**: Set how to handle paragraph breaks:
-  - "ON" - Vertical space will be added between paragraphs in Reading Mode
-  - "OFF" - Paragraphs will not have vertical space added, but will have first-line indentation
-- **Text Anti-Aliasing**: Whether to show smooth grey edges (anti-aliasing) on text in reading mode. Note this slows down page turns slightly.
-
-#### 3.6.3 Controls
-
-- **Remap Front Buttons**: A menu for customising the function of each bottom edge button.
-- **Side Button Layout (reader)**: Swap the order of the up and down volume buttons from "Prev/Next" (default) to "Next/Prev". This change is only in effect when reading.
-
-- **Long-press Chapter Skip**: Set whether long-pressing page turn buttons skips to the next/previous chapter:
-  - "Chapter Skip" (default) - Long-pressing skips to next/previous chapter
-  - "Page Scroll" - Long-pressing scrolls a page up/down
-- **Short Power Button Click**: Controls the effect of a short click of the power button:
-  - "Ignore" (default) - Require a long press to turn off the device
-  - "Sleep" - A short press puts the device into sleep mode
-  - "Page Turn" - A short press in reading mode turns to the next page; a long press turns the device off
-
-#### 3.6.4 System
-
-- **Time to Sleep**: Set the duration of inactivity before the device automatically goes to sleep; options are 1, 5, 10 (default), 15 or 30 minutes.
-
-- **WiFi Networks**: Connect to WiFi networks for file transfers and firmware updates.
-- **KOReader Sync**: Options for setting up KOReader for syncing book progress.
-- **OPDS Servers**: Manage one or more OPDS [(Open Publication Distribution System)](https://en.wikipedia.org/wiki/Open_Publication_Distribution_System) libraries for browsing and downloading books. See [OPDS Servers (Multiple Libraries)](#365-opds-servers-multiple-libraries) below.
-- **Clear Reading Cache**: Clear the internal SD card cache.
-- **Check for updates**: Check for Crosspoint firmware updates over WiFi.
-- **Language**: Set the system language (see **[Supported Languages](#supported-languages)** for more information).
-
-#### 3.6.5 OPDS Servers (Multiple Libraries)
-
-CrossPoint supports saving multiple OPDS servers and switching between them when browsing catalogs.
-
-1. Open **Settings -> System -> OPDS Servers**.
-2. Select **Add Server** to create a new entry, or select an existing server to edit it.
-3. Configure these fields:
-  - **Server Name**: Optional display name (for example, "Home Calibre" or "Public Catalog").
-  - **OPDS Server URL**: Full catalog root URL (for Calibre Content Server, usually ends with `/opds`).
-  - **Username / Password**: Optional credentials for authenticated servers.
-4. Use **Delete Server** inside a server entry to remove it.
-
-Behavior notes:
-
-- You can store up to 8 OPDS servers.
-- OPDS authentication supports HTTP Basic auth. If you use Calibre Content Server with authentication enabled, set it to Basic (not Digest).
-
-You can also manage OPDS servers from the web interface while in File Transfer mode:
-
-1. Connect to the device web UI.
-2. Open `http://<device-ip>/settings`.
-3. Use the **OPDS Servers** card to add, edit, or delete entries.
-
-For web-based WiFi network management, see [Web Settings (WiFi + OPDS)](#366-web-settings-wifi--opds).
-
-#### 3.6.6 Web Settings (WiFi + OPDS)
-
-While in **File Transfer** mode, the web settings page includes management cards for both **WiFi Networks** and **OPDS Servers**.
-
-1. On device: open **File Transfer** and connect to WiFi.
-1. In a browser, open `http://<device-ip>/settings` or `http://crosspoint.local`.
-1. In **WiFi Networks**, add, edit, or delete saved network entries (SSID + optional password).
-1. In **OPDS Servers**, add, edit, or delete OPDS catalogs.
-
-Behavior notes:
-
-- Passwords are never shown back in the web UI after saving.
-- Leaving Password blank while editing keeps the existing saved password unchanged.
-- The web UI can save hidden-network SSIDs, but connecting to hidden networks still depends on device-side WiFi connection flow.
-
-#### 3.6.7 KOReader Sync Quick Setup
-
-CrossPoint can sync reading progress with KOReader-compatible sync servers.
-It also interoperates with KOReader apps/devices when they use the same server and credentials.
-
-##### Option A: Free Public Server (`sync.koreader.rocks`)
-
-1. Register a user once (only if needed):
-
-```bash
-USERNAME="user"
-PASSWORD="pass"
-PASSWORD_MD5="$(printf '%s' "$PASSWORD" | openssl md5 | awk '{print $2}')"
-
-curl -i "https://sync.koreader.rocks/users/create" \
-  -H "Accept: application/vnd.koreader.v1+json" \
-  -H "Content-Type: application/json" \
-  --data "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD_MD5\"}"
-```
-
-Already have KOReader Sync credentials? Skip registration; basic sync only requires using the same existing username/password on all devices.
-
-When this returns `HTTP 402` with `{"code":2002,"message":"Username is already registered."}`, pick a different username or use that existing account.
-
-2. On each CrossPoint device:
-   - Go to **Settings -> System -> KOReader Sync**.
-   - Set **Username** and **Password** (enter the plain password; CrossPoint computes MD5 internally, and use the same values on all devices).
-   - Set **Sync Server URL** to `https://sync.koreader.rocks`, or leave it empty (both use the same default KOReader sync server).
-   - Run **Authenticate**.
-
-3. While reading, press **Confirm** to open the reader menu, then select **Sync Progress**.
-   - Choose **Apply Remote** to jump to remote progress.
-   - Choose **Upload Local** to push current progress.
-
-##### Option B: Self-Hosted Server (Docker Compose)
-
-1. Start a sync server:
-
-```bash
-mkdir -p kosync-quickstart
-cd kosync-quickstart
-
-cat > compose.yaml <<'YAML'
-services:
-  kosync:
-    image: koreader/kosync:latest
-    ports:
-      - "7200:7200"
-      - "17200:17200"
-    volumes:
-      - ./data/redis:/var/lib/redis
-    environment:
-      - ENABLE_USER_REGISTRATION=true
-    restart: unless-stopped
-YAML
-
-# Docker
-docker compose up -d
-
-# Podman (alternative)
-podman compose up -d
-```
-
-> [!NOTE]
-> `ENABLE_USER_REGISTRATION=true` is convenient for first setup. After creating your users, set it to `false` (or remove it) to avoid unexpected registrations.
-
-2. Verify the server:
-
-```bash
-curl -H "Accept: application/vnd.koreader.v1+json" "http://<server-ip>:17200/healthcheck"
-# Expected: {"state":"OK"}
-```
-
-3. Register a user once.
-CrossPoint authenticates against KOReader Sync (`koreader/kosync`) using an MD5 key, so register using the MD5 of your password:
-
-> [!WARNING]
-> Sending a reusable MD5-derived password over plain HTTP is insecure.
-> Create unique sync-only credentials and do not reuse main account passwords.
-> Prefer `https://<server-ip>:7200` whenever traffic leaves a fully trusted LAN or when using untrusted networks.
-> Use `curl -k` only for self-signed certificate testing.
-
-```bash
-USERNAME="user"
-PASSWORD="pass"
-PASSWORD_MD5="$(printf '%s' "$PASSWORD" | openssl md5 | awk '{print $2}')"
-
-curl -i "http://<server-ip>:17200/users/create" \
-  -H "Accept: application/vnd.koreader.v1+json" \
-  -H "Content-Type: application/json" \
-  --data "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD_MD5\"}"
-```
-
-If this returns `HTTP 402` with `{"code":2002,"message":"Username is already registered."}`, the account already exists.
-
-4. On each CrossPoint device:
-   - Go to **Settings -> System -> KOReader Sync**.
-   - Set **Username** and **Password** (enter the plain password; CrossPoint computes MD5 internally, and use the same values on all devices).
-   - Set **Sync Server URL** to `http://<server-ip>:17200`.
-   - Run **Authenticate**.
-
-If you use the HTTPS listener, use `https://<server-ip>:7200` (`curl -k` only for self-signed certificate testing).
-
-5. While reading, press **Confirm** to open the reader menu, then select **Sync Progress**.
-   - Choose **Apply Remote** to jump to remote progress.
-   - Choose **Upload Local** to push current progress.
-
-### 3.7 Sleep Screen
-
-The **Sleep Screen** setting controls what is displayed when the device goes to sleep:
-
-| Mode | Behavior |
-|------|----------|
-| **Dark** (default) | The CrossPoint logo on a dark background. |
-| **Light** | The CrossPoint logo on a white background. |
-| **Custom** | A custom image from the SD card (see below). Falls back to **Dark** if no custom image is found. |
-| **Cover** | The cover of the currently open book. Falls back to **Dark** if no book is open. |
-| **Cover + Custom** | The cover of the currently open book. Falls back to **Custom** behavior if no book is open. |
-| **None** | A blank screen. |
-
-#### Cover settings
-
-When using **Cover** or **Cover + Custom**, two additional settings apply:
-
-- **Sleep Screen Cover Mode**: **Fit** (scale to fit, white borders) or **Crop** (scale and crop to fill the screen).
-- **Sleep Screen Cover Filter**: **None** (grayscale), **Contrast** (black & white), or **Inverted** (inverted black & white).
-
-#### Custom images
-
-To use custom sleep images, set the sleep screen mode to **Custom** or **Cover + Custom**, then place images on the SD card:
-
-- **Multiple Images (recommended):** Create a `.sleep` directory in the root of the SD card and place any number of `.bmp` images inside. One will be randomly selected each time the device sleeps. (A directory named `sleep` is also accepted as a fallback.)
-- **Single Image:** Place a file named `sleep.bmp` in the root directory. This is used as a fallback if no valid images are found in the `.sleep`/`sleep` directory.
-
-> [!TIP]
-> For best results:
-> - Use uncompressed BMP files with 24-bit color depth
-> - X4: Use a resolution of 480x800 pixels to match the device's screen resolution.
-> - X3: Use a resolution of 528x792 pixels to match the device's screen resolution.
+## 2. Powering On
+
+Press the **Power** button to wake the device from sleep, or to turn it on. Myne boots directly to the
+**Home Screen**.
+
+On first boot — or any time the on-device book catalog needs to be rebuilt (for example, after editing
+books or collections from the dashboard) — Myne automatically shows a **"Rebuilding catalog…"** screen
+with a progress bar and a running count of books processed. This happens automatically; there's nothing
+to trigger here. If it succeeds, the device returns to the Home Screen automatically after a moment (or
+on any keypress). If it fails, press any button to continue to the Home Screen — try the rebuild again
+later, e.g. by re-saving from the dashboard.
 
 ---
 
-## 4. Reading Mode
+## 3. Home Screen
 
-Once you have opened a book, the button layout changes to facilitate reading.
+The Home Screen has two parts:
 
-### Page Turning
-| Action            | Buttons                              |
-| ----------------- | ------------------------------------ |
-| **Previous Page** | Press **Left** _or_ **Volume Up**    |
-| **Next Page**     | Press **Right** _or_ **Volume Down** |
+- **Last Read** (top): a hero card showing the book you most recently logged a reading session for —
+  title, author, current progress (page or chapter number), the date of your last session, and its
+  status (*Reading*, *Paused*, *Finished*, *Dropped*, or *Want to Read*). If you haven't logged any
+  reading sessions yet, this card shows a placeholder instead.
+- **A 2×2 grid of tiles** (below): **Physical Books**, **Reading Stats**, **Network**, and **Settings**,
+  each with an icon and short description.
 
-The role of the volume (side) buttons can be swapped in the **[Controls Settings](#363-controls)**.
-
-If the **Short Power Button Click** setting is set to "Page Turn", you can also turn to the next page by briefly pressing the Power button.
-
-### Chapter Navigation
-* **Next Chapter:** Press and **hold** the **Right** (or **Volume Down**) button briefly, then release.
-* **Previous Chapter:** Press and **hold** the **Left** (or **Volume Up**) button briefly, then release.
-
-This feature can be disabled in the **[Controls Settings](#363-controls)** to help avoid changing chapters by mistake.
-
-
-### System Navigation
-* **Return to Home:** Press the **Back** button to close the book and return to the **[Home](#31-home-screen)** screen.
-* **Return to Browse Files:** Press and hold the **Back** button to close the book and return to the **[Browse Files](#33-browse-files-screen)** screen.
-* **Chapter Menu:** Press **Confirm** to open the **[Table of Contents/Chapter Selection](#5-chapter-selection-screen)** screen.
-
-### Supported Languages
-
-CrossPoint renders text using the following Unicode character blocks, enabling support for a wide range of languages:
-
-*   **Latin Script (Basic, Supplement, Extended-A):** Covers English, German, French, Spanish, Portuguese, Italian, Dutch, Swedish, Norwegian, Danish, Finnish, Polish, Czech, Hungarian, Romanian, Slovak, Slovenian, Turkish, and others.
-*   **Cyrillic Script (Standard and Extended):** Covers Russian, Ukrainian, Belarusian, Bulgarian, Serbian, Macedonian, Kazakh, Kyrgyz, Mongolian, and others.
-
-What is not supported: Chinese, Japanese, Korean, Vietnamese, Hebrew, Arabic, Greek and Farsi.
+Use **Up**/**Down** or **Left**/**Right** to move between the Last Read card and the four tiles, and
+press **Confirm** to open the highlighted item. **Back** does nothing on the Home Screen.
 
 ---
 
-## 5. Chapter Selection Screen
+## 4. Physical Books
 
-Accessible by pressing **Confirm** while inside a book.
+This is your library catalog. Books are organized alphabetically by title (A–Z, plus a `#` section for
+titles starting with a digit or symbol), and can optionally be grouped into **collections** (e.g. a
+series).
 
-1.  Use **Left** (or **Volume Up**), or **Right** (or **Volume Down**) to highlight the desired chapter.
-2.  Press **Confirm** to jump to that chapter.
-3.  *Alternatively, press **Back** to cancel and return to your current page.*
+### 4.1 Letter Picker
+
+Opening **Physical Books** from the Home Screen shows the **Physical Books / A–Z** list — one row per
+letter (and `#`), each showing how many catalog entries start with it. Use **Up**/**Down** or
+**Left**/**Right** to scroll, **Confirm** to open a letter. If your catalog is empty, this screen shows
+an empty-state message instead. **Back** returns to the Home Screen.
+
+### 4.2 A Letter's Entries
+
+Opening a letter shows a paginated list of every book and collection whose title starts with that
+letter. Each row shows its position, title, author, and a small badge if it belongs to a collection.
+**Up**/**Down** or **Left**/**Right** scroll/page through the list, **Confirm** opens the highlighted
+book or collection, and **Back** returns to the letter picker.
+
+### 4.3 Collections
+
+Opening a collection shows its name, an optional note (if you've added one from the dashboard), and a
+paginated list of the books in it. **Confirm** opens a book's detail screen; **Back** returns to the
+letter view. If a collection has no books in it, **Confirm** simply returns you to the previous screen.
+
+### 4.4 Book Detail
+
+The book detail screen shows everything Myne knows about a single book:
+
+- **Collection** — which collection (if any) the book belongs to
+- **Location** — a free-text field for where the physical book lives (e.g. "Shelf 2, Box A")
+- **Notes** — any notes you've added for the book (wraps up to 3 lines)
+- **Reading summary** — the book's current status and your last logged position/date, or "No readings
+  yet" if you haven't logged any sessions
+
+Fields that haven't been filled in show as "–". This screen is read-only on the device — to add or edit
+book metadata (title, author, volume, collection, location, notes), use the **dashboard** (see
+[File Transfer & Dashboard](#6-file-transfer--dashboard)).
+
+From here:
+- **Confirm** opens the book's **Readings** list (reading session history)
+- **Right** opens the book's **Reading Stats** (per-book stats)
+- **Back** returns to the book list
+
+### 4.5 Reading Sessions
+
+The **Readings** screen lists every reading session you've logged for the book, most recent first —
+each row shows the session number, status, last position (page or chapter), and date.
+
+- **Up**/**Down** or **Left**/**Right** — scroll/page through sessions
+- **Confirm** — edit the highlighted session
+- **Left** — log a new session
+- **Right** — delete the highlighted session (only available if there's at least one session; if the
+  list is empty, **Left** creates the first one)
+- **Back** — return to the book detail screen
+
+When deleting, the screen shows **Back = Cancel** / **Confirm = Delete** hints — confirm carefully, as
+deletion is permanent.
+
+### 4.6 Logging or Editing a Reading Session
+
+This screen has five fields, arranged vertically. **Up**/**Down** move between fields (wrapping around
+all five); **Left**/**Right** adjust the value of the currently selected field. The selected field is
+highlighted with a dark bar and light background.
+
+1. **Status** — *Want to Read*, *Reading*, *Paused*, *Finished*, or *Dropped*
+2. **Date** — shown compactly (e.g. "5 Jun '26 · 21:30"). While this field is selected, press
+   **Power** to cycle which part of the date/time you're editing (year → month → day → hour → minute),
+   then use **Left**/**Right** to change it
+3. **Position** — a number representing your current page or chapter; **Up**/**Down** increment or
+   decrement it
+4. **Sync Time** — sets the session's date/time from the network. Shows *None* / *Syncing…* /
+   *Time synced* / *Sync failed*; press **Right** to trigger a sync (requires Wi-Fi — see
+   [File Transfer & Dashboard](#6-file-transfer--dashboard))
+5. **Type** — whether **Position** tracks **Page** or **Chapter** numbers
+
+Press **Confirm** to save the session (this also updates the book's and your library's reading stats).
+**Back** exits the screen, saving any changes you made first.
+
+### 4.7 Per-Book Reading Stats
+
+Reached via **Right** from the Book Detail screen. **Up**/**Down** cycle between two views (shown as
+dots at the bottom):
+
+1. **Summary** — total number of reading sessions, the date range of your first to most recent session
+   for this book, and a bar chart of monthly activity (most recent month first)
+2. **Timeline** — an expanded version of the monthly chart with month/year labels
+
+**Back** returns to the book detail screen.
 
 ---
 
-## 6. Current Limitations & Roadmap
+## 5. Reading Stats (Library-Wide)
 
-Please note that this firmware is currently in active development. The following features are **not yet supported** but are planned for future updates:
+Opening **Reading Stats** from the Home Screen shows your overall reading activity across your whole
+library, across three views. Use **Up**/**Down** or **Left**/**Right** to cycle between them (a page
+indicator like "1/3" shows your position):
 
-* **Images:** Embedded images in e-books will not render.
-* **Cover Images:** Large cover images embedded into EPUB require several seconds (~10s for ~2000 pixel tall image) to convert for sleep screen and home screen thumbnail. Consider optimizing the EPUB with e.g. https://github.com/bigbag/epub-to-xtc-converter to speed this up.
+1. **Overview** — total books, total reading sessions, and a breakdown by status (Want to Read /
+   Reading / Paused / Finished / Dropped) and by tracking type (Pages vs. Chapters)
+2. **Month** — a calendar heatmap showing how many sessions you logged on each day of the month;
+   **Left**/**Right** move to the previous/next month
+3. **Year** — a bar chart with one bar per month showing session counts across the year;
+   **Left**/**Right** move to the previous/next year
+
+**Back** returns to the Home Screen.
 
 ---
 
-## 7. Troubleshooting Issues & Escaping Bootloop
+## 6. File Transfer & Dashboard
 
-If an issue or crash is encountered while using Crosspoint, feel free to raise an issue ticket and attach the serial monitor logs. The logs can be obtained by connecting the device to a computer and starting a serial monitor. Either [Serial Monitor](https://www.serialmonitor.org/) or the following command can be used:
+Selecting **Network** from the Home Screen lets you connect the device to Wi-Fi (joining an existing
+network, or starting its own hotspot/AP mode) — both modes display a QR code to make connecting from
+your phone or computer easier.
 
-```
-pio device monitor
-```
+Once connected, Myne exposes:
 
-If the device is stuck in a bootloop, press and release the Reset button. Then, press and hold on to the configured Back button and the Power Button to boot to the Home Screen.
+- A **file transfer web UI** for browsing, uploading (including fast WebSocket uploads), downloading,
+  renaming, moving, and deleting files on the SD card from any browser on the same network
+- A **WebDAV** endpoint, so you can mount the SD card as a network drive in supporting apps/OS file
+  managers
+- A **web settings UI**, mirroring the on-device Settings menu, for changing device settings remotely
 
-There can be issues with broken cache or config. In this case, delete the `.crosspoint` directory on your SD card (or consider deleting only `settings.bin`, `state.bin`, or `epub_*` cache directories in the `.crosspoint/` folder).
+### The companion dashboard
+
+The `dashboard/` web app is the primary way to manage your book catalog day-to-day. Run it on your
+computer (see its [README](./dashboard/README.md) for setup) and point it at your device's IP address.
+From the dashboard you can:
+
+- Add, edit, and delete books — title, author, volume, collection, location, and notes
+- Create and rename collections, and add per-collection notes
+- View and edit reading sessions for any book
+- Browse, upload, download, rename, move, and delete files on the SD card
+- View device status (battery, Wi-Fi, free space) and change settings
+- Flash new firmware to the device (OTA)
+
+### OTA updates
+
+From **Settings > System > Check for Updates**, the device checks
+[github.com/MateusGX/myne/releases](https://github.com/MateusGX/myne/releases) for a newer firmware
+version and offers to download and install it over Wi-Fi.
+
+---
+
+## 7. File Browser
+
+The SD card file browser lets you look at the raw contents of your SD card — useful for managing sleep
+screen images, firmware files, or anything else stored on the card outside the book catalog.
+
+- The header shows the current folder name (or "SD Card" at the root); the full path is shown at the
+  bottom, truncated from the left if it's long
+- **Up**/**Down** or **Left**/**Right** — scroll/page through entries (folders show a trailing `/`)
+- **Confirm** (short press) — open a folder, or select a file
+- **Confirm** (press and hold) — delete the highlighted file or folder, with a confirmation prompt
+- **Back** (short press) — go up one level (from the root, returns to the Home Screen)
+- **Back** (press and hold) — jump straight back to the root
+
+Hidden files (names starting with `.`) are hidden unless **Settings > System > Show Hidden Files** is
+enabled.
+
+---
+
+## 8. Settings
+
+Settings are organized into three categories. Open **Settings** from the Home Screen, then **Up**/**Down**
+to move between categories and items, **Confirm** to open/toggle, **Left**/**Right** to cycle option
+values, **Back** to return to the Home Screen.
+
+### 8.1 Display
+
+| Setting | Options |
+|---|---|
+| Sleep Screen | Dark, Light, Custom, Cover, Blank, Cover + Custom |
+| Sleep Screen Cover Mode *(only if Sleep Screen is Cover or Cover + Custom)* | Fit, Crop |
+| Sleep Screen Cover Filter *(only if Sleep Screen is Cover or Cover + Custom)* | None, Black & White, Inverted |
+| Hide Battery % | Never, In Reader, Always |
+| Refresh Frequency | Every 1 / 5 / 10 / 15 / 30 pages |
+| Sunlight Fading Fix | On / Off |
+
+See [Sleep Screen](#9-sleep-screen) below for details on each sleep screen mode.
+
+### 8.2 Controls
+
+| Setting | What it does |
+|---|---|
+| Remap Front Buttons | Walks you through pressing a physical button for each of the **Back**, **Confirm**, **Left**, and **Right** roles, in order. While remapping: press **Up** to reset to the default layout, or **Down** to cancel without saving. The same physical button can't be assigned to two roles. |
+
+### 8.3 System
+
+| Setting | Options |
+|---|---|
+| Time to Sleep | 1 / 5 / 10 / 15 / 30 minutes of inactivity |
+| Show Hidden Files | On / Off — controls visibility of dot-files in the File Browser |
+| Timezone | UTC-12 to UTC+14 |
+| WiFi Networks | Opens the Wi-Fi network list to scan/select/forget networks |
+| Check for Updates | Checks for and installs a newer firmware build over OTA |
+| SD Card Firmware Update | Installs a firmware `.bin` file from the SD card |
+| Language | Switches the UI language (currently English and Portuguese) |
+
+---
+
+## 9. Sleep Screen
+
+When the device sleeps (after the **Time to Sleep** timeout, or when you press **Power**), it shows a
+full-screen image based on **Settings > Display > Sleep Screen**:
+
+- **Dark** — a dark logo on a light background
+- **Light** — a light logo on a dark (inverted) background
+- **Custom** — a random image from your SD card (see below)
+- **Cover** — the cover image of the book from your most recent reading session (i.e. your "Last Read"
+  book on the Home Screen)
+- **Blank** — a blank screen
+- **Cover + Custom** — the last-read book's cover, falling back to a random custom image if no cover is
+  available
+
+When **Cover** or **Cover + Custom** is selected, two extra settings appear:
+- **Sleep Screen Cover Mode** — **Fit** (scale the cover to fit without cropping) or **Crop** (scale and
+  crop to fill the screen)
+- **Sleep Screen Cover Filter** — **None** (grayscale as-is), **Black & White**, or **Inverted**
+
+For **Custom** images, Myne first looks for a single `/sleep.bmp` file at the root of the SD card; if
+that doesn't exist, it picks a random `.bmp` from a `/sleep/` (or `/.sleep/`) folder, avoiding repeats
+of recently shown images where possible.
+
+---
+
+## 10. Troubleshooting
+
+**Device won't connect to Wi-Fi**
+- Make sure you're entering the correct password from **Settings > System > WiFi Networks**
+- 5GHz-only networks aren't supported — the ESP32-C3 radio is 2.4GHz only
+
+**Books or readings don't appear / catalog seems out of date**
+- After adding or editing books, collections, or readings from the dashboard, the device rebuilds its
+  on-device catalog index the next time it boots or wakes — give it a moment on the "Rebuilding
+  catalog…" screen
+- If the rebuild reports "Sync failed", try saving again from the dashboard, then power-cycle the device
+
+**Resetting on-device data**
+- All catalog data, settings, and Wi-Fi credentials are stored on the SD card under `/.myne/`. Removing
+  this folder resets the device to a fresh state (you'll lose your book catalog, reading history, and
+  saved settings) — back it up first if you want to keep your data
+- Settings and reading data are plain JSON/NDJSON files under `/.myne/`, so they can be inspected or
+  edited directly on a computer if needed (close any app holding the SD card before re-inserting it
+  into the device)
+
+**Firmware update fails**
+- Make sure the device has a stable Wi-Fi connection for OTA updates, or use
+  **Settings > System > SD Card Firmware Update** with a `.bin` file copied to the SD card
+- If the device becomes unresponsive after a failed update, see the [README](./README.md#install-firmware)
+  for how to reflash over USB

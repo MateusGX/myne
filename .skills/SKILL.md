@@ -1,7 +1,7 @@
-# CrossPoint Reader Development Guide
+# Myne Development Guide
 
-Project: Open-source e-reader firmware for Xteink X4 (ESP32-C3)
-Mission: Provide a lightweight, high-performance reading experience focused on EPUB rendering on constrained hardware.
+Project: Myne (https://github.com/MateusGX/myne) — a personal fork of CrossPoint, firmware for the Xteink X4 (ESP32-C3) e-ink device.
+Mission: Catalog a library of physical books and track reading sessions for them, on constrained e-ink hardware. On-device browsing, logging, and stats, plus Wi-Fi file transfer, a companion web dashboard, and OTA updates. No EPUB/e-book reading — Myne tracks reading *of* physical books, not their content.
 
 ## AI Agent Identity and Cognitive Rules
 * Role: Senior Embedded Systems Engineer (ESP-IDF/Arduino-ESP32 specialized).
@@ -47,7 +47,7 @@ find src -name "*.cpp" -o -name "*.h" | xargs clang-format -i
 * Flash: 16MB (Instruction storage and static data)
 * Display: 800x480 E-Ink (Slow refresh, monochrome, 1-2s full update)
   * Framebuffer: 48,000 bytes (800 × 480 ÷ 8)
-* Storage: SD Card (Used for books and aggressive caching)
+* Storage: SD Card (Used for files — no binary caching)
 
 ### The Resource Protocol
 1. Stack Safety: Limit local function variables to < 256 bytes. The ESP32-C3 default stack is small; use std::unique_ptr or static pools for larger buffers.
@@ -57,7 +57,7 @@ find src -name "*.cpp" -o -name "*.h" | xargs clang-format -i
 5. UI Strings: All user-facing text must use the `tr()` macro (e.g., `tr(STR_LOADING)`) for i18n support. Never hardcode UI strings directly. For the avoidance of doubt, logging messages (LOG_DBG/LOG_ERR) can be hardcoded, but user-facing text must use `tr()`.
 6. `constexpr` First: Compile-time constants and lookup tables must be `constexpr`, not just `static const`. This moves computation to compile time, enables dead-branch elimination, and guarantees flash placement. Use `static constexpr` for class-level constants.
 7. `std::vector` Pre-allocation: Always call `.reserve(N)` before any `push_back()` loop. Each growth event allocates a new block (2×), copies all elements, then frees the old one — three heap operations that fragment DRAM. When the final size is unknown, estimate conservatively.
-8. SPIFFS Write Throttling: Never write a settings file on every user interaction. Guard all writes with a value-change check (`if (newVal == _current) return;`). Progress saves during reading must be debounced — write on activity exit or every N page turns, not on every turn. SPIFFS sectors have a finite erase cycle limit.
+8. SPIFFS Write Throttling: Never write a settings file on every user interaction. Guard all writes with a value-change check (`if (newVal == _current) return;`). SPIFFS sectors have a finite erase cycle limit.
 
 ---
 
@@ -100,10 +100,8 @@ These flags in `platformio.ini` fundamentally affect firmware behavior:
 -DEINK_DISPLAY_SINGLE_BUFFER_MODE=1  // Single framebuffer (saves 48KB RAM!)
 -DARDUINO_USB_MODE=1                 // Enable USB CDC
 -DARDUINO_USB_CDC_ON_BOOT=1          // Serial available immediately at boot
--DXML_CONTEXT_BYTES=1024             // XML parser memory limit (EPUB parsing)
 -DUSE_UTF8_LONG_NAMES=1              // SD card long filename support
 -DMINIZ_NO_ZLIB_COMPATIBLE_NAMES=1   // Avoid zlib name conflicts
--DXML_GE=0                           // Disable XML general entities (security)
 -DDESTRUCTOR_CLOSES_FILE=1           // FsFile destructor auto-closes (SdFat)
 ```
 
@@ -119,15 +117,40 @@ These flags in `platformio.ini` fundamentally affect firmware behavior:
 - Only ONE framebuffer exists (not double-buffered)
 - Grayscale rendering requires temporary buffer allocation (`renderer.storeBwBuffer()`)
 - Must call `renderer.restoreBwBuffer()` to free temporary buffers
-- See [lib/GfxRenderer/GfxRenderer.cpp:439-440](../lib/GfxRenderer/GfxRenderer.cpp) for malloc usage
+- See [lib/GfxRenderer/GfxRenderer.cpp](lib/GfxRenderer/GfxRenderer.cpp) for malloc usage
 
 ### Directory Structure
-* lib/: Internal libraries (Epub engine, GfxRenderer, UITheme, I18n)
-  * lib/hal/: Hardware Abstraction Layer (HalDisplay, HalGPIO, HalStorage)
-  * lib/I18n/: Internationalization (translations in `translations/*.yaml`, generated string tables)
-* src/activities/: UI logic using the Activity Lifecycle (onEnter, loop, onExit)
-* open-x4-sdk/: Low-level SDK (EInkDisplay, InputManager, BatteryMonitor, SDCardManager)
-* .crosspoint/: SD-based binary cache for EPUB metadata and pre-rendered layout sections
+* `lib/`: Internal libraries
+  * `lib/hal/`: Hardware Abstraction Layer (HalDisplay, HalGPIO, HalStorage)
+  * `lib/I18n/`: Internationalization (translations in `translations/*.yaml`, generated string tables)
+  * `lib/GfxRenderer/`: E-ink rendering engine (no SdCardFont, no FontCacheManager)
+  * `lib/EpdFont/`: Built-in bitmap fonts only (no SdCardFont, no FontDecompressor)
+  * `lib/DataStore/`: On-device physical-book catalog and reading-session storage (`BookCatalog`, `BookStore`, `ReadingLog`, `RecordStore`, `TimeSeriesStore`) — see [docs/book-catalog-format.md](docs/book-catalog-format.md)
+  * `lib/FsHelpers/`, `lib/JsonParser/`, `lib/Logging/`, `lib/Serialization/`, `lib/Utf8/`: shared low-level utilities
+* `src/activities/`: UI logic using the Activity Lifecycle (onEnter, loop, onExit)
+  * `src/activities/home/`: HomeActivity (hero "Last Read" card + 2×2 icon grid)
+  * `src/activities/books/`: Physical book catalog & reading-session UI — `LetterPickerActivity`, `LetterBooksActivity`, `CollectionBooksActivity`, `PhysicalBookDetailActivity`, `BookReadingsActivity`, `ReadingEditActivity`, `ReadingStatsActivity`, `CatalogSyncActivity`
+  * `src/activities/browser/`: `FileBrowserActivity`
+  * `src/activities/settings/`: SettingsActivity (Display, Controls, System)
+  * `src/activities/network/`: `MyneWebServerActivity` (Wi-Fi file transfer + dashboard API), `WifiSelectionActivity`
+  * `src/activities/boot_sleep/`: `BootActivity`, `SleepActivity`
+  * `src/activities/util/`: Shared utilities (keyboard, popups, etc.)
+* `src/components/`: UI components
+  * `src/components/MyneUI.h/.cpp`: Single flat UI class (no themes, no inheritance)
+  * `src/components/UITheme.h/.cpp`: Thin wrapper exposing `GUI` macro → `MyneUI`
+  * `src/components/icons/`: Generated 1-bit icon headers (`folder64.h`, `settings64.h`, etc.)
+  * `src/components/icons/src/`: Source SVG files for icon generation
+* `open-x4-sdk/`: Low-level SDK (EInkDisplay, InputManager, BatteryMonitor, SDCardManager)
+* `dashboard/`: Companion React + Vite web dashboard (books, reading sessions, file browser, settings) that talks to the device's `/api/*` endpoints over Wi-Fi
+* `scripts/`: Python tooling
+  * `scripts/build_icons.py`: Batch-converts all SVGs in `icons/src/` to C headers
+  * `scripts/convert_icon.py`: Single-icon SVG/PNG → 1-bit C header converter
+
+**Removed libraries** (no longer in the codebase):
+- `lib/Epub/`, `lib/Xtc/`, `lib/Txt/` — reader engines
+- `lib/KOReaderSync/`, `lib/OpdsParser/` — sync/discovery
+- `lib/ZipFile/`, `lib/InflateReader/`, `lib/expat/`, `lib/uzlib/`, `lib/XmlParserUtils/` — EPUB parsing deps
+- `lib/JpegToBmpConverter/`, `lib/PngToBmpConverter/` — image converters
 
 ### Hardware Abstraction Layer (HAL)
 
@@ -139,7 +162,7 @@ These flags in `platformio.ini` fundamentally affect firmware behavior:
 | `HalGPIO` | `InputManager` | Button input handling | *(none)* |
 | `HalStorage` | `SDCardManager` | SD card file I/O | `Storage` |
 
-**Location**: [lib/hal/](../lib/hal/)
+**Location**: [lib/hal/](lib/hal/)
 
 **Why HAL?**
 - Provides consistent error logging per module
@@ -162,14 +185,67 @@ if (Storage.openFileForRead("MODULE", "/path/to/file.bin", file)) {
 
 ---
 
+## UI Architecture: MyneUI
+
+### UIIcon Enum
+
+Defined in [src/components/icons/Icons.h](src/components/icons/Icons.h):
+
+```cpp
+enum class UIIcon {
+  FolderIcon, ImageIcon, FileIcon, BookIcon, BookMarkedIcon, LibraryBigIcon,
+  FolderBookmarkIcon, NetworkIcon, SettingsIcon, WifiIcon, HotspotIcon,
+  BookHeartIcon, ChartIcon, ChevronRightIcon
+};
+```
+
+`iconForName(UIIcon, int size)` supports sizes 24, 32, and 64 — but not every icon has every size. Check `Icons.h` for the per-icon size mapping before assuming a variant exists.
+
+### Icon Generation Workflow
+
+Icons are 1-bit packed bitmaps stored as C headers in `src/components/icons/`.
+
+**Source SVGs**: `src/components/icons/src/` — filename encodes size: `folder64.svg` → 64×64.
+
+**Single icon**:
+```bash
+python scripts/convert_icon.py input.svg output_name width height
+# Writes: src/components/icons/output_name.h
+```
+
+**Batch rebuild all icons**:
+```bash
+python scripts/build_icons.py                  # All SVGs in icons/src/
+python scripts/build_icons.py icons/src/x.svg  # Specific files
+python scripts/build_icons.py --default-size 32  # Size fallback when not in filename
+```
+
+**Conversion pipeline** ([scripts/convert_icon.py](scripts/convert_icon.py)):
+1. SVG → PNG: tries `cairosvg` first, falls back to macOS `qlmanage` (renders at 8× then trims white margins)
+2. PNG → RGBA → RGB (white background composite)
+3. Resize to target dimensions with LANCZOS
+4. Rotate 90° CCW (e-ink display orientation)
+5. Threshold to 1-bit (pixels ≥ 128 = white/1, < 128 = black/0)
+6. Pack MSB-first into `uint8_t[]`, emit `#pragma once` C header
+
+**Requirements** (Python):
+```
+pillow>=12.2.0
+cairosvg>=2.9.0  # optional; qlmanage used as fallback on macOS
+```
+
+**After adding or modifying an SVG**, run `build_icons.py` and commit both the SVG source and the generated `.h` file.
+
+---
+
 ## Coding Standards
 
 ### Naming Conventions
-* Classes: PascalCase (e.g., EpubReaderActivity)
+* Classes: PascalCase (e.g., FileBrowserActivity)
 * Methods/Variables: camelCase (e.g., renderPage())
 * Constants: UPPER_SNAKE_CASE (e.g., MAX_BUFFER_SIZE)
 * Private Members: memberVariable (no prefix)
-* File Names: Match Class names (e.g., EpubReaderActivity.cpp)
+* File Names: Match Class names (e.g., PhysicalBookDetailActivity.cpp)
 
 ### Header Guards
 * Use #pragma once for all header files.
@@ -256,7 +332,7 @@ When a template is necessary, limit instantiations: use explicit template instan
 
 ### Error Handling Philosophy
 
-**Source**: [src/main.cpp:132-143](../src/main.cpp), [lib/GfxRenderer/GfxRenderer.cpp:10](../lib/GfxRenderer/GfxRenderer.cpp)
+**Source**: [src/main.cpp](src/main.cpp), [lib/GfxRenderer/GfxRenderer.cpp](lib/GfxRenderer/GfxRenderer.cpp)
 
 **Pattern Hierarchy**:
 1. **LOG_ERR + return false** (90%): `LOG_ERR("MOD", "Failed: %s", reason); return false;`
@@ -268,7 +344,7 @@ When a template is necessary, limit instantiations: use explicit template instan
 
 ### Acceptable malloc/free Patterns
 
-**Source**: [src/activities/home/HomeActivity.cpp:166](../src/activities/home/HomeActivity.cpp), [lib/GfxRenderer/GfxRenderer.cpp:439-440](../lib/GfxRenderer/GfxRenderer.cpp)
+**Source**: [lib/GfxRenderer/GfxRenderer.cpp](lib/GfxRenderer/GfxRenderer.cpp)
 
 Despite "prefer stack allocation," malloc is acceptable for:
 1. **Large temporary buffers** (> 256 bytes, won't fit on stack)
@@ -299,10 +375,8 @@ buffer = nullptr;
 - **Document size**: Comment why stack allocation was rejected
 
 **Examples in codebase**:
-- Cover image buffers: [HomeActivity.cpp:166](../src/activities/home/HomeActivity.cpp)
-- Text chunk buffers: [TxtReaderActivity.cpp:259](../src/activities/reader/TxtReaderActivity.cpp)
-- Bitmap rendering: [GfxRenderer.cpp:439-440](../lib/GfxRenderer/GfxRenderer.cpp)
-- OTA update buffer: [OtaUpdater.cpp:40](../src/network/OtaUpdater.cpp)
+- Bitmap rendering: [GfxRenderer.cpp](lib/GfxRenderer/GfxRenderer.cpp) (storeBwBuffer)
+- OTA update buffer: [OtaUpdater.cpp](src/network/OtaUpdater.cpp)
 
 ---
 
@@ -314,7 +388,7 @@ buffer = nullptr;
 
 ### Logical Button Mapping
 
-**Source**: [src/MappedInputManager.cpp:20-55](../src/MappedInputManager.cpp)
+**Source**: [src/MappedInputManager.cpp](src/MappedInputManager.cpp)
 
 Constraint: Physical button positions are fixed on hardware, but their logical functions change based on user settings and screen orientation.
 
@@ -329,10 +403,6 @@ Constraint: Physical button positions are fixed on hardware, but their logical f
    - `Button::Left` → Maps to `SETTINGS.frontButtonLeft`
    - `Button::Right` → Maps to `SETTINGS.frontButtonRight`
 
-3. **Reader-Specific** (Page navigation with optional swap):
-   - `Button::PageBack` → Uses side button (swappable via `SETTINGS.sideButtonLayout`)
-   - `Button::PageForward` → Uses side button (swappable)
-
 **Implementation**:
 - Activities use **logical buttons** (e.g., `Button::Confirm`)
 - `MappedInputManager` translates to **physical hardware buttons**
@@ -341,10 +411,6 @@ Constraint: Physical button positions are fixed on hardware, but their logical f
 
 **Rule**: Always use `MappedInputManager::Button::*` enums, never raw `HalGPIO::BTN_*` indices (except in ButtonRemapActivity).
 
-### UITheme (The GUI Macro)
-* Rule: All UI rendering must go through the GUI macro (UITheme). 
-* Do not hardcode fonts, colors, or positioning. This ensures orientation-aware layout consistency.
-
 ---
 
 ## Common Patterns
@@ -352,16 +418,16 @@ Constraint: Physical button positions are fixed on hardware, but their logical f
 ### Singleton Access
 **Available Singletons**:
 ```cpp
-#define SETTINGS CrossPointSettings::getInstance()  // User settings
-#define APP_STATE CrossPointState::getInstance()    // Runtime state
-#define GUI UITheme::getInstance()                   // Current theme
-#define Storage HalStorage::getInstance()            // SD card I/O
-#define I18N I18n::getInstance()                     // Internationalization
+#define SETTINGS MyneSettings::getInstance()  // User settings
+#define APP_STATE MyneState::getInstance()    // Runtime state
+#define GUI UITheme::getInstance().getTheme() // MyneUI instance
+#define Storage HalStorage::getInstance()     // SD card I/O
+#define I18N I18n::getInstance()              // Internationalization
 ```
 
 ### Activity Lifecycle and Memory Management
 
-**Source**: [src/main.cpp:132-143](../src/main.cpp)
+**Source**: [src/main.cpp](src/main.cpp)
 
 **CRITICAL**: Activities are **heap-allocated** and **deleted on exit**.
 
@@ -398,41 +464,36 @@ void onExit()   { /* free: vTaskDelete, free buffer, close member FsFiles */ Act
 
 ### FreeRTOS Task Guidelines
 
-**Source**: [src/activities/util/KeyboardEntryActivity.cpp:45-50](../src/activities/util/KeyboardEntryActivity.cpp)
+**Source**: [src/activities/util/KeyboardEntryActivity.cpp](src/activities/util/KeyboardEntryActivity.cpp)
 
 **Pattern**: See Activity Lifecycle above. `xTaskCreate(&taskTrampoline, "Name", stackSize, this, 1, &handle)`
 
 **Stack Sizing** (in BYTES, not words):
 - **2048**: Simple rendering (most activities)
-- **4096**: Network, EPUB parsing
+- **4096**: Network operations
 - Monitor: `uxTaskGetStackHighWaterMark()` if crashes
 
 **Rules**: Always `vTaskDelete()` in `onExit()` before destruction. Use mutex if shared state.
 
 ### Global Font Loading
 
-**Source**: [src/main.cpp:40-115](../src/main.cpp)
+**Source**: [src/main.cpp](src/main.cpp)
 
-**All fonts are loaded as global static objects** at firmware startup:
-- Noto Serif: 12, 14, 16, 18pt (4 styles each: regular, bold, italic, bold-italic)
-- Noto Sans: 12, 14, 16, 18pt (4 styles each)
-- OpenDyslexic: 8, 10, 12, 14pt (4 styles each)
-- Ubuntu UI fonts: 10, 12pt (2 styles)
-
-**Total**: ~80+ global `EpdFont` and `EpdFontFamily` objects
+**Fonts loaded at firmware startup** (UI-only, no reader fonts):
+- Ubuntu UI fonts: 10, 12pt (2 styles each: regular, bold)
+- Noto Sans small: 8pt (for compact UI elements)
 
 **Compilation Flag**:
 ```cpp
 #ifndef OMIT_FONTS
-  // Most fonts loaded here
+  // Fonts loaded here
 #endif
 ```
 
 **Implications**:
 - Fonts stored in **Flash** (marked as `static const` in `lib/EpdFont/builtinFonts/`)
 - Font rendering data cached in **DRAM** when first used
-- `OMIT_FONTS` can reduce binary size for minimal builds
-- Font IDs defined in [src/fontIds.h](../src/fontIds.h)
+- Font IDs defined in [src/fontIds.h](src/fontIds.h)
 
 **Usage**:
 ```cpp
@@ -523,12 +584,7 @@ clang-format -i src/**/*.cpp src/**/*.h
    - Always `vTaskDelete()` in `onExit()` BEFORE activity destruction
    - Set pointers to `nullptr` after `free()`
 
-4. **Corrupt Cache Files**:
-   - Delete `.crosspoint/` directory on SD card
-   - Forces clean re-parse of all EPUBs
-   - Check file format versions in [docs/file-formats.md](../docs/file-formats.md)
-
-5. **Watchdog Timeout**:
+4. **Watchdog Timeout**:
    - Loop/task blocked for >5 seconds
    - Add `vTaskDelay(1)` in tight loops
    - Check for blocking I/O operations
@@ -538,6 +594,45 @@ clang-format -i src/**/*.cpp src/**/*.h
 2. Monitor heap with `ESP.getFreeHeap()` before/after operations
 3. Verify task deletion with task list (`vTaskList()`)
 4. Test with `LOG_LEVEL=2` (debug logging enabled)
+
+---
+
+## Settings Architecture
+
+### Settings Categories (3 total)
+
+**Source**: [src/activities/settings/SettingsActivity.cpp](src/activities/settings/SettingsActivity.cpp)
+
+1. **Display** — sleep screen mode/cover/filter, hide battery percentage, refresh frequency, sunlight fading fix
+2. **Controls** — remap front buttons
+3. **System** — time to sleep, show hidden files, timezone offset, Wi-Fi networks, check for updates, SD firmware update, language
+
+`MyneSettings.h` still defines several reader-era enums and fields (`FONT_FAMILY`, `FONT_SIZE`, `LINE_COMPRESSION`, `PARAGRAPH_ALIGNMENT`, `STATUS_BAR_TITLE`, etc.). These are loaded/saved for backward compatibility with existing settings files but are not read anywhere in `src/`/`lib/` — treat them as legacy/dead and do not build new features on top of them.
+
+### MyneState
+
+**Source**: [src/MyneState.h](src/MyneState.h)
+
+Minimal runtime state — only the `recentSleepImages` circular buffer (plus `recentSleepPos`/`recentSleepFill`) remains, used for sleep-screen cover rotation. All book and reading-session data lives in `lib/DataStore/` (see [docs/book-catalog-format.md](docs/book-catalog-format.md)), not in `MyneState`.
+
+### ActivityManager
+
+**Source**: [src/activities/ActivityManager.h](src/activities/ActivityManager.h)
+
+Available navigation methods:
+- `goHome()` — HomeActivity (hero "Last Read" card + 2×2 icon grid)
+- `goToFileBrowser(path)` — FileBrowserActivity
+- `goToFileTransfer()` — MyneWebServerActivity (Wi-Fi file transfer + dashboard API)
+- `goToSettings()` — SettingsActivity
+- `goToPhysicalBooks()` — LetterPickerActivity (browse the catalog by letter/collection)
+- `goToPhysicalBookDetail(PhysicalBook)` — PhysicalBookDetailActivity
+- `goToBookReadings(PhysicalBook)` — BookReadingsActivity
+- `goToReadingStats()` — ReadingStatsActivity
+- `goToLastRead()` — opens the most recently read book
+- `goToSleep()` — SleepActivity
+- `goToBoot()` — BootActivity
+- `goToFullScreenMessage()` — FullScreenMessageActivity
+- `goToCrashReport()` — CrashReportActivity
 
 ---
 
@@ -565,9 +660,9 @@ git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/ori
 git status --short
 ```
 
-**Example Output** (forked repository):
+**Example Output** (Myne is itself a personal fork of CrossPoint):
 ```text
-origin      https://github.com/<your-username>/crosspoint-reader.git (fetch/push)
+origin      https://github.com/MateusGX/myne.git (fetch/push)
 upstream    https://github.com/crosspoint-reader/crosspoint-reader.git (fetch/push)
 ```
 
@@ -631,8 +726,8 @@ docs/<topic>                      # Documentation updates
 ```text
 feat: add real-time SD download progress bar
 
-Implements progress tracking for book downloads using
-UITheme progress bar component with heap-safe updates.
+Implements progress tracking for file downloads using
+MyneUI progress bar component with heap-safe updates.
 
 Tested in all 4 orientations with 5MB+ files.
 ```
@@ -675,7 +770,13 @@ Tested in all 4 orientations with 5MB+ files.
    - **To modify**: Edit source YAML files, then run `python scripts/gen_i18n.py lib/I18n/translations lib/I18n/`
    - **Commit**: Source YAML files only. All three generated files (`I18nKeys.h`, `I18nStrings.h`, `I18nStrings.cpp`) are in `.gitignore` and regenerated at build time.
 
-3. **Build Artifacts** (in `.gitignore`):
+3. **Icon Headers** (generated by `scripts/build_icons.py`):
+   - `src/components/icons/*.h`
+   - **Source**: SVG files in `src/components/icons/src/`
+   - **To modify**: Edit or add SVG, then run `python scripts/build_icons.py`
+   - **Commit**: Both the SVG source AND the generated `.h` file (icons are not regenerated at build time)
+
+4. **Build Artifacts** (in `.gitignore`):
    - `.pio/` - PlatformIO build output
    - `build/` - Compiled binaries
    - `*.generated.h` - Any auto-generated headers
@@ -704,11 +805,12 @@ Tested in all 4 orientations with 5MB+ files.
 renderer.drawText(FONT_UI, x, y, tr(STR_LOADING), true);
 ```
 
-**To add custom fonts**:
-1. Place source fonts in `lib/EpdFont/fontsrc/` (gitignored)
-2. Run conversion script (see `lib/EpdFont/README`)
-3. Update global font objects in `src/main.cpp:40-115`
-4. Add font ID constant to `src/fontIds.h`
+**To add icons**:
+1. Place source SVG in `src/components/icons/src/` — encode size in name (e.g., `myicon64.svg`)
+2. Run: `python scripts/build_icons.py src/components/icons/src/myicon64.svg`
+3. Generated header: `src/components/icons/myicon64.h`
+4. Add to `UIIcon` enum in `src/components/icons/Icons.h` and handle in `iconForName()`
+5. **Commit** both SVG and generated `.h` file
 
 ---
 
@@ -764,7 +866,6 @@ build_flags =
 6. 🔲 **Device**: Test on hardware
 7. 🔲 **Orientations**: Verify all 4 modes (Portrait/Inverted/Landscape CW/CCW)
 8. 🔲 **Heap**: `ESP.getFreeHeap()` > 50KB, no leaks
-9. 🔲 **Cache**: If EPUB modified, delete `.crosspoint/` and verify re-parse
 
 ### CI/CD Pipeline Awareness
 
@@ -803,79 +904,4 @@ build_flags =
 
 ---
 
-## Cache Management and Invalidation
-
-### Cache Structure on SD Card
-
-**Location**: `.crosspoint/` directory on SD card root
-
-**Structure**: `.crosspoint/epub_<hash>/{book.bin, progress.bin, cover.bmp, sections/*.bin}`
-
-**Hash**: `std::hash<std::string>{}(filepath)` → Moving/renaming file = new hash = lost progress
-
-### Cache Invalidation Rules
-
-**Cache is automatically invalidated when**:
-1. **File format version changes** (see `docs/file-formats.md`)
-   - `book.bin` version number incremented
-   - `section.bin` version number incremented
-2. **Render settings change**:
-   - Font family or size (`SETTINGS.fontFamily`, `SETTINGS.fontSize`)
-   - Line spacing (`SETTINGS.lineSpacing`)
-   - Paragraph spacing (`SETTINGS.extraParagraphSpacing`)
-   - Screen margins (`SETTINGS.screenMargin`)
-3. **Viewport dimensions change**:
-   - Screen orientation change
-   - Display resolution change
-4. **Book file modified**:
-   - Moved, renamed, or content changed (new hash)
-
-**Manual Cache Clear** (safe operations):
-```bash
-# Delete ALL caches (forces full regeneration)
-rm -rf /path/to/sd/.crosspoint/
-
-# Delete specific book cache
-rm -rf /path/to/sd/.crosspoint/epub_<hash>/
-
-# Keep progress, delete only rendered sections
-rm -rf /path/to/sd/.crosspoint/epub_<hash>/sections/
-```
-
-**When to Clear Cache**:
-- EPUB parsing errors after code changes to `lib/Epub/`
-- Corrupt rendering (missing text, wrong layout)
-- Testing cache generation logic
-- After modifying:
-  - `lib/Epub/Epub/Section.cpp`
-  - `lib/Epub/Epub/BookMetadataCache.cpp`
-  - Render settings in `CrossPointSettings`
-
-### Cache File Format Versioning
-
-**Source**: `lib/Epub/Epub/Section.cpp`, `lib/Epub/Epub/BookMetadataCache.cpp`
-
-**Current Versions** (as of docs/file-formats.md):
-- `book.bin`: **Version 5** (metadata structure)
-- `section.bin`: **Version 12** (layout structure)
-
-**Version Increment Rules**:
-1. **ALWAYS increment version** BEFORE changing binary structure
-2. Version mismatch → Cache auto-invalidated and regenerated
-3. Document format changes in `docs/file-formats.md`
-
-**Example** (incrementing section format version):
-```cpp
-// lib/Epub/Epub/Section.cpp
-static constexpr uint8_t SECTION_FILE_VERSION = 13;  // Was 12, now 13
-
-// Add new field to structure
-struct PageLine {
-  // ... existing fields ...
-  uint16_t newField;  // New field added
-};
-```
-
----
-
-Philosophy: We are building a dedicated e-reader, not a Swiss Army knife. If a feature adds RAM pressure without significantly improving the reading experience, it is Out of Scope.
+Philosophy: We are building a dedicated physical-book library and reading-session tracker, not a Swiss Army knife. If a feature adds RAM pressure without significantly improving book cataloging, reading tracking, file transfer, or the companion dashboard, it is Out of Scope.

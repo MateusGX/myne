@@ -1,8 +1,13 @@
 # Architecture Overview
 
-CrossPoint is firmware for the Xteink X4 (unaffiliated with Xteink), built with PlatformIO targeting the ESP32-C3 microcontroller.
+Myne is firmware for the Xteink X4 (unaffiliated with Xteink), built with PlatformIO targeting the
+ESP32-C3 microcontroller. It is a personal fork of [CrossPoint](https://github.com/crosspoint-reader/crosspoint-reader)
+repurposed to catalog a library of physical books and track reading sessions for them, with a companion
+React dashboard for managing the catalog and SD card over Wi-Fi.
 
-At a high level, it is firmware that uses an activity-driven application architecture loop with persistent settings/state, SD-card-first caching, and a rendering pipeline optimized for e-ink constraints.
+At a high level, it is firmware that uses an activity-driven application architecture loop with
+persistent settings/state, an SD-card-backed book catalog and reading log, and a rendering pipeline
+optimized for e-ink constraints.
 
 ## System at a glance
 
@@ -11,12 +16,12 @@ graph TD
     A[Hardware: ESP32-C3 + SD + E-ink + Buttons] --> B[open-x4-sdk HAL]
     B --> C[src/main.cpp runtime loop]
     C --> D[Activities layer]
-    C --> E[State and settings]
-    D --> F[Reader flows]
-    D --> G[Home/Library/Settings flows]
+    C --> E[Settings and state]
+    D --> F[Books/Reading flows]
+    D --> G[Home/Browser/Settings flows]
     D --> H[Network/Web server flows]
-    F --> I[lib/Epub parsing + layout + hyphenation]
-    I --> J[SD cache in .crosspoint]
+    F --> I[lib/DataStore: BookCatalog, ReadingLog, BookStore]
+    I --> J[SD storage under /.myne]
     D --> K[GfxRenderer]
     K --> L[E-ink display buffer]
 ```
@@ -31,23 +36,26 @@ flowchart TD
     B --> C[Init SD storage]
     C --> D[Load settings and app state]
     D --> E[Init display and fonts]
-    E --> F{Resume reader?}
-    F -->|No| G[Enter Home activity]
-    F -->|Yes| H[Enter Reader activity]
-    G --> I[Main loop]
-    H --> I
+    E --> F{/.myne/sync_needed present?}
+    F -->|Yes| G[CatalogSyncActivity: rebuild catalog/]
+    F -->|No| H[Enter Home activity]
+    G --> H
+    H --> I[Main loop]
     I --> J[Poll input and run current activity]
     J --> K{Sleep condition met?}
     K -->|No| I
     K -->|Yes| L[Persist state and enter deep sleep]
 ```
 
-In each loop iteration, the firmware updates input, runs the active activity, handles auto-sleep/power behavior, and applies a short delay policy to balance responsiveness and power.
+In each loop iteration, the firmware updates input, runs the active activity, handles auto-sleep/power
+behavior, and applies a short delay policy to balance responsiveness and power.
 
 ## Activity model
 
-Activities are screen-level controllers deriving from `src/activities/Activity.h`.
-Some flows use `src/activities/ActivityWithSubactivity.h` to host nested activities.
+Activities are screen-level controllers deriving from `src/activities/Activity.h`. A single
+`ActivityManager` (see [activity-manager.md](../activity-manager.md)) owns the render task and an
+activity stack — `startActivityForResult()` / `setResult()` / `finish()` push and pop child activities
+with typed results.
 
 - `onEnter()` and `onExit()` manage setup/teardown
 - `loop()` handles per-frame behavior
@@ -55,101 +63,70 @@ Some flows use `src/activities/ActivityWithSubactivity.h` to host nested activit
 
 Top-level activity groups:
 
-- `src/activities/home/`: home and library navigation
-- `src/activities/reader/`: EPUB/XTC/TXT reading flows
+- `src/activities/home/`: home screen (2×3 icon grid, last-read shortcut)
+- `src/activities/books/`: physical book catalog, collections, reading sessions, and stats
+- `src/activities/browser/`: SD card file browser
 - `src/activities/settings/`: settings menus and configuration
-- `src/activities/network/`: WiFi selection, AP/STA mode, file transfer server
+- `src/activities/network/`: WiFi selection, AP/STA mode, web server/dashboard
 - `src/activities/boot_sleep/`: boot and sleep transitions
+- `src/activities/util/`: shared utilities (keyboard entry, confirmation dialogs, crash report, etc.)
 
-## Reader and content pipeline
+## Book catalog and reading pipeline
 
-Reader orchestration starts in `src/activities/reader/ReaderActivity.h` and dispatches to format-specific readers.
-EPUB processing is implemented in `lib/Epub/`.
+Physical books and their reading sessions are stored as JSON/NDJSON under `/.myne/` (source of truth),
+with a denormalized `catalog/` index and small binary caches for fast on-device browsing. See
+[book-catalog-format.md](../book-catalog-format.md) for the full on-disk format.
 
 ```mermaid
 flowchart LR
-    A[Select book] --> B[ReaderActivity]
-    B --> C{Format}
-    C -->|EPUB| D[lib/Epub/Epub]
-    C -->|XTC| E[lib/Xtc reader]
-    C -->|TXT| F[lib/Txt reader]
-    D --> G[Parse OPF/TOC/CSS]
-    G --> H[Layout pages/sections]
-    H --> I[Write section and metadata caches]
-    I --> J[Render current page via GfxRenderer]
+    A[CatalogSyncActivity] --> B["BookCatalog: rebuild catalog/ from books/ + collections.ndjson"]
+    B --> C[LetterPickerActivity]
+    C --> D[LetterBooksActivity / CollectionBooksActivity]
+    D --> E[PhysicalBookDetailActivity]
+    E --> F[BookReadingsActivity]
+    F --> G["ReadingEditActivity: log a session"]
+    G --> H["ReadingLog: append session, refresh readings-sum cache"]
+    H --> I[ReadingStatsActivity / BookReadingStatsActivity]
+    I --> J[stats-cache]
 ```
 
 Why caching matters:
 
-- RAM is limited on ESP32-C3, so expensive parsed/layout data is persisted to SD
-- repeat opens/page navigation can reuse cached data instead of full reparsing
-
-## Reader internals call graph
-
-This diagram zooms into the EPUB path to show the main control and data flow from activity entry to on-screen draw.
-
-```mermaid
-flowchart TD
-    A[ReaderActivity onEnter] --> B{File type}
-    B -->|EPUB| C[Create Epub object]
-    B -->|XTC/TXT| Z[Use format-specific reader]
-
-    C --> D[Epub load]
-    D --> E[Locate container and OPF]
-    E --> F[Build or load BookMetadataCache]
-    F --> G[Load TOC and spine]
-    G --> H[Load or parse CSS rules]
-
-    H --> I[EpubReaderActivity]
-    I --> J{Section cache exists for current settings?}
-    J -->|Yes| K[Read section bin from SD cache]
-    J -->|No| L[Parse chapter HTML and layout text]
-    L --> M[Apply typography settings and hyphenation]
-    M --> N[Write section cache bin]
-
-    K --> O[Build page model]
-    N --> O
-    O --> P[GfxRenderer draw calls]
-    P --> Q[HAL display framebuffer update]
-    Q --> R[E-ink refresh policy]
-
-    S[SETTINGS singleton] -. influences .-> J
-    S -. influences .-> M
-    T[APP_STATE singleton] -. persists .-> U[Reading progress and resume context]
-    U -. used by .-> I
-```
-
-Notes:
-
-- "section cache exists" depends on cache-busting parameters such as font and layout-related settings
-- rendering favors reusing precomputed layout data to keep page turns responsive on constrained hardware
-- progress/session state is persisted so the reader can reopen at the last position after reboot/sleep
+- RAM is limited on ESP32-C3, so the catalog index and stats are precomputed and cached as small binary
+  files instead of being recomputed from JSON on every screen
+- `catalog/`, `readings-sum/`, and `stats-cache/` are all derived data — they're rebuilt from `books/`,
+  `readings/`, and `collections.ndjson` whenever `/.myne/sync_needed` is present (shown on-device as the
+  "Rebuilding catalog…" screen)
 
 ## State and persistence
 
 Two singletons are central:
 
-- `src/CrossPointSettings.h` (`SETTINGS`): user preferences and behavior flags
-- `src/CrossPointState.h` (`APP_STATE`): runtime/session state such as current book and sleep context
+- `src/MyneSettings.h` (`SETTINGS`): user preferences and behavior flags
+- `src/MyneState.h` (`APP_STATE`): runtime/session state (e.g. recent sleep images)
 
 Typical persisted areas on SD:
 
 ```text
-/.crosspoint/
-  epub_<hash>/
-    book.bin
-    progress.bin
-    cover.bmp
-    sections/*.bin
-  settings.bin
+/.myne/
+  books/{id}.json
+  readings/{bookId}.json
+  catalog/...
+  collections.ndjson
+  notes/{id8}.note
+  readings-sum/{bookId}.bin
+  stats-cache/...
+  settings.json
   state.bin
+  sync_needed
 ```
 
-For binary cache formats, see `docs/file-formats.md`.
+For the book catalog and reading-log formats, see [book-catalog-format.md](../book-catalog-format.md).
 
 ## Networking architecture
 
-Network file transfer is controlled by `src/activities/network/CrossPointWebServerActivity.h` and served by `src/network/CrossPointWebServer.h`.
+Network file transfer and the dashboard are controlled by
+`src/activities/network/MyneWebServerActivity.h` and served by `src/network/MyneWebServer.h`.
 
 Modes:
 
@@ -158,35 +135,41 @@ Modes:
 
 Server behavior:
 
-- HTTP server on port 80
+- HTTP server on port 80, serving the companion dashboard (`dashboard/`) and its JSON API
 - WebSocket upload server on port 81
-- file operations backed by SD storage
-- activity requests faster loop responsiveness while server is running
+- file operations backed by SD storage; book catalog/reading-log operations backed by `lib/DataStore/`
+- activity requests faster loop responsiveness while the server is running
 
-Endpoint reference: `docs/webserver-endpoints.md`.
+Endpoint reference: [webserver-endpoints.md](../webserver-endpoints.md).
 
 ## Build-time generated assets
 
 Some sources are generated and should not be edited manually.
 
-- `scripts/build_html.py` generates `src/network/html/*.generated.h` from HTML files
-- `scripts/generate_hyphenation_trie.py` generates hyphenation headers under `lib/Epub/Epub/hyphenation/generated/`
+- `scripts/build_html.py` generates `src/network/html/*.generated.h` from the dashboard's built
+  `dist/index.html` (see [dashboard/README.md](../../dashboard/README.md))
+- `scripts/build_icons.py` generates `src/components/icons/*.h` from SVGs in
+  `src/components/icons/src/`
+- `scripts/gen_i18n.py` generates `lib/I18n/I18nKeys.h`, `I18nStrings.h`, and `I18nStrings.cpp` from
+  `lib/I18n/translations/*.yaml`
 
-When editing related source assets, regenerate via normal build steps/scripts.
+When editing related source assets, regenerate via the scripts above (the generated files are
+gitignored and not committed).
 
 ## Key directories
 
 - `src/`: app orchestration, settings/state, and activity implementations
-- `src/network/`: web server and OTA/update networking
-- `src/components/`: theming and shared UI components
-- `lib/Epub/`: EPUB parser, layout, CSS handling, and hyphenation
-- `lib/`: supporting libraries (fonts, text, filesystem helpers, etc.)
+- `src/network/`: web server (dashboard + JSON API) and OTA/update networking
+- `src/components/`: `MyneUI` and shared UI components/icons
+- `lib/DataStore/`: physical book catalog, reading log, and book store (JSON/NDJSON + binary caches)
+- `lib/`: supporting libraries (fonts, JSON parsing, i18n, filesystem helpers, etc.)
 - `open-x4-sdk/`: hardware SDK submodule (display, input, storage, battery)
+- `dashboard/`: companion React web dashboard, built and embedded into the firmware
 - `docs/`: user and technical documentation
 
 ## Embedded constraints that shape design
 
-- constrained RAM drives SD-first caching and careful allocations
+- constrained RAM drives SD-first storage and careful allocations
 - e-ink refresh cost drives render/update batching choices
 - main loop responsiveness matters for input, power handling, and watchdog safety
 - background/network flows must cooperate with sleep and loop timing logic

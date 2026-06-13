@@ -1,6 +1,6 @@
 # Testing and Debugging
 
-CrossPoint runs on real hardware, so debugging usually combines local build checks and on-device logs.
+Myne runs on real hardware, so debugging usually combines local build checks and on-device logs.
 
 ## Local checks
 
@@ -40,9 +40,10 @@ python3 scripts/debugging_monitor.py
 - Exact steps to reproduce
 - Expected vs actual behavior
 - Serial logs from boot through failure
-- Whether issue reproduces after clearing `.crosspoint/` cache on SD card
+- Whether issue reproduces after removing `/.myne/` from the SD card (resets catalog, settings, and
+  Wi-Fi credentials)
 
 ## Common troubleshooting references
 
-- [User Guide troubleshooting section](../../USER_GUIDE.md#7-troubleshooting-issues--escaping-bootloop)
+- [User Guide troubleshooting section](../../USER_GUIDE.md#10-troubleshooting)
 - [Webserver troubleshooting](../troubleshooting.md)
