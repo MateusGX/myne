@@ -49,7 +49,7 @@ void ConfirmationActivity::render(RenderLock&& lock) {
   }
 
   // Draw UI Elements
-  const auto labels = mappedInput.mapLabels("", "", I18N.get(StrId::STR_CANCEL), I18N.get(StrId::STR_CONFIRM));
+  const auto labels = mappedInput.mapLabels("", "", tr(STR_CANCEL), tr(STR_CONFIRM));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer(HalDisplay::RefreshMode::FAST_REFRESH);

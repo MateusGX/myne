@@ -3,43 +3,34 @@
 #include <GfxRenderer.h>
 #include <Logging.h>
 
+#include <algorithm>
+
 #include "ButtonRemapActivity.h"
-#include "ClearCacheActivity.h"
-#include "CrossPointSettings.h"
-#include "FontDownloadActivity.h"
-#include "FontSelectionActivity.h"
-#include "KOReaderSettingsActivity.h"
+#include "MyneSettings.h"
 #include "LanguageSelectActivity.h"
 #include "MappedInputManager.h"
-#include "OpdsServerListActivity.h"
+#ifndef SIMULATOR
 #include "OtaUpdateActivity.h"
-#include "SdCardFontGlobals.h"
 #include "SdFirmwareUpdateActivity.h"
+#endif
 #include "SettingsList.h"
-#include "StatusBarSettingsActivity.h"
+#include "SettingsActivityUI.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
-const StrId SettingsActivity::categoryNames[categoryCount] = {StrId::STR_CAT_DISPLAY, StrId::STR_CAT_READER,
-                                                              StrId::STR_CAT_CONTROLS, StrId::STR_CAT_SYSTEM};
+const StrId SettingsActivity::categoryNames[categoryCount] = {StrId::STR_CAT_DISPLAY, StrId::STR_CAT_CONTROLS,
+                                                              StrId::STR_CAT_SYSTEM};
 
 void SettingsActivity::rebuildSettingsLists() {
   displaySettings.clear();
-  readerSettings.clear();
   controlsSettings.clear();
   systemSettings.clear();
 
-  // Pick up any fonts uploaded/deleted over the web server since the last
-  // reader activity ran — otherwise the font-family picker shows stale list.
-  sdFontSystem.refreshIfDirty();
-
-  for (auto& setting : getSettingsList(&sdFontSystem.registry())) {
+  for (auto& setting : getSettingsList()) {
     if (setting.category == StrId::STR_NONE_OPT) continue;
     if (setting.category == StrId::STR_CAT_DISPLAY) {
       displaySettings.push_back(setting);
-    } else if (setting.category == StrId::STR_CAT_READER) {
-      readerSettings.push_back(setting);
     } else if (setting.category == StrId::STR_CAT_CONTROLS) {
       controlsSettings.push_back(setting);
     } else if (setting.category == StrId::STR_CAT_SYSTEM) {
@@ -51,29 +42,20 @@ void SettingsActivity::rebuildSettingsLists() {
   controlsSettings.insert(controlsSettings.begin(),
                           SettingInfo::Action(StrId::STR_REMAP_FRONT_BUTTONS, SettingAction::RemapFrontButtons));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_WIFI_NETWORKS, SettingAction::Network));
-  systemSettings.push_back(SettingInfo::Action(StrId::STR_KOREADER_SYNC, SettingAction::KOReaderSync));
-  systemSettings.push_back(SettingInfo::Action(StrId::STR_OPDS_SERVERS, SettingAction::OPDSBrowser));
-  systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_READING_CACHE, SettingAction::ClearCache));
+#ifndef SIMULATOR
   systemSettings.push_back(SettingInfo::Action(StrId::STR_CHECK_UPDATES, SettingAction::CheckForUpdates));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_SD_FIRMWARE_UPDATE, SettingAction::SdFirmwareUpdate));
+#endif
   systemSettings.push_back(SettingInfo::Action(StrId::STR_LANGUAGE, SettingAction::Language));
-  // Insert "Manage Fonts" right after the font family setting so users discover it naturally
-  readerSettings.insert(readerSettings.begin() + 1,
-                        SettingInfo::Action(StrId::STR_MANAGE_FONTS, SettingAction::DownloadFonts));
-  readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
 
-  // Update currentSettings pointer and count for the active category
   switch (selectedCategoryIndex) {
     case 0:
       currentSettings = &displaySettings;
       break;
     case 1:
-      currentSettings = &readerSettings;
-      break;
-    case 2:
       currentSettings = &controlsSettings;
       break;
-    case 3:
+    case 2:
       currentSettings = &systemSettings;
       break;
   }
@@ -83,26 +65,22 @@ void SettingsActivity::rebuildSettingsLists() {
 void SettingsActivity::onEnter() {
   Activity::onEnter();
 
-  // Reset selection to first category
   selectedCategoryIndex = 0;
   selectedSettingIndex = 0;
 
   rebuildSettingsLists();
 
-  // Trigger first update
   requestUpdate();
 }
 
 void SettingsActivity::onExit() {
   Activity::onExit();
-
-  UITheme::getInstance().reload();  // Re-apply theme in case it was changed
+  UITheme::getInstance().reload();
 }
 
 void SettingsActivity::loop() {
   bool hasChangedCategory = false;
 
-  // Handle actions with early return
   if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
     if (selectedSettingIndex == 0) {
       selectedCategoryIndex = (selectedCategoryIndex < categoryCount - 1) ? (selectedCategoryIndex + 1) : 0;
@@ -126,7 +104,6 @@ void SettingsActivity::loop() {
     return;
   }
 
-  // Handle navigation
   buttonNavigator.onNextRelease([this] {
     selectedSettingIndex = ButtonNavigator::nextIndex(selectedSettingIndex, settingsCount + 1);
     requestUpdate();
@@ -156,12 +133,9 @@ void SettingsActivity::loop() {
         currentSettings = &displaySettings;
         break;
       case 1:
-        currentSettings = &readerSettings;
-        break;
-      case 2:
         currentSettings = &controlsSettings;
         break;
-      case 3:
+      case 2:
         currentSettings = &systemSettings;
         break;
     }
@@ -178,22 +152,15 @@ void SettingsActivity::toggleCurrentSetting() {
   const auto& setting = (*currentSettings)[selectedSetting];
 
   if (setting.type == SettingType::TOGGLE && setting.valuePtr != nullptr) {
-    // Toggle the boolean value using the member pointer
     const bool currentValue = SETTINGS.*(setting.valuePtr);
     SETTINGS.*(setting.valuePtr) = !currentValue;
   } else if (setting.type == SettingType::ENUM && setting.valuePtr != nullptr) {
     const uint8_t currentValue = SETTINGS.*(setting.valuePtr);
-    SETTINGS.*(setting.valuePtr) = (currentValue + 1) % static_cast<uint8_t>(setting.enumValues.size());
+    const uint8_t total = !setting.enumStringValues.empty()
+        ? static_cast<uint8_t>(setting.enumStringValues.size())
+        : static_cast<uint8_t>(setting.enumValues.size());
+    SETTINGS.*(setting.valuePtr) = (currentValue + 1) % total;
   } else if (setting.type == SettingType::ENUM && setting.valueGetter && setting.valueSetter) {
-    if (setting.nameId == StrId::STR_FONT_FAMILY) {
-      // Launch font selection submenu instead of cycling
-      startActivityForResult(std::make_unique<FontSelectionActivity>(renderer, mappedInput, &sdFontSystem.registry()),
-                             [this](const ActivityResult&) {
-                               SETTINGS.saveToFile();
-                               rebuildSettingsLists();
-                             });
-      return;
-    }
     const uint8_t totalValues = setting.enumStringValues.empty()
                                     ? static_cast<uint8_t>(setting.enumValues.size())
                                     : static_cast<uint8_t>(setting.enumStringValues.size());
@@ -213,42 +180,26 @@ void SettingsActivity::toggleCurrentSetting() {
       case SettingAction::RemapFrontButtons:
         startActivityForResult(std::make_unique<ButtonRemapActivity>(renderer, mappedInput), resultHandler);
         break;
-      case SettingAction::CustomiseStatusBar:
-        startActivityForResult(std::make_unique<StatusBarSettingsActivity>(renderer, mappedInput), resultHandler);
-        break;
-      case SettingAction::KOReaderSync:
-        startActivityForResult(std::make_unique<KOReaderSettingsActivity>(renderer, mappedInput), resultHandler);
-        break;
-      case SettingAction::OPDSBrowser:
-        startActivityForResult(std::make_unique<OpdsServerListActivity>(renderer, mappedInput), resultHandler);
-        break;
       case SettingAction::Network:
         startActivityForResult(std::make_unique<WifiSelectionActivity>(renderer, mappedInput, false), resultHandler);
         break;
-      case SettingAction::ClearCache:
-        startActivityForResult(std::make_unique<ClearCacheActivity>(renderer, mappedInput), resultHandler);
-        break;
+#ifndef SIMULATOR
       case SettingAction::CheckForUpdates:
         startActivityForResult(std::make_unique<OtaUpdateActivity>(renderer, mappedInput), resultHandler);
         break;
       case SettingAction::SdFirmwareUpdate:
         startActivityForResult(std::make_unique<SdFirmwareUpdateActivity>(renderer, mappedInput), resultHandler);
         break;
-      case SettingAction::DownloadFonts:
-        startActivityForResult(std::make_unique<FontDownloadActivity>(renderer, mappedInput),
-                               [this](const ActivityResult&) {
-                                 SETTINGS.saveToFile();
-                                 rebuildSettingsLists();
-                               });
-        break;
+#endif
       case SettingAction::Language:
         startActivityForResult(std::make_unique<LanguageSelectActivity>(renderer, mappedInput), resultHandler);
         break;
       case SettingAction::None:
-        // Do nothing
+        break;
+      default:
         break;
     }
-    return;  // Results will be handled in the result handler, so we can return early here
+    return;
   } else {
     return;
   }
@@ -259,60 +210,82 @@ void SettingsActivity::toggleCurrentSetting() {
 void SettingsActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
+  const int pageWidth = renderer.getScreenWidth();
+  const int pageHeight = renderer.getScreenHeight();
 
   const auto& metrics = UITheme::getInstance().getMetrics();
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_SETTINGS_TITLE),
-                 CROSSPOINT_VERSION);
+  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight});
 
-  std::vector<TabInfo> tabs;
-  tabs.reserve(categoryCount);
-  for (int i = 0; i < categoryCount; i++) {
-    tabs.push_back({I18N.get(categoryNames[i]), selectedCategoryIndex == i});
+  const int heroY = metrics.topPadding + metrics.headerHeight + 8;
+  SettingsActivityUI::hero(renderer,
+                           Rect{SettingsActivityUI::PAD, heroY,
+                                pageWidth - SettingsActivityUI::PAD * 2, 104},
+                           tr(STR_SETTINGS_TITLE), I18N.get(categoryNames[selectedCategoryIndex]),
+                           MYNE_VERSION);
+
+  const int catY = heroY + 124;
+  const int catW = (pageWidth - SettingsActivityUI::PAD * 2 - SettingsActivityUI::GAP * 2) / categoryCount;
+  for (int i = 0; i < categoryCount; ++i) {
+    SettingsActivityUI::choice(renderer,
+                               Rect{SettingsActivityUI::PAD + i * (catW + SettingsActivityUI::GAP),
+                                    catY, catW, 68},
+                               I18N.get(categoryNames[i]), "", selectedCategoryIndex == i && selectedSettingIndex == 0);
   }
-  GUI.drawTabBar(renderer, Rect{0, metrics.topPadding + metrics.headerHeight, pageWidth, metrics.tabBarHeight}, tabs,
-                 selectedSettingIndex == 0);
 
   const auto& settings = *currentSettings;
-  GUI.drawList(
-      renderer,
-      Rect{0, metrics.topPadding + metrics.headerHeight + metrics.tabBarHeight + metrics.verticalSpacing, pageWidth,
-           pageHeight - (metrics.topPadding + metrics.headerHeight + metrics.tabBarHeight + metrics.buttonHintsHeight +
-                         metrics.verticalSpacing * 2)},
-      settingsCount, selectedSettingIndex - 1,
-      [&settings](int index) { return std::string(I18N.get(settings[index].nameId)); }, nullptr, nullptr,
-      [&settings](int i) {
-        const auto& setting = settings[i];
-        std::string valueText = "";
-        if (setting.type == SettingType::TOGGLE && setting.valuePtr != nullptr) {
-          const bool value = SETTINGS.*(setting.valuePtr);
-          valueText = value ? tr(STR_STATE_ON) : tr(STR_STATE_OFF);
-        } else if (setting.type == SettingType::ENUM && setting.valuePtr != nullptr) {
-          const uint8_t value = SETTINGS.*(setting.valuePtr);
-          valueText = I18N.get(setting.enumValues[value]);
-        } else if (setting.type == SettingType::ENUM && setting.valueGetter) {
-          const uint8_t value = setting.valueGetter();
-          if (!setting.enumStringValues.empty() && value < setting.enumStringValues.size()) {
-            valueText = setting.enumStringValues[value];
-          } else if (value < setting.enumValues.size()) {
-            valueText = I18N.get(setting.enumValues[value]);
-          }
-        } else if (setting.type == SettingType::VALUE && setting.valuePtr != nullptr) {
-          valueText = std::to_string(SETTINGS.*(setting.valuePtr));
-        }
-        return valueText;
-      },
-      true);
+  auto valueForSetting = [&settings](int i) {
+    const auto& setting = settings[i];
+    std::string valueText;
+    if (setting.type == SettingType::ACTION) {
+      valueText = tr(STR_OPEN);
+    } else if (setting.type == SettingType::TOGGLE && setting.valuePtr != nullptr) {
+      const bool value = SETTINGS.*(setting.valuePtr);
+      valueText = value ? tr(STR_STATE_ON) : tr(STR_STATE_OFF);
+    } else if (setting.type == SettingType::ENUM && setting.valuePtr != nullptr) {
+      const uint8_t value = SETTINGS.*(setting.valuePtr);
+      if (!setting.enumStringValues.empty() && value < setting.enumStringValues.size()) {
+        valueText = setting.enumStringValues[value];
+      } else if (!setting.enumValues.empty() && value < setting.enumValues.size()) {
+        valueText = I18N.get(setting.enumValues[value]);
+      }
+    } else if (setting.type == SettingType::ENUM && setting.valueGetter) {
+      const uint8_t value = setting.valueGetter();
+      if (!setting.enumStringValues.empty() && value < setting.enumStringValues.size()) {
+        valueText = setting.enumStringValues[value];
+      } else if (value < setting.enumValues.size()) {
+        valueText = I18N.get(setting.enumValues[value]);
+      }
+    } else if (setting.type == SettingType::VALUE && setting.valuePtr != nullptr) {
+      valueText = std::to_string(SETTINGS.*(setting.valuePtr));
+    }
+    return valueText;
+  };
 
-  // Draw help text
+  const int listTop = catY + 84;
+  const int listBottom = pageHeight - metrics.buttonHintsHeight - 20;
+  constexpr int rowH = 58;
+  constexpr int rowGap = 10;
+  const int maxRows = std::max(1, (listBottom - listTop + rowGap) / (rowH + rowGap));
+  int start = 0;
+  const int listIndex = selectedSettingIndex - 1;
+  if (listIndex >= maxRows) start = listIndex - maxRows + 1;
+  const int end = std::min(settingsCount, start + maxRows);
+  for (int i = start; i < end; ++i) {
+    const bool selected = selectedSettingIndex == i + 1;
+    const int rowY = listTop + (i - start) * (rowH + rowGap);
+    const std::string value = valueForSetting(i);
+    SettingsActivityUI::option(renderer,
+                               Rect{SettingsActivityUI::PAD, rowY,
+                                    pageWidth - SettingsActivityUI::PAD * 2, rowH},
+                               I18N.get(settings[i].nameId), value.c_str(), selected);
+  }
+
   const auto confirmLabel = (selectedSettingIndex == 0)
                                 ? I18N.get(categoryNames[(selectedCategoryIndex + 1) % categoryCount])
                                 : tr(STR_TOGGLE);
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), confirmLabel, tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
-  // Always use standard refresh for settings screen
   renderer.displayBuffer();
 }

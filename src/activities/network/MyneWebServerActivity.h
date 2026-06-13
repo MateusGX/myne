@@ -6,28 +6,30 @@
 
 #include "NetworkModeSelectionActivity.h"
 #include "activities/Activity.h"
-#include "network/CrossPointWebServer.h"
+#include "components/MyneUI.h"
+#include "network/MyneWebServer.h"
 
 // Web server activity states
 enum class WebServerActivityState {
-  MODE_SELECTION,  // Choosing between Join Network and Create Hotspot
-  WIFI_SELECTION,  // WiFi selection subactivity is active (for Join Network mode)
-  AP_STARTING,     // Starting Access Point mode
-  SERVER_RUNNING,  // Web server is running and handling requests
-  SHUTTING_DOWN    // Shutting down server and WiFi
+  MODE_SELECTION,       // Choosing between Join Network and Create Hotspot
+  WIFI_SELECTION,       // WiFi selection subactivity is active (for Join Network mode)
+  AP_STARTING,          // Starting Access Point mode
+  SERVER_RUNNING,       // Web server is running and handling requests
+  WEB_FIRMWARE_FLASH,   // Web-triggered firmware flash in progress
+  SHUTTING_DOWN         // Shutting down server and WiFi
 };
 
 /**
- * CrossPointWebServerActivity is the entry point for file transfer functionality.
+ * MyneWebServerActivity is the entry point for file transfer functionality.
  * It:
- * - First presents a choice between "Join a Network" (STA), "Connect to Calibre", and "Create Hotspot" (AP)
+ * - First presents a choice between "Join a Network" (STA) and "Create Hotspot" (AP)
  * - For STA mode: Launches WifiSelectionActivity to connect to an existing network
  * - For AP mode: Creates an Access Point that clients can connect to
- * - Starts the CrossPointWebServer when connected
+ * - Starts the MyneWebServer when connected
  * - Handles client requests in its loop() function
  * - Cleans up the server and shuts down WiFi on exit
  */
-class CrossPointWebServerActivity final : public Activity {
+class MyneWebServerActivity final : public Activity {
   WebServerActivityState state = WebServerActivityState::MODE_SELECTION;
 
   // Network mode
@@ -35,7 +37,7 @@ class CrossPointWebServerActivity final : public Activity {
   bool isApMode = false;
 
   // Web server - owned by this activity
-  std::unique_ptr<CrossPointWebServer> webServer;
+  std::unique_ptr<MyneWebServer> webServer;
 
   // Server status
   std::string connectedIP;
@@ -52,8 +54,15 @@ class CrossPointWebServerActivity final : public Activity {
   // Cached signal-strength bracket (0..4) for the WiFi indicator.
   int lastWifiBars = 0;
 
+  // Web firmware flash state (updated from within HTTP handler callback)
+  MyneWebServer::FirmwareFlashEvent lastFlashEvent;
+  int lastFlashPercent = -1;
+
   void renderServerRunning() const;
-  void renderWifiIndicator(int subHeaderTop) const;
+  void renderWifiIndicator(Rect heroRect) const;
+  void renderWebFirmwareFlash() const;
+
+  static void firmwareFlashCallback(const MyneWebServer::FirmwareFlashEvent& evt, void* ctx);
 
   void onNetworkModeSelected(NetworkMode mode);
   void onWifiSelectionComplete(bool connected);
@@ -62,8 +71,8 @@ class CrossPointWebServerActivity final : public Activity {
   void stopWebServer();
 
  public:
-  explicit CrossPointWebServerActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
-      : Activity("CrossPointWebServer", renderer, mappedInput) {}
+  explicit MyneWebServerActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
+      : Activity("MyneWebServer", renderer, mappedInput) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;

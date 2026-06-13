@@ -4,7 +4,7 @@
 
 #include <string>
 
-#include "components/themes/BaseTheme.h"
+#include "components/MyneUI.h"
 
 namespace QrUtils {
 

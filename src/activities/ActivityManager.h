@@ -11,6 +11,7 @@
 
 #include "GfxRenderer.h"
 #include "MappedInputManager.h"
+#include <BookStore.h>
 #include "util/ScreenshotInfo.h"
 
 class Activity;    // forward declaration
@@ -81,12 +82,14 @@ class ActivityManager {
   void goToFileTransfer();
   void goToSettings();
   void goToFileBrowser(std::string path = {});
-  void goToRecentBooks();
-  void goToBrowser();
-  void goToReader(std::string path);
+  void goToPhysicalBooks();
+  void goToPhysicalBookDetail(PhysicalBook book);
+  void goToBookReadings(PhysicalBook book);
+  void goToReadingStats();
+  void goToLastRead();
   void goToSleep();
   void goToBoot();
-  void goToFullScreenMessage(std::string message, EpdFontFamily::Style style = EpdFontFamily::REGULAR);
+  void goToFullScreenMessage(std::string message, EpdFontFamily::Style style = EpdFontFamily::REGULAR, bool showBack = false);
   void goToCrashReport();
   void goHome();
 
@@ -98,7 +101,6 @@ class ActivityManager {
   void popActivity();
 
   bool preventAutoSleep() const;
-  bool isReaderActivity() const;
   bool skipLoopDelay() const;
   ScreenshotInfo getScreenshotInfo() const;
 

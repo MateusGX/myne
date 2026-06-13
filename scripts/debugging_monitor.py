@@ -126,11 +126,10 @@ init(autoreset=True)
 
 # Color mapping for log lines
 COLOR_KEYWORDS: dict[str, list[str]] = {
-    Fore.RED: ["ERROR", "[ERR]", "[SCT]", "FAILED", "WARNING"],
+    Fore.RED: ["ERROR", "[ERR]", "FAILED", "WARNING"],
     Fore.CYAN: ["[MEM]", "FREE:"],
     Fore.MAGENTA: [
         "[GFX]",
-        "[ERS]",
         "DISPLAY",
         "RAM WRITE",
         "RAM COMPLETE",
@@ -139,27 +138,10 @@ COLOR_KEYWORDS: dict[str, list[str]] = {
         "FRAME BUFFER",
         "LUT",
     ],
-    Fore.GREEN: [
-        "[EBP]",
-        "[BMC]",
-        "[ZIP]",
-        "[PARSER]",
-        "[EHP]",
-        "LOADING EPUB",
-        "CACHE",
-        "DECOMPRESSED",
-        "PARSING",
-    ],
+    Fore.GREEN: ["CACHE", "DECOMPRESSED", "PARSING"],
     Fore.YELLOW: ["[ACT]", "ENTERING ACTIVITY", "EXITING ACTIVITY"],
     Fore.BLUE: ["RENDERED PAGE", "[LOOP]", "DURATION", "WAIT COMPLETE"],
-    Fore.LIGHTYELLOW_EX: [
-        "[CPS]",
-        "SETTINGS",
-        "[CLEAR_CACHE]",
-        "[CHAP]",
-        "[OPDS]",
-        "[COF]",
-    ],
+    Fore.LIGHTYELLOW_EX: ["[CPS]", "SETTINGS"],
     Fore.LIGHTBLACK_EX: [
         "ESP-ROM",
         "BUILD:",
@@ -169,13 +151,10 @@ COLOR_KEYWORDS: dict[str, list[str]] = {
         "MODE:",
         "LOAD:",
         "ENTRY",
-        "[SD]",
-        "STARTING CROSSPOINT",
+        "STARTING MYNE",
         "VERSION",
     ],
-    Fore.LIGHTCYAN_EX: ["[RBS]"],
     Fore.LIGHTMAGENTA_EX: [
-        "[KRS]",
         "EINKDISPLAY:",
         "STATIC FRAME",
         "INITIALIZING",
@@ -185,7 +164,6 @@ COLOR_KEYWORDS: dict[str, list[str]] = {
         "SSD1677",
         "E-INK",
     ],
-    Fore.LIGHTGREEN_EX: ["[FNS]", "FOOTNOTE"],
 }
 
 

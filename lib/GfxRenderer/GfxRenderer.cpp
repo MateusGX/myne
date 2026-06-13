@@ -1,78 +1,21 @@
 #include "GfxRenderer.h"
 
-#include <FontDecompressor.h>
 #include <HalGPIO.h>
+#include <HalStorage.h>
+#include <JPEGDEC.h>
 #include <Logging.h>
-#include <SdCardFont.h>
 #include <Utf8.h>
 
 #include <algorithm>
-
-#include "FontCacheManager.h"
 
 namespace {
 
 const char* resolveVisualText(const char* text, std::string& visualBuffer, int paragraphLevel);
 
-/**
- * Resolves the requested style to the best available style in the given SD card font.
- * Falls back gracefully when the font lacks the requested variant.
- */
-uint8_t resolveSdCardStyle(const SdCardFont& font, const EpdFontFamily::Style style) {
-  return font.resolveStyle(static_cast<uint8_t>(style));
-}
 }  // namespace
 
 const uint8_t* GfxRenderer::getGlyphBitmap(const EpdFontData* fontData, const EpdGlyph* glyph) const {
-  if (fontData->groups != nullptr) {
-    auto* fd = fontCacheManager_ ? fontCacheManager_->getDecompressor() : nullptr;
-    if (!fd) {
-      LOG_ERR("GFX", "Compressed font but no FontDecompressor set");
-      return nullptr;
-    }
-    uint32_t glyphIndex = static_cast<uint32_t>(glyph - fontData->glyph);
-    // For page-buffer hits the pointer is stable for the page lifetime.
-    // For hot-group hits it is valid only until the next getBitmap() call — callers
-    // must consume it (draw the glyph) before requesting another bitmap.
-    return fd->getBitmap(fontData, glyph, glyphIndex);
-  }
-  // For SD card fonts, check if the glyph was loaded on demand into the overflow
-  // buffer.  getOverflowBitmap() returns:
-  //   - bitmap pointer for overflow glyphs with bitmap data
-  //   - nullptr for overflow glyphs without bitmap data (e.g. space: width=0, height=0)
-  //   - nullptr for non-overflow glyphs (normal prewarmed path)
-  // We distinguish overflow-with-no-bitmap from non-overflow by checking isOverflowGlyph().
-  if (fontData->glyphMissCtx) {
-    auto* sdFont = SdCardFont::fromMissCtx(fontData->glyphMissCtx);
-    if (sdFont->isOverflowGlyph(glyph)) {
-      return sdFont->getOverflowBitmap(glyph);  // may be nullptr for zero-width glyphs
-    }
-  }
   return &fontData->bitmap[glyph->dataOffset];
-}
-
-void GfxRenderer::ensureSdCardFontReady(int fontId, const char* utf8Text, uint8_t styleMask) const {
-  auto it = sdCardFonts_.find(fontId);
-  if (it != sdCardFonts_.end()) {
-    int missed = it->second->buildAdvanceTable(utf8Text, styleMask);
-    if (missed > 0) {
-      LOG_DBG("GFX", "ensureSdCardFontReady: %d glyph(s) not found", missed);
-    }
-  }
-}
-
-void GfxRenderer::ensureSdCardFontReady(int fontId, const std::vector<std::string>& words, bool includeHyphen,
-                                        uint8_t styleMask) const {
-  auto it = sdCardFonts_.find(fontId);
-  if (it != sdCardFonts_.end()) {
-    // Augment the persistent advance-only table for layout measurement.
-    // The table survives across paragraphs/sections (capped per font), so
-    // repeated indexing of the same SD font amortizes glyph-metric SD reads.
-    int missed = it->second->buildAdvanceTable(words, includeHyphen, styleMask);
-    if (missed > 0) {
-      LOG_DBG("GFX", "ensureSdCardFontReady: %d glyph(s) not found", missed);
-    }
-  }
 }
 
 void GfxRenderer::begin() {
@@ -283,11 +226,6 @@ void GfxRenderer::drawText(const int fontId, const int x, const int y, const cha
     return;
   }
 
-  if (fontCacheManager_ && fontCacheManager_->isScanning()) {
-    fontCacheManager_->recordText(text, fontId, style);
-    return;
-  }
-
   const auto fontIt = fontMap.find(fontId);
   if (fontIt == fontMap.end()) {
     LOG_ERR("GFX", "Font %d not found", fontId);
@@ -331,7 +269,6 @@ void GfxRenderer::drawText(const int fontId, const int x, const int y, const cha
 }
 
 void GfxRenderer::drawLine(int x1, int y1, int x2, int y2, const bool state) const {
-  if (fontCacheManager_ && fontCacheManager_->isScanning()) return;
   if (x1 == x2) {
     if (y2 < y1) {
       std::swap(y1, y2);
@@ -726,7 +663,6 @@ void GfxRenderer::drawIcon(const uint8_t bitmap[], const int x, const int y, con
 
 void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, const int maxWidth, const int maxHeight,
                              const float cropX, const float cropY) const {
-  if (fontCacheManager_ && fontCacheManager_->isScanning()) return;
   // For 1-bit bitmaps, use optimized 1-bit rendering path (no crop support for 1-bit)
   if (bitmap.is1Bit() && cropX == 0.0f && cropY == 0.0f) {
     drawBitmap1Bit(bitmap, x, y, maxWidth, maxHeight);
@@ -1095,13 +1031,6 @@ int GfxRenderer::getScreenHeight() const {
 }
 
 int GfxRenderer::getSpaceWidth(const int fontId, const EpdFontFamily::Style style) const {
-  // Advance table fast-path for SD card fonts during layout
-  auto sdIt = sdCardFonts_.find(fontId);
-  if (sdIt != sdCardFonts_.end() && sdIt->second->hasAdvanceTable()) {
-    const uint8_t resolvedStyle = resolveSdCardStyle(*sdIt->second, style);
-    return fp4::toPixel(sdIt->second->getAdvance(' ', resolvedStyle));
-  }
-
   const auto fontIt = fontMap.find(fontId);
   if (fontIt == fontMap.end()) {
     LOG_ERR("GFX", "Font %d not found", fontId);
@@ -1114,15 +1043,6 @@ int GfxRenderer::getSpaceWidth(const int fontId, const EpdFontFamily::Style styl
 
 int GfxRenderer::getSpaceAdvance(const int fontId, const uint32_t leftCp, const uint32_t rightCp,
                                  const EpdFontFamily::Style style) const {
-  // Advance table fast-path for SD card fonts during layout.
-  // Kern data is not loaded during layout (consistent with previous metadataOnly behavior),
-  // so we return just the space advance without kerning.
-  auto sdIt = sdCardFonts_.find(fontId);
-  if (sdIt != sdCardFonts_.end() && sdIt->second->hasAdvanceTable()) {
-    const uint8_t resolvedStyle = resolveSdCardStyle(*sdIt->second, style);
-    return fp4::toPixel(sdIt->second->getAdvance(' ', resolvedStyle));
-  }
-
   const auto fontIt = fontMap.find(fontId);
   if (fontIt == fontMap.end()) return 0;
   const auto& font = fontIt->second;
@@ -1144,19 +1064,6 @@ int GfxRenderer::getKerning(const int fontId, const uint32_t leftCp, const uint3
 }
 
 int GfxRenderer::getTextAdvanceX(const int fontId, const char* text, EpdFontFamily::Style style) const {
-  // Advance table fast-path for SD card fonts during layout.
-  // No kerning/ligature lookup — consistent with previous metadataOnly behavior
-  // where kern/lig data was not loaded.
-  auto sdIt = sdCardFonts_.find(fontId);
-  if (sdIt != sdCardFonts_.end() && sdIt->second->hasAdvanceTable()) {
-    int32_t widthFP = 0;
-    const uint8_t styleIdx = resolveSdCardStyle(*sdIt->second, style);
-    while (uint32_t cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&text))) {
-      widthFP += sdIt->second->getAdvance(cp, styleIdx);
-    }
-    return fp4::toPixel(widthFP);
-  }
-
   const auto fontIt = fontMap.find(fontId);
   if (fontIt == fontMap.end()) {
     LOG_ERR("GFX", "Font %d not found", fontId);
@@ -1399,4 +1306,395 @@ void GfxRenderer::getOrientedViewableTRBL(int* outTop, int* outRight, int* outBo
       *outLeft = VIEWABLE_MARGIN_TOP;
       break;
   }
+}
+
+// ─── JPEG rendering ────────────────────────────────────────────────────────
+//
+// Two-pass approach:
+//   1. Decode JPEG to a heap-allocated 8-bit grayscale buffer (via JPEGDEC).
+//   2. Apply Atkinson dithering in-place and write 1-bit pixels to the framebuffer.
+//
+// JPEGDEC (~18 KB struct) must be heap-allocated: the render task has only 8 KB stack.
+// The grayscale buffer is freed before decode exits, so peak heap is ~18 + scaledW*scaledH bytes.
+
+namespace {
+
+struct JpegBufCtx {
+  uint8_t* buf;
+  int w, h;
+};
+
+static int jpegToBufCallback(JPEGDRAW* pDraw) {
+  auto* ctx = static_cast<JpegBufCtx*>(pDraw->pUser);
+  // EIGHT_BIT_GRAYSCALE: reinterpret pPixels as 1-byte-per-pixel grayscale
+  const auto* src = reinterpret_cast<const uint8_t*>(pDraw->pPixels);
+  for (int py = 0; py < pDraw->iHeight; py++) {
+    const int row = pDraw->y + py;
+    if (row < 0 || row >= ctx->h) continue;
+    for (int px = 0; px < pDraw->iWidthUsed; px++) {
+      const int col = pDraw->x + px;
+      if (col < 0 || col >= ctx->w) continue;
+      ctx->buf[row * ctx->w + col] = src[py * pDraw->iWidth + px];
+    }
+  }
+  return 1;
+}
+
+}  // namespace
+
+bool GfxRenderer::drawJpegFromFile(const char* path, const int x, const int y, const int maxW,
+                                   const int maxH) const {
+  FsFile file;
+  if (!Storage.openFileForRead("GFX", path, file)) return false;
+
+  const auto fileSize = static_cast<int32_t>(file.fileSize());
+
+  // ── Pass 1: decode JPEG ──────────────────────────────────────────────────
+  auto* jpeg = new (std::nothrow) JPEGDEC();
+  if (!jpeg) {
+    LOG_ERR("GFX", "OOM for JPEGDEC");
+    return false;
+  }
+
+  if (!jpeg->open(
+          static_cast<void*>(&file), fileSize,
+          [](void*) {},  // close: DESTRUCTOR_CLOSES_FILE handles the FsFile
+          [](JPEGFILE* pf, uint8_t* buf, int32_t len) -> int32_t {
+            return static_cast<int32_t>(static_cast<FsFile*>(pf->fHandle)->read(buf, len));
+          },
+          [](JPEGFILE* pf, int32_t pos) -> int32_t {
+            auto* f = static_cast<FsFile*>(pf->fHandle);
+            return f->seek(static_cast<uint32_t>(pos)) ? pos : -1;
+          },
+          jpegToBufCallback)) {
+    LOG_ERR("GFX", "JPEGDEC open failed: %d", jpeg->getLastError());
+    delete jpeg;
+    return false;
+  }
+
+  const int imgW = jpeg->getWidth();
+  const int imgH = jpeg->getHeight();
+  if (imgW <= 0 || imgH <= 0) {
+    jpeg->close();
+    delete jpeg;
+    return false;
+  }
+
+  // Choose the largest JPEGDEC power-of-2 scale where both dimensions fit.
+  // Try full → half → quarter → eighth; fall back to eighth if nothing fits.
+  static constexpr int kOpts[] = {0, JPEG_SCALE_HALF, JPEG_SCALE_QUARTER, JPEG_SCALE_EIGHTH};
+  static constexpr int kDiv[]  = {1, 2, 4, 8};
+  int opts    = JPEG_SCALE_EIGHTH;
+  int scaledW = std::max(1, imgW / 8);
+  int scaledH = std::max(1, imgH / 8);
+  for (int i = 0; i < 4; i++) {
+    const int tw = imgW / kDiv[i];
+    const int th = imgH / kDiv[i];
+    if (tw > 0 && th > 0 && tw <= maxW && th <= maxH) {
+      opts    = kOpts[i];
+      scaledW = tw;
+      scaledH = th;
+      break;
+    }
+  }
+
+  const int bufBytes = scaledW * scaledH;
+  auto* gray = static_cast<uint8_t*>(malloc(bufBytes));
+  if (!gray) {
+    LOG_ERR("GFX", "OOM for JPEG gray buf (%d B)", bufBytes);
+    jpeg->close();
+    delete jpeg;
+    return false;
+  }
+  memset(gray, 0xFF, bufBytes);  // white background
+
+  jpeg->setPixelType(EIGHT_BIT_GRAYSCALE);
+  JpegBufCtx bufCtx{gray, scaledW, scaledH};
+  jpeg->setUserPointer(&bufCtx);
+  jpeg->decode(0, 0, opts);  // decode at image-relative origin (0,0)
+  jpeg->close();
+  delete jpeg;  // free ~18 KB before dithering pass
+
+  // ── Pass 2: Atkinson dithering → framebuffer ─────────────────────────────
+  // Centre decoded image within the bounding box
+  const int offX = x + std::max(0, (maxW - scaledW) / 2);
+  const int offY = y + std::max(0, (maxH - scaledH) / 2);
+
+  const int sw = getScreenWidth();
+  const int sh = getScreenHeight();
+
+  // Atkinson dithering: distributes (err/8) to 6 neighbours (6/8 of total error).
+  // This preserves midtones better than Floyd-Steinberg on high-contrast e-ink panels.
+  for (int row = 0; row < scaledH; row++) {
+    for (int col = 0; col < scaledW; col++) {
+      const int idx  = row * scaledW + col;
+      const uint8_t old = gray[idx];
+      const uint8_t out = old < 128 ? 0 : 255;
+      const int e8   = ((int)old - (int)out) / 8;
+      gray[idx] = out;
+
+      // Distribute to 6 neighbours
+      auto add = [&](int r, int c) __attribute__((always_inline)) {
+        if ((unsigned)r < (unsigned)scaledH && (unsigned)c < (unsigned)scaledW) {
+          const int v = (int)gray[r * scaledW + c] + e8;
+          gray[r * scaledW + c] = (uint8_t)(v < 0 ? 0 : v > 255 ? 255 : v);
+        }
+      };
+      add(row,     col + 1);
+      add(row,     col + 2);
+      add(row + 1, col - 1);
+      add(row + 1, col);
+      add(row + 1, col + 1);
+      add(row + 2, col);
+
+      // Write to framebuffer (skip if outside logical screen)
+      const int sx = offX + col;
+      const int sy = offY + row;
+      if ((unsigned)sx < (unsigned)sw && (unsigned)sy < (unsigned)sh) {
+        drawPixel(sx, sy, out == 0);
+      }
+    }
+  }
+
+  free(gray);
+  return true;
+}
+
+// ─── JPEG 4-gray grayscale rendering with SD cache ───────────────────────────
+//
+// Sequence (mirrors SleepActivity's grayscale BMP rendering):
+//   BW pre-render (sets physical pixel state) → displayBuffer(HALF_REFRESH)
+//   → GRAYSCALE_LSB pass → GRAYSCALE_MSB pass → displayGrayBuffer
+//
+// 4-level quantisation from 8-bit normalised gray:
+//   [0,64)   → val 0 (black)      → not drawn in either grayscale pass
+//   [64,128) → val 1 (dark gray)  → drawn in BOTH LSB and MSB passes
+//   [128,192)→ val 2 (light gray) → drawn in MSB pass only
+//   [192,256)→ val 3 (white)      → not drawn in either pass
+//
+// Cache: /.myne/imgcache/{hash}.gc
+// Header: "GC"[2] + version[1] + srcSize[4] + w[2] + h[2] = 11 bytes.
+// Invalidated when the JPEG file size changes.
+
+namespace {
+
+static constexpr const char* IMG_CACHE_DIR = "/.myne/imgcache";
+static constexpr uint8_t     GC_MAGIC0     = 'G';
+static constexpr uint8_t     GC_MAGIC1     = 'C';
+static constexpr uint8_t     GC_VERSION    = 1;
+static constexpr int         GC_HDR_SIZE   = 11;  // magic[2]+ver[1]+srcSize[4]+w[2]+h[2]
+
+static uint32_t jpegCacheKey(const char* path, int maxW, int maxH) {
+  uint32_t h = 5381;
+  for (const char* p = path; *p; ++p) h = h * 33u ^ static_cast<uint8_t>(*p);
+  h ^= (static_cast<uint32_t>(maxW) * 1009u + static_cast<uint32_t>(maxH)) * 0x9E3779B9u;
+  return h;
+}
+
+// Returns heap-allocated 8-bit normalised gray buffer, or nullptr on miss.
+static uint8_t* imgCacheLoad(const char* path, int maxW, int maxH,
+                              uint32_t srcSize, int* outW, int* outH) {
+  char cp[72];
+  snprintf(cp, sizeof(cp), "%s/%08x.gc", IMG_CACHE_DIR,
+           static_cast<unsigned int>(jpegCacheKey(path, maxW, maxH)));
+  FsFile f;
+  if (!Storage.openFileForRead("GFX", cp, f)) return nullptr;
+
+  uint8_t hdr[GC_HDR_SIZE];
+  if (f.read(hdr, GC_HDR_SIZE) != GC_HDR_SIZE) return nullptr;
+  if (hdr[0] != GC_MAGIC0 || hdr[1] != GC_MAGIC1 || hdr[2] != GC_VERSION) return nullptr;
+
+  uint32_t stored;
+  memcpy(&stored, hdr + 3, 4);
+  if (stored != srcSize) return nullptr;  // JPEG changed → invalidate
+
+  uint16_t cw, ch;
+  memcpy(&cw, hdr + 7, 2);
+  memcpy(&ch, hdr + 9, 2);
+  const int bytes = static_cast<int>(cw) * static_cast<int>(ch);
+  if (bytes <= 0 || bytes > 240000) return nullptr;
+
+  auto* gray = static_cast<uint8_t*>(malloc(bytes));
+  if (!gray) return nullptr;
+  if (f.read(gray, bytes) != bytes) { free(gray); return nullptr; }
+  *outW = static_cast<int>(cw);
+  *outH = static_cast<int>(ch);
+  return gray;
+}
+
+static void imgCacheSave(const char* path, int maxW, int maxH,
+                          uint32_t srcSize, const uint8_t* gray, int w, int h) {
+  Storage.mkdir(IMG_CACHE_DIR);
+  char cp[72];
+  snprintf(cp, sizeof(cp), "%s/%08x.gc", IMG_CACHE_DIR,
+           static_cast<unsigned int>(jpegCacheKey(path, maxW, maxH)));
+  FsFile f;
+  if (!Storage.openFileForWrite("GFX", cp, f)) return;
+
+  uint8_t hdr[GC_HDR_SIZE];
+  hdr[0] = GC_MAGIC0;
+  hdr[1] = GC_MAGIC1;
+  hdr[2] = GC_VERSION;
+  memcpy(hdr + 3, &srcSize, 4);
+  const auto cw = static_cast<uint16_t>(w);
+  const auto ch = static_cast<uint16_t>(h);
+  memcpy(hdr + 7, &cw, 2);
+  memcpy(hdr + 9, &ch, 2);
+  f.write(hdr, GC_HDR_SIZE);
+  f.write(gray, static_cast<size_t>(w * h));
+}
+
+}  // namespace
+
+bool GfxRenderer::drawJpegGrayscaleFromFile(const char* path, const int x, const int y,
+                                             const int maxW, const int maxH) {
+  // Open JPEG to get file size (used as cache key + invalidation token).
+  FsFile srcFile;
+  if (!Storage.openFileForRead("GFX", path, srcFile)) return false;
+  const uint32_t srcSize = static_cast<uint32_t>(srcFile.fileSize());
+
+  // ── Try SD cache ─────────────────────────────────────────────────────────
+  int scaledW = 0, scaledH = 0;
+  uint8_t* gray = imgCacheLoad(path, maxW, maxH, srcSize, &scaledW, &scaledH);
+
+  if (!gray) {
+    // ── Cache miss: decode JPEG via JPEGDEC ──────────────────────────────
+    auto* jpeg = new (std::nothrow) JPEGDEC();
+    if (!jpeg) { LOG_ERR("GFX", "OOM for JPEGDEC"); return false; }
+
+    if (!jpeg->open(
+            static_cast<void*>(&srcFile), static_cast<int32_t>(srcSize),
+            [](void*) {},
+            [](JPEGFILE* pf, uint8_t* buf, int32_t len) -> int32_t {
+              return static_cast<int32_t>(static_cast<FsFile*>(pf->fHandle)->read(buf, len));
+            },
+            [](JPEGFILE* pf, int32_t pos) -> int32_t {
+              auto* ff = static_cast<FsFile*>(pf->fHandle);
+              return ff->seek(static_cast<uint32_t>(pos)) ? pos : -1;
+            },
+            jpegToBufCallback)) {
+      LOG_ERR("GFX", "JPEGDEC open failed: %d", jpeg->getLastError());
+      delete jpeg;
+      return false;
+    }
+
+    const int imgW = jpeg->getWidth();
+    const int imgH = jpeg->getHeight();
+    if (imgW <= 0 || imgH <= 0) { jpeg->close(); delete jpeg; return false; }
+
+    static constexpr int kOpts[] = {0, JPEG_SCALE_HALF, JPEG_SCALE_QUARTER, JPEG_SCALE_EIGHTH};
+    static constexpr int kDiv[]  = {1, 2, 4, 8};
+    int opts = JPEG_SCALE_EIGHTH;
+    scaledW  = std::max(1, imgW / 8);
+    scaledH  = std::max(1, imgH / 8);
+    for (int i = 0; i < 4; i++) {
+      const int tw = imgW / kDiv[i];
+      const int th = imgH / kDiv[i];
+      if (tw > 0 && th > 0 && tw <= maxW && th <= maxH) {
+        opts = kOpts[i]; scaledW = tw; scaledH = th; break;
+      }
+    }
+
+    const int bufBytes = scaledW * scaledH;
+    gray = static_cast<uint8_t*>(malloc(bufBytes));
+    if (!gray) {
+      LOG_ERR("GFX", "OOM for JPEG gray buf (%d B)", bufBytes);
+      jpeg->close(); delete jpeg; return false;
+    }
+    memset(gray, 0xFF, bufBytes);
+
+    jpeg->setPixelType(EIGHT_BIT_GRAYSCALE);
+    JpegBufCtx bufCtx{gray, scaledW, scaledH};
+    jpeg->setUserPointer(&bufCtx);
+    jpeg->decode(0, 0, opts);
+    jpeg->close();
+    delete jpeg;
+
+    // ── Histogram normalisation (stretch [min,max] → [0,255]) ───────────
+    uint8_t minV = 255, maxV = 0;
+    const int npx = scaledW * scaledH;
+    for (int i = 0; i < npx; i++) {
+      if (gray[i] < minV) minV = gray[i];
+      if (gray[i] > maxV) maxV = gray[i];
+    }
+    if (maxV > minV) {
+      const float scale = 255.0f / static_cast<float>(maxV - minV);
+      for (int i = 0; i < npx; i++) {
+        int v = static_cast<int>((gray[i] - minV) * scale + 0.5f);
+        gray[i] = static_cast<uint8_t>(v < 0 ? 0 : v > 255 ? 255 : v);
+      }
+    }
+
+    // ── Save normalised buffer to cache ──────────────────────────────────
+    imgCacheSave(path, maxW, maxH, srcSize, gray, scaledW, scaledH);
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────
+  // Centre within bounding box, same as drawJpegFromFile.
+  const int offX = x + std::max(0, (maxW - scaledW) / 2);
+  const int offY = y + std::max(0, (maxH - scaledH) / 2);
+  const int sw   = getScreenWidth();
+  const int sh   = getScreenHeight();
+
+  // Quantise helper: 8-bit → val (0=black,1=dark gray,2=light gray,3=white)
+  auto quant = [](uint8_t g) -> uint8_t {
+    return g < 64 ? 0 : g < 128 ? 1 : g < 192 ? 2 : 3;
+  };
+
+  // ── BW pre-render: draw all non-white pixels as black ───────────────────
+  // The current framebuffer already contains any surrounding BW UI elements.
+  // This pass adds the cover pixels so that displayBuffer captures everything.
+  for (int row = 0; row < scaledH; row++) {
+    for (int col = 0; col < scaledW; col++) {
+      if (quant(gray[row * scaledW + col]) < 3) {
+        const int sx = offX + col, sy = offY + row;
+        if (static_cast<unsigned>(sx) < static_cast<unsigned>(sw) &&
+            static_cast<unsigned>(sy) < static_cast<unsigned>(sh))
+          drawPixel(sx, sy, true);  // black
+      }
+    }
+  }
+  displayBuffer(HalDisplay::HALF_REFRESH);  // sets physical pixel state for waveform
+
+  // ── GRAYSCALE_LSB pass (val == 1 only) ──────────────────────────────────
+  clearScreen(0x00);
+  setRenderMode(GRAYSCALE_LSB);
+  for (int row = 0; row < scaledH; row++) {
+    for (int col = 0; col < scaledW; col++) {
+      if (quant(gray[row * scaledW + col]) == 1) {
+        const int sx = offX + col, sy = offY + row;
+        if (static_cast<unsigned>(sx) < static_cast<unsigned>(sw) &&
+            static_cast<unsigned>(sy) < static_cast<unsigned>(sh))
+          drawPixel(sx, sy, false);
+      }
+    }
+  }
+  copyGrayscaleLsbBuffers();
+
+  // ── GRAYSCALE_MSB pass (val == 1 or 2) ──────────────────────────────────
+  clearScreen(0x00);
+  setRenderMode(GRAYSCALE_MSB);
+  for (int row = 0; row < scaledH; row++) {
+    for (int col = 0; col < scaledW; col++) {
+      const uint8_t v = quant(gray[row * scaledW + col]);
+      if (v == 1 || v == 2) {
+        const int sx = offX + col, sy = offY + row;
+        if (static_cast<unsigned>(sx) < static_cast<unsigned>(sw) &&
+            static_cast<unsigned>(sy) < static_cast<unsigned>(sh))
+          drawPixel(sx, sy, false);
+      }
+    }
+  }
+  copyGrayscaleMsbBuffers();
+
+  displayGrayBuffer();
+
+  // Reset the display's BW backing state to white so subsequent displayBuffer()
+  // calls from other screens don't ghost the grayscale content.
+  clearScreen();  // 0xFF = white baseline
+  cleanupGrayscaleWithFrameBuffer();
+  setRenderMode(BW);
+
+  free(gray);
+  return true;
 }

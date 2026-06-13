@@ -1,6 +1,6 @@
 #include "MappedInputManager.h"
 
-#include "CrossPointSettings.h"
+#include "MyneSettings.h"
 
 namespace {
 using ButtonIndex = uint8_t;
@@ -10,7 +10,7 @@ struct SideLayoutMap {
   ButtonIndex pageForward;
 };
 
-// Order matches CrossPointSettings::SIDE_BUTTON_LAYOUT.
+// Order matches MyneSettings::SIDE_BUTTON_LAYOUT.
 constexpr SideLayoutMap kSideLayouts[] = {
     {HalGPIO::BTN_UP, HalGPIO::BTN_DOWN},
     {HalGPIO::BTN_DOWN, HalGPIO::BTN_UP},
@@ -18,8 +18,7 @@ constexpr SideLayoutMap kSideLayouts[] = {
 }  // namespace
 
 bool MappedInputManager::mapButton(const Button button, bool (HalGPIO::*fn)(uint8_t) const) const {
-  const auto sideLayout = static_cast<CrossPointSettings::SIDE_BUTTON_LAYOUT>(SETTINGS.sideButtonLayout);
-  const auto& side = kSideLayouts[sideLayout];
+  const auto& side = kSideLayouts[0];
 
   switch (button) {
     case Button::Back:
@@ -54,11 +53,28 @@ bool MappedInputManager::mapButton(const Button button, bool (HalGPIO::*fn)(uint
   return false;
 }
 
+bool MappedInputManager::mapButtonGroup(const ButtonGroup buttonGroup, bool (HalGPIO::*fn)(uint8_t) const) const {
+  switch (buttonGroup) {
+    case ButtonGroup::BottomLeft:
+      return (gpio.*fn)(SETTINGS.frontButtonBack) || (gpio.*fn)(SETTINGS.frontButtonConfirm);
+    case ButtonGroup::BottomRight:
+      return (gpio.*fn)(SETTINGS.frontButtonLeft) || (gpio.*fn)(SETTINGS.frontButtonRight);
+  }
+
+  return false;
+}
+
 bool MappedInputManager::wasPressed(const Button button) const { return mapButton(button, &HalGPIO::wasPressed); }
+
+bool MappedInputManager::wasPressedGroup(const ButtonGroup buttonGroup) const { return mapButtonGroup(buttonGroup, &HalGPIO::wasPressed); }
 
 bool MappedInputManager::wasReleased(const Button button) const { return mapButton(button, &HalGPIO::wasReleased); }
 
+bool MappedInputManager::wasReleasedGroup(const ButtonGroup buttonGroup) const { return mapButtonGroup(buttonGroup, &HalGPIO::wasReleased); }
+
 bool MappedInputManager::isPressed(const Button button) const { return mapButton(button, &HalGPIO::isPressed); }
+
+bool MappedInputManager::isPressedGroup(const ButtonGroup buttonGroup) const { return mapButtonGroup(buttonGroup, &HalGPIO::isPressed); }
 
 bool MappedInputManager::wasAnyPressed() const { return gpio.wasAnyPressed(); }
 

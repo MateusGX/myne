@@ -4,7 +4,7 @@
 
 #include "I18nKeys.h"
 /**
- * Internationalization (i18n) system for CrossPoint Reader
+ * Internationalization (i18n) system for Myne
  */
 
 class I18n {
@@ -37,4 +37,5 @@ class I18n {
 
 // Convenience macros
 #define tr(id) I18n::getInstance().get(StrId::id)
+#define trId(id) I18n::getInstance().get(id)
 #define I18N I18n::getInstance()

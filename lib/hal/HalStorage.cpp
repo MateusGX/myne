@@ -4,8 +4,12 @@
 #include <FS.h>  // need to be included before SdFat.h for compatibility with FS.h's File class
 #include <Logging.h>
 #include <SDCardManager.h>
+#include <esp_task_wdt.h>
 
 #include <cassert>
+#ifdef SIMULATOR
+#include <filesystem>
+#endif
 
 #define SDCard SDCardManager::getInstance()
 
@@ -119,6 +123,93 @@ bool HalStorage::openFileForWrite(const char* moduleName, const String& path, Ha
 }
 
 bool HalStorage::removeDir(const char* path) { HAL_STORAGE_WRAPPED_CALL(removeDir, path); }
+
+namespace {
+uint64_t sumUsedBytes(FsFile& dir) {
+  if (!dir || !dir.isDirectory()) return 0;
+
+  uint64_t total = 0;
+  while (true) {
+    esp_task_wdt_reset();
+    yield();
+    FsFile entry = dir.openNextFile();
+    if (!entry) break;
+
+    if (entry.isDirectory()) {
+      total += sumUsedBytes(entry);
+    } else {
+      total += entry.fileSize();
+    }
+    entry.close();
+  }
+  return total;
+}
+
+template <typename File>
+auto readTotalBytesFromVolume(File& file, int)
+    -> decltype(file.volume()->clusterCount(), file.volume()->sectorsPerCluster(), uint64_t{}) {
+  auto* volume = file.volume();
+  if (!volume) return 0;
+
+  const uint64_t clusterCount = volume->clusterCount();
+  const uint64_t bytesPerCluster =
+      static_cast<uint64_t>(volume->sectorsPerCluster()) * static_cast<uint64_t>(512);
+  return clusterCount * bytesPerCluster;
+}
+
+template <typename File>
+uint64_t readTotalBytesFromVolume(File&, long) {
+  return 0;
+}
+
+template <typename File>
+auto readStatsFromVolume(File& file, HalStorage::StorageStats& stats, int)
+    -> decltype(file.volume()->clusterCount(), file.volume()->freeClusterCount(),
+                file.volume()->sectorsPerCluster(), bool{}) {
+  auto* volume = file.volume();
+  if (!volume) return false;
+
+  const uint64_t clusterCount = volume->clusterCount();
+  const uint64_t freeClusters = volume->freeClusterCount();
+  const uint64_t bytesPerCluster =
+      static_cast<uint64_t>(volume->sectorsPerCluster()) * static_cast<uint64_t>(512);
+  stats.totalBytes = clusterCount * bytesPerCluster;
+  stats.usedBytes = clusterCount > freeClusters ? (clusterCount - freeClusters) * bytesPerCluster : 0;
+  return stats.totalBytes > 0;
+}
+
+template <typename File>
+bool readStatsFromVolume(File&, HalStorage::StorageStats&, long) {
+  return false;
+}
+}  // namespace
+
+HalStorage::StorageStats HalStorage::getStorageStats() {
+  StorageLock lock;
+  StorageStats stats;
+
+#ifdef SIMULATOR
+  try {
+    const auto space = std::filesystem::space(".");
+    stats.totalBytes = space.capacity;
+    stats.usedBytes = space.capacity > space.available ? space.capacity - space.available : 0;
+    return stats;
+  } catch (...) {
+    return stats;
+  }
+#else
+  FsFile root = SDCard.open("/");
+  if (!root) return stats;
+
+  if (!readStatsFromVolume(root, stats, 0)) {
+    stats.usedBytes = sumUsedBytes(root);
+    stats.totalBytes = readTotalBytesFromVolume(root, 0);
+  }
+
+  root.close();
+  return stats;
+#endif
+}
 
 // HalFile implementation
 // Allow doing file operations while ensuring thread safety via HalStorage's mutex.

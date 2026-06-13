@@ -1,7 +1,6 @@
-#include "CrossPointWebServer.h"
+#include "MyneWebServer.h"
 
 #include <ArduinoJson.h>
-#include <Epub.h>
 #include <FsHelpers.h>
 #include <HalStorage.h>
 #include <Logging.h>
@@ -10,19 +9,16 @@
 
 #include <algorithm>
 
-#include "CrossPointSettings.h"
-#include "FontInstaller.h"
-#include "OpdsServerStore.h"
-#include "SdCardFontGlobals.h"
-#include "SdCardFontSystem.h"
+#include <BookCatalog.h>
+#include <BookStore.h>
+#include <ReadingLog.h>
+
+#include "MyneSettings.h"
+#include "FirmwareFlasher.h"
 #include "SettingsList.h"
 #include "WebDAVHandler.h"
 #include "WifiCredentialStore.h"
-#include "html/FilesPageHtml.generated.h"
-#include "html/FontsPageHtml.generated.h"
-#include "html/HomePageHtml.generated.h"
-#include "html/SettingsPageHtml.generated.h"
-#include "html/js/jszip_minJs.generated.h"
+#include "html/DashboardHtml.generated.h"
 
 namespace {
 // Folders/files to hide from the web interface file browser
@@ -32,7 +28,7 @@ constexpr uint16_t UDP_PORTS[] = {54982, 48123, 39001, 44044, 59678};
 constexpr uint16_t LOCAL_UDP_PORT = 8134;
 
 // Static pointer for WebSocket callback (WebSocketsServer requires C-style callback)
-CrossPointWebServer* wsInstance = nullptr;
+MyneWebServer* wsInstance = nullptr;
 
 // WebSocket upload state
 FsFile wsUploadFile;
@@ -48,13 +44,39 @@ String wsLastCompleteName;
 size_t wsLastCompleteSize = 0;
 unsigned long wsLastCompleteAt = 0;
 
-// Helper function to clear epub cache after upload
-void clearEpubCacheIfNeeded(const String& filePath) {
-  // Only clear cache for .epub files
-  if (FsHelpers::hasEpubExtension(filePath)) {
-    Epub(filePath.c_str(), "/.crosspoint").clearCache();
-    LOG_DBG("WEB", "Cleared epub cache for: %s", filePath.c_str());
-  }
+static void clearEpubCacheIfNeeded(const String&) {}  // No-op: epub cache removed
+
+// Context + callback for streaming BookCatalog::forEachCollection results as
+// a JSON array (function-pointer callback per project convention).
+struct CollectionsStreamCtx {
+  WebServer* server;
+  bool first;
+};
+
+static void streamCollectionCb(const char* id, const char* name, void* ctxPtr) {
+  auto* ctx = static_cast<CollectionsStreamCtx*>(ctxPtr);
+  if (!ctx->first) ctx->server->sendContent(",");
+  ctx->first = false;
+
+  JsonDocument doc;
+  doc["id"]   = id;
+  doc["name"] = name;
+  String item;
+  serializeJson(doc, item);
+  ctx->server->sendContent(item);
+}
+
+// Write a flag file that signals the catalog needs to be rebuilt on next boot / network exit.
+static void writeSyncFlag() {
+  HalFile f;
+  Storage.openFileForWrite("WEB", BookCatalog::SYNC_FLAG_PATH, f);
+}
+
+// Borrow PhysicalBook's strings as a BookCatalog::BookChangeInfo. The returned
+// struct is only valid while `b` is alive.
+static BookCatalog::BookChangeInfo toChangeInfo(const PhysicalBook& b) {
+  return BookCatalog::BookChangeInfo{b.id.c_str(),       b.title.c_str(),  b.author.c_str(),
+                                     b.location.c_str(), b.volume.c_str(), b.collection.c_str()};
 }
 
 String normalizeWebPath(const String& inputPath) {
@@ -88,15 +110,11 @@ bool isProtectedItemName(const String& name) {
 }
 }  // namespace
 
-// File listing page template - now using generated headers:
-// - HomePageHtml (from html/HomePage.html)
-// - FilesPageHeaderHtml (from html/FilesPageHeader.html)
-// - FilesPageFooterHtml (from html/FilesPageFooter.html)
-CrossPointWebServer::CrossPointWebServer() {}
+MyneWebServer::MyneWebServer() : bookStore(std::make_unique<BookStore>()) {}
 
-CrossPointWebServer::~CrossPointWebServer() { stop(); }
+MyneWebServer::~MyneWebServer() { stop(); }
 
-void CrossPointWebServer::begin() {
+void MyneWebServer::begin() {
   if (running) {
     LOG_DBG("WEB", "Web server already running");
     return;
@@ -141,8 +159,7 @@ void CrossPointWebServer::begin() {
   // Setup routes
   LOG_DBG("WEB", "Setting up routes...");
   server->on("/", HTTP_GET, [this] { handleRoot(); });
-  server->on("/files", HTTP_GET, [this] { handleFileList(); });
-  server->on("/js/jszip.min.js", HTTP_GET, [this] { handleJszip(); });
+  server->on("/files", HTTP_GET, [this] { handleRoot(); });
 
   server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
   server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
@@ -163,26 +180,34 @@ void CrossPointWebServer::begin() {
   // Delete file/folder endpoint
   server->on("/delete", HTTP_POST, [this] { handleDelete(); });
 
+  // Firmware flash endpoint
+  server->on("/api/firmware/flash", HTTP_POST, [this] { handleFirmwareFlash(); });
+
   // Settings endpoints
-  server->on("/settings", HTTP_GET, [this] { handleSettingsPage(); });
+  server->on("/settings", HTTP_GET, [this] { handleRoot(); });
   server->on("/api/settings", HTTP_GET, [this] { handleGetSettings(); });
   server->on("/api/settings", HTTP_POST, [this] { handlePostSettings(); });
-
-  // Font management endpoints
-  server->on("/fonts", HTTP_GET, [this] { handleFontsPage(); });
-  server->on("/api/fonts", HTTP_GET, [this] { handleFontList(); });
-  server->on("/api/fonts/upload", HTTP_POST, [this] { handleFontUpload(); }, [this] { handleFontUploadData(); });
-  server->on("/api/fonts/delete", HTTP_POST, [this] { handleFontDelete(); });
-
-  // OPDS server endpoints
-  server->on("/api/opds", HTTP_GET, [this] { handleGetOpdsServers(); });
-  server->on("/api/opds", HTTP_POST, [this] { handlePostOpdsServer(); });
-  server->on("/api/opds/delete", HTTP_POST, [this] { handleDeleteOpdsServer(); });
 
   // Wi-Fi credential endpoints
   server->on("/api/wifi", HTTP_GET, [this] { handleGetWifiNetworks(); });
   server->on("/api/wifi", HTTP_POST, [this] { handlePostWifiNetwork(); });
   server->on("/api/wifi/delete", HTTP_POST, [this] { handleDeleteWifiNetwork(); });
+
+  // Physical book endpoints
+  server->on("/api/books", HTTP_GET, [this] { handleGetBooks(); });
+  server->on("/api/books/create", HTTP_POST, [this] { handleCreateBook(); });
+  server->on("/api/books/update", HTTP_POST, [this] { handleUpdateBook(); });
+  server->on("/api/books/delete", HTTP_POST, [this] { handleDeleteBook(); });
+  // Collection note endpoints
+  server->on("/api/collections/note", HTTP_GET, [this] { handleGetCollectionNote(); });
+  server->on("/api/collections/note", HTTP_POST, [this] { handleSetCollectionNote(); });
+  server->on("/api/collections/note", HTTP_DELETE, [this] { handleDeleteCollectionNote(); });
+  // Collection registry endpoints
+  server->on("/api/collections", HTTP_GET, [this] { handleGetCollections(); });
+  server->on("/api/collections/rename", HTTP_POST, [this] { handleRenameCollection(); });
+  // Reading log endpoints
+  server->on("/api/readings", HTTP_GET, [this] { handleGetReadings(); });
+  server->on("/api/readings/save", HTTP_POST, [this] { handleSaveReadings(); });
 
   server->onNotFound([this] { handleNotFound(); });
   LOG_DBG("WEB", "[MEM] Free heap after route setup: %d bytes", ESP.getFreeHeap());
@@ -198,7 +223,7 @@ void CrossPointWebServer::begin() {
   // Start WebSocket server for fast binary uploads
   LOG_DBG("WEB", "Starting WebSocket server on port %d...", wsPort);
   wsServer.reset(new WebSocketsServer(wsPort));
-  wsInstance = const_cast<CrossPointWebServer*>(this);
+  wsInstance = const_cast<MyneWebServer*>(this);
   wsServer->begin();
   wsServer->onEvent(wsEventCallback);
   LOG_DBG("WEB", "WebSocket server started");
@@ -216,7 +241,19 @@ void CrossPointWebServer::begin() {
   LOG_DBG("WEB", "[MEM] Free heap after server.begin(): %d bytes", ESP.getFreeHeap());
 }
 
-void CrossPointWebServer::abortWsUpload(const char* tag) {
+bool MyneWebServer::ensureBookStoreInitialized() {
+  if (bookStoreInitialized) {
+    return true;
+  }
+  esp_task_wdt_reset();
+  const unsigned long start = millis();
+  bookStoreInitialized = bookStore->init();
+  yield();
+  LOG_DBG("WEB", "Book store init %s in %lu ms", bookStoreInitialized ? "done" : "failed", millis() - start);
+  return bookStoreInitialized;
+}
+
+void MyneWebServer::abortWsUpload(const char* tag) {
   // Explicit close() required: file-scope global persists beyond function scope
   wsUploadFile.close();
   String filePath = wsUploadPath;
@@ -232,7 +269,7 @@ void CrossPointWebServer::abortWsUpload(const char* tag) {
   wsLastProgressSent = 0;
 }
 
-void CrossPointWebServer::stop() {
+void MyneWebServer::stop() {
   if (!running || !server) {
     LOG_DBG("WEB", "stop() called but already stopped (running=%d, server=%p)", running, server.get());
     return;
@@ -280,7 +317,7 @@ void CrossPointWebServer::stop() {
   LOG_DBG("WEB", "[MEM] Free heap final: %d bytes", ESP.getFreeHeap());
 }
 
-void CrossPointWebServer::handleClient() {
+void MyneWebServer::handleClient() {
   static unsigned long lastDebugPrint = 0;
 
   // Check running flag FIRST before accessing server
@@ -318,9 +355,9 @@ void CrossPointWebServer::handleClient() {
         if (strcmp(buffer, "hello") == 0) {
           String hostname = WiFi.getHostname();
           if (hostname.isEmpty()) {
-            hostname = "crosspoint";
+            hostname = "myne";
           }
-          String message = "crosspoint (on " + hostname + ");" + String(wsPort);
+          String message = "myne (on " + hostname + ");" + String(wsPort);
           udp.beginPacket(udp.remoteIP(), udp.remotePort());
           udp.write(reinterpret_cast<const uint8_t*>(message.c_str()), message.length());
           udp.endPacket();
@@ -330,7 +367,7 @@ void CrossPointWebServer::handleClient() {
   }
 }
 
-CrossPointWebServer::WsUploadStatus CrossPointWebServer::getWsUploadStatus() const {
+MyneWebServer::WsUploadStatus MyneWebServer::getWsUploadStatus() const {
   WsUploadStatus status;
   status.inProgress = wsUploadInProgress;
   status.received = wsUploadReceived;
@@ -344,44 +381,56 @@ CrossPointWebServer::WsUploadStatus CrossPointWebServer::getWsUploadStatus() con
 
 static void sendHtmlContent(WebServer* server, const char* data, size_t len) {
   server->sendHeader("Content-Encoding", "gzip");
-  server->send_P(200, "text/html", data, len);
+  server->setContentLength(len);
+  server->send(200, "text/html", "");
+
+  NetworkClient client = server->client();
+  constexpr size_t CHUNK_SIZE = 2048;
+  size_t sent = 0;
+  while (sent < len && client.connected()) {
+    esp_task_wdt_reset();
+    const size_t chunk = std::min(CHUNK_SIZE, len - sent);
+    const size_t written = client.write(reinterpret_cast<const uint8_t*>(data + sent), chunk);
+    if (written == 0) {
+      break;
+    }
+    sent += written;
+    yield();
+  }
 }
 
-void CrossPointWebServer::handleRoot() const {
-  sendHtmlContent(server.get(), HomePageHtml, sizeof(HomePageHtml));
-  LOG_DBG("WEB", "Served root page");
+void MyneWebServer::handleRoot() const {
+  sendHtmlContent(server.get(), DashboardHtml, DashboardHtmlCompressedSize);
+  LOG_DBG("WEB", "Served dashboard");
 }
 
-void CrossPointWebServer::handleJszip() const {
-  server->sendHeader("Content-Encoding", "gzip");
-  server->send_P(200, "application/javascript", jszip_minJs, jszip_minJsCompressedSize);
-  LOG_DBG("WEB", "Served jszip.min.js");
-}
-
-void CrossPointWebServer::handleNotFound() const {
+void MyneWebServer::handleNotFound() const {
   String message = "404 Not Found\n\n";
   message += "URI: " + server->uri() + "\n";
   server->send(404, "text/plain", message);
 }
 
-void CrossPointWebServer::handleStatus() const {
+void MyneWebServer::handleStatus() const {
   // Get correct IP based on AP vs STA mode
   const String ipAddr = apMode ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
 
   JsonDocument doc;
-  doc["version"] = CROSSPOINT_VERSION;
+  doc["version"] = MYNE_VERSION;
   doc["ip"] = ipAddr;
   doc["mode"] = apMode ? "AP" : "STA";
   doc["rssi"] = apMode ? 0 : WiFi.RSSI();
   doc["freeHeap"] = ESP.getFreeHeap();
   doc["uptime"] = millis() / 1000;
+  const auto storageStats = Storage.getStorageStats();
+  doc["storageTotal"] = storageStats.totalBytes;
+  doc["storageUsed"] = storageStats.usedBytes;
 
   String json;
   serializeJson(doc, json);
   server->send(200, "application/json", json);
 }
 
-void CrossPointWebServer::scanFiles(const char* path, const std::function<void(FileInfo)>& callback) const {
+void MyneWebServer::scanFiles(const char* path, const std::function<void(FileInfo)>& callback) const {
   FsFile root = Storage.open(path);
   if (!root) {
     LOG_DBG("WEB", "Failed to open directory: %s", path);
@@ -422,10 +471,8 @@ void CrossPointWebServer::scanFiles(const char* path, const std::function<void(F
 
       if (info.isDirectory) {
         info.size = 0;
-        info.isEpub = false;
       } else {
         info.size = file.size();
-        info.isEpub = isEpubFile(info.name);
       }
 
       callback(info);
@@ -439,13 +486,8 @@ void CrossPointWebServer::scanFiles(const char* path, const std::function<void(F
   root.close();
 }
 
-bool CrossPointWebServer::isEpubFile(const String& filename) const { return FsHelpers::hasEpubExtension(filename); }
 
-void CrossPointWebServer::handleFileList() const {
-  sendHtmlContent(server.get(), FilesPageHtml, sizeof(FilesPageHtml));
-}
-
-void CrossPointWebServer::handleFileListData() const {
+void MyneWebServer::handleFileListData() const {
   // Get current path from query string (default to root)
   String currentPath = "/";
   if (server->hasArg("path")) {
@@ -473,7 +515,6 @@ void CrossPointWebServer::handleFileListData() const {
     doc["name"] = info.name;
     doc["size"] = info.size;
     doc["isDirectory"] = info.isDirectory;
-    doc["isEpub"] = info.isEpub;
 
     const size_t written = serializeJson(doc, output, outputSize);
     if (written >= outputSize) {
@@ -495,7 +536,7 @@ void CrossPointWebServer::handleFileListData() const {
   LOG_DBG("WEB", "Served file listing page for path: %s", currentPath.c_str());
 }
 
-void CrossPointWebServer::handleDownload() const {
+void MyneWebServer::handleDownload() const {
   if (!server->hasArg("path")) {
     server->send(400, "text/plain", "Missing path");
     return;
@@ -538,11 +579,7 @@ void CrossPointWebServer::handleDownload() const {
     return;
   }
 
-  String contentType = "application/octet-stream";
-  if (isEpubFile(itemPath)) {
-    contentType = "application/epub+zip";
-  }
-
+  const String contentType = "application/octet-stream";
   char nameBuf[128] = {0};
   String filename = "download";
   if (file.getName(nameBuf, sizeof(nameBuf))) {
@@ -582,7 +619,7 @@ static unsigned long uploadStartTime = 0;
 static unsigned long totalWriteTime = 0;
 static size_t writeCount = 0;
 
-static bool flushUploadBuffer(CrossPointWebServer::UploadState& state) {
+static bool flushUploadBuffer(MyneWebServer::UploadState& state) {
   if (state.bufferPos > 0 && state.file) {
     esp_task_wdt_reset();  // Reset watchdog before potentially slow SD write
     const unsigned long writeStart = millis();
@@ -601,7 +638,7 @@ static bool flushUploadBuffer(CrossPointWebServer::UploadState& state) {
   return true;
 }
 
-void CrossPointWebServer::handleUpload(UploadState& state) const {
+void MyneWebServer::handleUpload(UploadState& state) const {
   static size_t lastLoggedSize = 0;
 
   // Reset watchdog at start of every upload callback - HTTP parsing can be slow
@@ -749,7 +786,7 @@ void CrossPointWebServer::handleUpload(UploadState& state) const {
   }
 }
 
-void CrossPointWebServer::handleUploadPost(UploadState& state) const {
+void MyneWebServer::handleUploadPost(UploadState& state) const {
   if (state.success) {
     server->send(200, "text/plain", "File uploaded successfully: " + state.fileName);
   } else {
@@ -758,7 +795,7 @@ void CrossPointWebServer::handleUploadPost(UploadState& state) const {
   }
 }
 
-void CrossPointWebServer::handleCreateFolder() const {
+void MyneWebServer::handleCreateFolder() const {
   // Get folder name from form data
   if (!server->hasArg("name")) {
     server->send(400, "text/plain", "Missing folder name");
@@ -808,7 +845,7 @@ void CrossPointWebServer::handleCreateFolder() const {
   }
 }
 
-void CrossPointWebServer::handleRename() const {
+void MyneWebServer::handleRename() const {
   if (!server->hasArg("path") || !server->hasArg("name")) {
     server->send(400, "text/plain", "Missing path or new name");
     return;
@@ -890,7 +927,7 @@ void CrossPointWebServer::handleRename() const {
   }
 }
 
-void CrossPointWebServer::handleMove() const {
+void MyneWebServer::handleMove() const {
   if (!server->hasArg("path") || !server->hasArg("dest")) {
     server->send(400, "text/plain", "Missing path or destination");
     return;
@@ -983,7 +1020,7 @@ void CrossPointWebServer::handleMove() const {
   }
 }
 
-void CrossPointWebServer::handleDelete() const {
+void MyneWebServer::handleDelete() const {
   // To ensure backwards compatibility, plain `path` is mapped
   // to a single element JSON array.
   bool hasPathArg = server->hasArg("path");
@@ -1105,16 +1142,12 @@ void CrossPointWebServer::handleDelete() const {
   }
 }
 
-void CrossPointWebServer::handleSettingsPage() const {
-  sendHtmlContent(server.get(), SettingsPageHtml, sizeof(SettingsPageHtml));
-  LOG_DBG("WEB", "Served settings page");
-}
 
-void CrossPointWebServer::handleGetSettings() const {
+void MyneWebServer::handleGetSettings() const {
   // Pass the SD font registry so the fontFamily setting's enumStringValues
   // includes SD-resident families — otherwise the web API only exposes the
   // three built-in fonts.
-  const auto& settings = getSettingsList(&sdFontSystem.registry());
+  const auto& settings = getSettingsList();
 
   server->setContentLength(CONTENT_LENGTH_UNKNOWN);
   server->send(200, "application/json", "");
@@ -1202,7 +1235,7 @@ void CrossPointWebServer::handleGetSettings() const {
   LOG_DBG("WEB", "Served settings API");
 }
 
-void CrossPointWebServer::handlePostSettings() {
+void MyneWebServer::handlePostSettings() {
   if (!server->hasArg("plain")) {
     server->send(400, "text/plain", "Missing JSON body");
     return;
@@ -1216,7 +1249,7 @@ void CrossPointWebServer::handlePostSettings() {
     return;
   }
 
-  const auto& settings = getSettingsList(&sdFontSystem.registry());
+  const auto& settings = getSettingsList();
   int applied = 0;
 
   for (const auto& s : settings) {
@@ -1279,125 +1312,9 @@ void CrossPointWebServer::handlePostSettings() {
   server->send(200, "text/plain", String("Applied ") + String(applied) + " setting(s)");
 }
 
-// ---- OPDS Server API ----
-
-void CrossPointWebServer::handleGetOpdsServers() const {
-  const auto& servers = OPDS_STORE.getServers();
-
-  // Stream JSON array incrementally to avoid allocating the full response in memory
-  server->setContentLength(CONTENT_LENGTH_UNKNOWN);
-  server->send(200, "application/json", "");
-  server->sendContent("[");
-
-  char output[512];
-  constexpr size_t outputSize = sizeof(output);
-  JsonDocument doc;
-
-  for (size_t i = 0; i < servers.size(); i++) {
-    doc.clear();
-    doc["index"] = i;
-    doc["name"] = servers[i].name;
-    doc["url"] = servers[i].url;
-    doc["username"] = servers[i].username;
-    // Never expose passwords over the API — only indicate whether one is set
-    doc["hasPassword"] = !servers[i].password.empty();
-
-    const size_t written = serializeJson(doc, output, outputSize);
-    if (written >= outputSize) continue;
-
-    if (i > 0) server->sendContent(",");
-    server->sendContent(output);
-  }
-
-  server->sendContent("]");
-  server->sendContent("");
-  LOG_DBG("WEB", "Served OPDS servers API (%zu servers)", servers.size());
-}
-
-void CrossPointWebServer::handlePostOpdsServer() {
-  if (!server->hasArg("plain")) {
-    server->send(400, "text/plain", "Missing JSON body");
-    return;
-  }
-
-  const String body = server->arg("plain");
-  JsonDocument doc;
-  const DeserializationError err = deserializeJson(doc, body);
-  if (err) {
-    server->send(400, "text/plain", String("Invalid JSON: ") + err.c_str());
-    return;
-  }
-
-  OpdsServer opdsServer;
-  opdsServer.name = doc["name"] | std::string("");
-  opdsServer.url = doc["url"] | std::string("");
-  opdsServer.username = doc["username"] | std::string("");
-
-  // The password field is optional in the JSON payload. When absent (vs. present but empty),
-  // we preserve the existing password — the web UI omits it when the user hasn't changed it.
-  bool hasPasswordField = doc["password"].is<const char*>() || doc["password"].is<std::string>();
-  std::string password = doc["password"] | std::string("");
-
-  if (doc["index"].is<int>()) {
-    int idx = doc["index"].as<int>();
-    if (idx < 0 || idx >= static_cast<int>(OPDS_STORE.getCount())) {
-      server->send(400, "text/plain", "Invalid server index");
-      return;
-    }
-    // Preserve existing password if not explicitly provided
-    if (!hasPasswordField) {
-      const auto* existing = OPDS_STORE.getServer(static_cast<size_t>(idx));
-      if (existing) password = existing->password;
-    }
-    opdsServer.password = password;
-    OPDS_STORE.updateServer(static_cast<size_t>(idx), opdsServer);
-    LOG_DBG("WEB", "Updated OPDS server at index %d", idx);
-  } else {
-    opdsServer.password = password;
-    if (!OPDS_STORE.addServer(opdsServer)) {
-      server->send(400, "text/plain", "Cannot add server (limit reached)");
-      return;
-    }
-    LOG_DBG("WEB", "Added new OPDS server: %s", opdsServer.name.c_str());
-  }
-
-  server->send(200, "text/plain", "OK");
-}
-
-// Uses POST (not HTTP DELETE) because ESP32 WebServer doesn't support DELETE with body.
-void CrossPointWebServer::handleDeleteOpdsServer() {
-  if (!server->hasArg("plain")) {
-    server->send(400, "text/plain", "Missing JSON body");
-    return;
-  }
-
-  const String body = server->arg("plain");
-  JsonDocument doc;
-  const DeserializationError err = deserializeJson(doc, body);
-  if (err) {
-    server->send(400, "text/plain", String("Invalid JSON: ") + err.c_str());
-    return;
-  }
-
-  if (!doc["index"].is<int>()) {
-    server->send(400, "text/plain", "Missing index");
-    return;
-  }
-
-  int idx = doc["index"].as<int>();
-  if (idx < 0 || idx >= static_cast<int>(OPDS_STORE.getCount())) {
-    server->send(400, "text/plain", "Invalid server index");
-    return;
-  }
-
-  OPDS_STORE.removeServer(static_cast<size_t>(idx));
-  LOG_DBG("WEB", "Deleted OPDS server at index %d", idx);
-  server->send(200, "text/plain", "OK");
-}
-
 // ---- Wi-Fi Credentials API ----
 
-void CrossPointWebServer::handleGetWifiNetworks() const {
+void MyneWebServer::handleGetWifiNetworks() const {
   const auto& credentials = WIFI_STORE.getCredentials();
   const std::string& lastConnectedSsid = WIFI_STORE.getLastConnectedSsid();
 
@@ -1430,7 +1347,7 @@ void CrossPointWebServer::handleGetWifiNetworks() const {
   LOG_DBG("WEB", "Served Wi-Fi credentials API (%zu network(s))", credentials.size());
 }
 
-void CrossPointWebServer::handlePostWifiNetwork() {
+void MyneWebServer::handlePostWifiNetwork() {
   if (!server->hasArg("plain")) {
     server->send(400, "text/plain", "Missing JSON body");
     return;
@@ -1493,7 +1410,7 @@ void CrossPointWebServer::handlePostWifiNetwork() {
 }
 
 // Uses POST (not HTTP DELETE) because ESP32 WebServer doesn't support DELETE with body.
-void CrossPointWebServer::handleDeleteWifiNetwork() {
+void MyneWebServer::handleDeleteWifiNetwork() {
   if (!server->hasArg("plain")) {
     server->send(400, "text/plain", "Missing JSON body");
     return;
@@ -1529,8 +1446,315 @@ void CrossPointWebServer::handleDeleteWifiNetwork() {
   server->send(200, "text/plain", "OK");
 }
 
+// ──────────────────────────────────────────────
+// Physical book handlers
+// ──────────────────────────────────────────────
+
+void MyneWebServer::handleGetBooks() const {
+  // Stream directly from per-book JSON files — no in-memory book collection.
+  // Peak RAM: one 512-byte parse buffer + two tiny JsonDocuments per book.
+  server->setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server->send(200, "application/json", "");
+  server->sendContent("[");
+
+  auto* buf = static_cast<char*>(malloc(512));
+  if (!buf) { server->sendContent("]"); server->sendContent(""); return; }
+
+  bool first = true;
+  if (Storage.exists(BookStore::DIR_PATH)) {
+    HalFile dir = Storage.open(BookStore::DIR_PATH);
+    if (dir && dir.isDirectory()) {
+      while (true) {
+        esp_task_wdt_reset();
+        HalFile entry = dir.openNextFile();
+        if (!entry) break;
+        if (entry.isDirectory()) continue;
+        char name[64];
+        entry.getName(name, sizeof(name));
+        const size_t nl = strlen(name);
+        if (nl < 5 || strcmp(name + nl - 5, ".json") != 0) continue;
+
+        const size_t n = entry.read(buf, 511);
+        buf[n] = '\0';
+        JsonDocument inDoc;
+        if (deserializeJson(inDoc, buf) != DeserializationError::Ok) continue;
+        const char* id = inDoc["id"] | "";
+        if (id[0] == '\0') continue;
+
+        if (!first) server->sendContent(",");
+        first = false;
+
+        JsonDocument outDoc;
+        outDoc["id"]         = inDoc["id"];
+        outDoc["title"]      = inDoc["t"];
+        outDoc["author"]     = inDoc["a"];
+        outDoc["collection"] = inDoc["c"];
+        outDoc["volume"]     = inDoc["v"];
+        outDoc["location"]   = inDoc["l"];
+        outDoc["notes"]      = inDoc["n"];
+        String item;
+        serializeJson(outDoc, item);
+        server->sendContent(item);
+        esp_task_wdt_reset();
+        yield();
+      }
+    }
+  }
+  free(buf);
+  server->sendContent("]");
+  server->sendContent("");
+}
+
+void MyneWebServer::handleCreateBook() {
+  if (!ensureBookStoreInitialized()) {
+    server->send(500, "text/plain", "Failed to initialize book store");
+    return;
+  }
+
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON body");
+    return;
+  }
+
+  JsonDocument doc;
+  const DeserializationError err = deserializeJson(doc, server->arg("plain"));
+  if (err) {
+    server->send(400, "text/plain", String("Invalid JSON: ") + err.c_str());
+    return;
+  }
+
+  if (!doc["title"].is<const char*>() || String(doc["title"].as<const char*>()).isEmpty()) {
+    server->send(400, "text/plain", "title is required");
+    return;
+  }
+
+  PhysicalBook book;
+  book.title = doc["title"] | "";
+  book.author = doc["author"] | "";
+  book.collection = doc["collection"] | "";
+  book.volume = doc["volume"] | "";
+  book.location = doc["location"] | "";
+  book.notes = doc["notes"] | "";
+
+  if (!bookStore->create(book)) {
+    server->send(500, "text/plain", "Failed to save book");
+    return;
+  }
+
+  const BookCatalog::BookChangeInfo newInfo = toChangeInfo(book);
+  if (!BookCatalog::applyBookChange(nullptr, &newInfo)) writeSyncFlag();
+  ReadingLog{}.refreshTotalBooks(BookStore::DIR_PATH);
+
+  JsonDocument resp;
+  resp["ok"] = true;
+  resp["id"] = book.id;
+  String json;
+  serializeJson(resp, json);
+  server->send(201, "application/json", json);
+}
+
+void MyneWebServer::handleUpdateBook() {
+  if (!ensureBookStoreInitialized()) {
+    server->send(500, "text/plain", "Failed to initialize book store");
+    return;
+  }
+
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON body");
+    return;
+  }
+
+  JsonDocument doc;
+  const DeserializationError err = deserializeJson(doc, server->arg("plain"));
+  if (err) {
+    server->send(400, "text/plain", String("Invalid JSON: ") + err.c_str());
+    return;
+  }
+
+  if (!doc["id"].is<const char*>() || String(doc["id"].as<const char*>()).isEmpty()) {
+    server->send(400, "text/plain", "id is required");
+    return;
+  }
+
+  PhysicalBook book;
+  book.id = doc["id"] | "";
+  book.title = doc["title"] | "";
+  book.author = doc["author"] | "";
+  book.collection = doc["collection"] | "";
+  book.volume = doc["volume"] | "";
+  book.location = doc["location"] | "";
+  book.notes = doc["notes"] | "";
+
+  PhysicalBook oldBook;
+  const bool   hadOldBook = bookStore->get(book.id, oldBook);
+
+  if (!bookStore->update(book)) {
+    server->send(404, "text/plain", "Book not found");
+    return;
+  }
+
+  const BookCatalog::BookChangeInfo newInfo = toChangeInfo(book);
+  if (hadOldBook) {
+    const BookCatalog::BookChangeInfo oldInfo = toChangeInfo(oldBook);
+    if (!BookCatalog::applyBookChange(&oldInfo, &newInfo)) writeSyncFlag();
+  } else {
+    writeSyncFlag();
+  }
+
+  server->send(200, "application/json", "{\"ok\":true}");
+}
+
+void MyneWebServer::handleDeleteBook() {
+  if (!ensureBookStoreInitialized()) {
+    server->send(500, "text/plain", "Failed to initialize book store");
+    return;
+  }
+
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON body");
+    return;
+  }
+
+  JsonDocument doc;
+  const DeserializationError err = deserializeJson(doc, server->arg("plain"));
+  if (err) {
+    server->send(400, "text/plain", String("Invalid JSON: ") + err.c_str());
+    return;
+  }
+
+  if (!doc["id"].is<const char*>() || String(doc["id"].as<const char*>()).isEmpty()) {
+    server->send(400, "text/plain", "id is required");
+    return;
+  }
+
+  const std::string id = doc["id"] | "";
+
+  PhysicalBook oldBook;
+  const bool   hadOldBook = bookStore->get(id, oldBook);
+
+  if (!bookStore->remove(id)) {
+    server->send(404, "text/plain", "Book not found");
+    return;
+  }
+
+  // Remove readings JSON and summary binary
+  ReadingLog{}.deleteForBook(id);
+
+  if (hadOldBook) {
+    const BookCatalog::BookChangeInfo oldInfo = toChangeInfo(oldBook);
+    if (!BookCatalog::applyBookChange(&oldInfo, nullptr)) writeSyncFlag();
+  } else {
+    writeSyncFlag();
+  }
+  ReadingLog{}.refreshTotalBooks(BookStore::DIR_PATH);
+
+  server->send(200, "application/json", "{\"ok\":true}");
+}
+
+// ── Collection note handlers ──────────────────────────────────────────────────
+
+void MyneWebServer::handleGetCollectionNote() const {
+  if (!server->hasArg("id")) {
+    server->send(400, "text/plain", "Missing id");
+    return;
+  }
+  const String id = server->arg("id");
+  char note[65] = {};
+  BookCatalog::getCollectionNote(id.c_str(), note, sizeof(note));
+
+  JsonDocument doc;
+  doc["id"] = id;
+  doc["note"] = note;
+  String json;
+  serializeJson(doc, json);
+  server->send(200, "application/json", json);
+}
+
+void MyneWebServer::handleSetCollectionNote() {
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON body");
+    return;
+  }
+
+  JsonDocument doc;
+  const DeserializationError err = deserializeJson(doc, server->arg("plain"));
+  if (err) {
+    server->send(400, "text/plain", String("Invalid JSON: ") + err.c_str());
+    return;
+  }
+
+  const char* id = doc["id"] | "";
+  if (!id || id[0] == '\0') {
+    server->send(400, "text/plain", "id is required");
+    return;
+  }
+
+  const char* note = doc["note"] | "";
+  if (!BookCatalog::setCollectionNote(id, note)) {
+    server->send(500, "text/plain", "Failed to save collection note");
+    return;
+  }
+
+  server->send(200, "application/json", "{\"ok\":true}");
+}
+
+void MyneWebServer::handleDeleteCollectionNote() {
+  if (!server->hasArg("id")) {
+    server->send(400, "text/plain", "Missing id");
+    return;
+  }
+  const String id = server->arg("id");
+  if (!BookCatalog::setCollectionNote(id.c_str(), "")) {
+    server->send(500, "text/plain", "Failed to delete collection note");
+    return;
+  }
+  server->send(200, "application/json", "{\"ok\":true}");
+}
+
+// ── Collection registry handlers ──────────────────────────────────────────────
+
+void MyneWebServer::handleGetCollections() const {
+  server->setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server->send(200, "application/json", "");
+  server->sendContent("[");
+
+  CollectionsStreamCtx ctx{server.get(), true};
+  BookCatalog::forEachCollection(streamCollectionCb, &ctx);
+
+  server->sendContent("]");
+  server->sendContent("");
+}
+
+void MyneWebServer::handleRenameCollection() {
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON body");
+    return;
+  }
+
+  JsonDocument doc;
+  const DeserializationError err = deserializeJson(doc, server->arg("plain"));
+  if (err) {
+    server->send(400, "text/plain", String("Invalid JSON: ") + err.c_str());
+    return;
+  }
+
+  const char* id = doc["id"] | "";
+  const char* name = doc["name"] | "";
+  if (!id[0] || !name[0]) {
+    server->send(400, "text/plain", "id and name are required");
+    return;
+  }
+
+  if (!BookCatalog::renameCollection(id, name)) {
+    server->send(404, "text/plain", "Collection not found");
+    return;
+  }
+
+  server->send(200, "application/json", "{\"ok\":true}");
+}
+
 // WebSocket callback trampoline
-void CrossPointWebServer::wsEventCallback(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
+void MyneWebServer::wsEventCallback(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
   if (wsInstance) {
     wsInstance->onWebSocketEvent(num, type, payload, length);
   }
@@ -1542,7 +1766,7 @@ void CrossPointWebServer::wsEventCallback(uint8_t num, WStype_t type, uint8_t* p
 //   2. Client sends BINARY messages with file data chunks
 //   3. Server sends TEXT "PROGRESS:<received>:<total>" after each chunk
 //   4. Server sends TEXT "DONE" or "ERROR:<message>" when complete
-void CrossPointWebServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
+void MyneWebServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
   switch (type) {
     case WStype_DISCONNECTED:
       LOG_DBG("WS", "Client %u disconnected", num);
@@ -1675,12 +1899,9 @@ void CrossPointWebServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* 
 
       wsUploadReceived += written;
 
-      // Send progress update (every 64KB or at end)
-      if (wsUploadReceived - wsLastProgressSent >= 65536 || wsUploadReceived >= wsUploadSize) {
-        String progress = "PROGRESS:" + String(wsUploadReceived) + ":" + String(wsUploadSize);
-        wsServer->sendTXT(num, progress);
-        wsLastProgressSent = wsUploadReceived;
-      }
+      // Send PROGRESS after every chunk so the client can pace its sends
+      String progress = "PROGRESS:" + String(wsUploadReceived) + ":" + String(wsUploadSize);
+      wsServer->sendTXT(num, progress);
 
       // Check if upload complete
       if (wsUploadReceived >= wsUploadSize) {
@@ -1716,198 +1937,184 @@ void CrossPointWebServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* 
   }
 }
 
-// --- Font management handlers ---
+void MyneWebServer::handleFirmwareFlash() {
+  static constexpr const char* FIRMWARE_TEMP_PATH = "/firmware_update.bin";
 
-void CrossPointWebServer::handleFontsPage() const {
-  sendHtmlContent(server.get(), FontsPageHtml, sizeof(FontsPageHtml));
-  LOG_DBG("WEB", "Served fonts page");
-}
-
-void CrossPointWebServer::handleFontList() const {
-  // Pick up any uploads/deletes that happened since the last reader load.
-  const_cast<SdCardFontSystem&>(sdFontSystem).refreshIfDirty();
-  const auto& families = sdFontSystem.registry().getFamilies();
-
-  JsonDocument doc;
-  JsonArray arr = doc["families"].to<JsonArray>();
-  doc["maxFamilies"] = SdCardFontRegistry::MAX_SD_FAMILIES;
-
-  for (const auto& family : families) {
-    JsonObject fObj = arr.add<JsonObject>();
-    fObj["name"] = family.name;
-
-    JsonArray sizes = fObj["sizes"].to<JsonArray>();
-    for (uint8_t s : family.availableSizes()) {
-      sizes.add(s);
-    }
-
-    JsonArray files = fObj["files"].to<JsonArray>();
-    for (const auto& file : family.files) {
-      JsonObject fileObj = files.add<JsonObject>();
-      // Extract filename from full path
-      const char* name = strrchr(file.path.c_str(), '/');
-      fileObj["name"] = name ? name + 1 : file.path.c_str();
-
-      // Stat the file for size
-      FsFile f;
-      if (Storage.openFileForRead("WEB", file.path.c_str(), f)) {
-        fileObj["size"] = static_cast<unsigned long>(f.size());
-        f.close();
-      } else {
-        fileObj["size"] = 0;
-      }
-    }
-  }
-
-  String json;
-  serializeJson(doc, json);
-  server->send(200, "application/json", json);
-}
-
-void CrossPointWebServer::handleFontUploadData() {
-  HTTPUpload& upload = server->upload();
-
-  switch (upload.status) {
-    case UPLOAD_FILE_START: {
-      esp_task_wdt_reset();
-      String family = server->arg("family");
-      fontUpload.valid = false;
-      fontUpload.magicChecked = false;
-      fontUpload.bytesWritten = 0;
-      fontUpload.bufferPos = 0;
-
-      if (!FontInstaller::isValidFamilyName(family.c_str())) {
-        LOG_ERR("WEB", "Invalid font family name: %s", family.c_str());
-        break;
-      }
-
-      String filename = upload.filename;
-      // Validate filename: rejects path traversal (../, /, \) and enforces
-      // a .cpfont basename of alphanumeric + hyphen + underscore. Without
-      // this an attacker could supply "../../.crosspoint/settings.json" as
-      // a "filename" and have it written outside the fonts directory.
-      if (!FontInstaller::isValidCpfontFilename(filename.c_str())) {
-        LOG_ERR("WEB", "Invalid font filename: %s", filename.c_str());
-        break;
-      }
-
-      fontUpload.familyName = family.c_str();
-
-      // Create a temporary FontInstaller for directory creation
-      FontInstaller installer(sdFontSystem.registry());
-      if (!installer.ensureFamilyDir(family.c_str())) {
-        LOG_ERR("WEB", "Failed to create font family dir");
-        break;
-      }
-
-      char path[128];
-      FontInstaller::buildFontPath(family.c_str(), filename.c_str(), path, sizeof(path));
-      fontUpload.filePath = path;
-
-      if (!Storage.openFileForWrite("WEB", path, fontUpload.file)) {
-        LOG_ERR("WEB", "Failed to open font file for write: %s", path);
-        break;
-      }
-
-      fontUpload.valid = true;
-      LOG_DBG("WEB", "Font upload started: %s -> %s", filename.c_str(), path);
-      break;
-    }
-
-    case UPLOAD_FILE_WRITE: {
-      if (!fontUpload.valid) break;
-      esp_task_wdt_reset();
-
-      // Validate magic bytes on first chunk only
-      if (!fontUpload.magicChecked && upload.currentSize >= 8) {
-        if (memcmp(upload.buf, "CPFONT\0\0", 8) != 0) {
-          LOG_ERR("WEB", "Invalid .cpfont magic bytes");
-          fontUpload.valid = false;
-          break;
-        }
-        fontUpload.magicChecked = true;
-      }
-
-      // Buffer writes for efficiency
-      size_t remaining = upload.currentSize;
-      const uint8_t* src = upload.buf;
-      while (remaining > 0) {
-        size_t space = FontUploadState::BUFFER_SIZE - fontUpload.bufferPos;
-        size_t chunk = (remaining < space) ? remaining : space;
-        memcpy(fontUpload.buffer.data() + fontUpload.bufferPos, src, chunk);
-        fontUpload.bufferPos += chunk;
-        src += chunk;
-        remaining -= chunk;
-
-        if (fontUpload.bufferPos >= FontUploadState::BUFFER_SIZE) {
-          fontUpload.file.write(fontUpload.buffer.data(), fontUpload.bufferPos);
-          fontUpload.bytesWritten += fontUpload.bufferPos;
-          fontUpload.bufferPos = 0;
-          esp_task_wdt_reset();
-        }
-      }
-      break;
-    }
-
-    case UPLOAD_FILE_END: {
-      // Flush remaining buffer
-      if (fontUpload.valid && fontUpload.bufferPos > 0) {
-        fontUpload.file.write(fontUpload.buffer.data(), fontUpload.bufferPos);
-        fontUpload.bytesWritten += fontUpload.bufferPos;
-        fontUpload.bufferPos = 0;
-      }
-      fontUpload.file.close();
-
-      if (!fontUpload.valid && !fontUpload.filePath.empty()) {
-        Storage.remove(fontUpload.filePath.c_str());
-      }
-
-      LOG_DBG("WEB", "Font upload end: valid=%d, %zu bytes", fontUpload.valid, fontUpload.bytesWritten);
-      break;
-    }
-
-    case UPLOAD_FILE_ABORTED: {
-      fontUpload.file.close();
-      if (!fontUpload.filePath.empty()) {
-        Storage.remove(fontUpload.filePath.c_str());
-      }
-      fontUpload.valid = false;
-      LOG_DBG("WEB", "Font upload aborted");
-      break;
-    }
-  }
-}
-
-void CrossPointWebServer::handleFontUpload() {
-  if (fontUpload.valid) {
-    sdFontSystem.markRegistryDirty();
-    server->send(200, "application/json", "{\"ok\":true}");
-    LOG_DBG("WEB", "Font upload complete: %s", fontUpload.filePath.c_str());
-  } else {
-    server->send(400, "application/json", "{\"error\":\"Invalid .cpfont file\"}");
-  }
-}
-
-void CrossPointWebServer::handleFontDelete() {
-  String body = server->arg("plain");
-  JsonDocument doc;
-  DeserializationError err = deserializeJson(doc, body);
-
-  if (err || !doc["family"].is<const char*>()) {
-    server->send(400, "application/json", "{\"error\":\"Invalid request\"}");
+  if (!Storage.exists(FIRMWARE_TEMP_PATH)) {
+    server->send(400, "application/json",
+                 "{\"ok\":false,\"error\":\"No firmware file found. Upload firmware_update.bin first.\"}");
     return;
   }
 
-  const char* familyName = doc["family"];
-  FontInstaller installer(sdFontSystem.registry());
-  auto result = installer.deleteFamily(familyName);
+  auto notify = [this](FirmwareFlashEvent::Phase phase, size_t written = 0, size_t total = 0,
+                       const char* error = nullptr) {
+    if (!firmwareFlashNotify) return;
+    FirmwareFlashEvent evt;
+    evt.phase = phase;
+    evt.written = written;
+    evt.total = total;
+    evt.error = error;
+    firmwareFlashNotify(evt, firmwareFlashNotifyCtx);
+  };
 
-  if (result == FontInstaller::Error::OK) {
-    sdFontSystem.markRegistryDirty();
-    server->send(200, "application/json", "{\"ok\":true}");
-    LOG_DBG("WEB", "Deleted font family: %s", familyName);
-  } else {
-    server->send(500, "application/json", "{\"error\":\"Delete failed\"}");
-    LOG_ERR("WEB", "Failed to delete font family: %s", familyName);
+  notify(FirmwareFlashEvent::VALIDATING);
+
+  const auto vr = firmware_flash::validateImageFile(FIRMWARE_TEMP_PATH, 0);
+  if (vr != firmware_flash::Result::OK) {
+    LOG_ERR("FW", "Web firmware validation failed: %s", firmware_flash::resultName(vr));
+    char buf[128];
+    snprintf(buf, sizeof(buf), "{\"ok\":false,\"error\":\"Invalid firmware: %s\"}", firmware_flash::resultName(vr));
+    server->send(400, "application/json", buf);
+    return;
   }
+
+  // Send response before blocking — the flash + restart takes 20-60s
+  server->sendHeader("Connection", "close");
+  server->send(200, "application/json", "{\"ok\":true,\"message\":\"Flashing firmware, device will restart\"}");
+  server->client().stop();
+  delay(500);
+
+  LOG_INF("FW", "Web-triggered firmware flash from %s", FIRMWARE_TEMP_PATH);
+
+  struct FlashCtx {
+    MyneWebServer* self;
+    size_t total;
+  } flashCtx{this, 0};
+
+  // Read total size to pass into progress callback
+  {
+    HalFile f;
+    if (Storage.openFileForRead("FW", FIRMWARE_TEMP_PATH, f)) {
+      flashCtx.total = f.fileSize();
+      f.close();
+    }
+  }
+
+  auto progressCb = +[](size_t written, size_t total, void* ctx) {
+    auto* c = static_cast<FlashCtx*>(ctx);
+    esp_task_wdt_reset();
+    if (c->self->firmwareFlashNotify) {
+      FirmwareFlashEvent evt;
+      evt.phase = FirmwareFlashEvent::FLASHING;
+      evt.written = written;
+      evt.total = total > 0 ? total : c->total;
+      c->self->firmwareFlashNotify(evt, c->self->firmwareFlashNotifyCtx);
+    }
+  };
+
+  const auto result = firmware_flash::flashFromSdPath(FIRMWARE_TEMP_PATH, progressCb, &flashCtx);
+  if (result != firmware_flash::Result::OK) {
+    LOG_ERR("FW", "Web firmware flash failed: %s", firmware_flash::resultName(result));
+    notify(FirmwareFlashEvent::FAILED, 0, 0, firmware_flash::resultName(result));
+    delay(3000);
+    return;
+  }
+
+  LOG_INF("FW", "Web firmware flash complete, restarting");
+  notify(FirmwareFlashEvent::DONE);
+  delay(1500);
+  ESP.restart();
+}
+
+// ── Reading log handlers ──────────────────────────────────────────────────────
+
+void MyneWebServer::handleGetReadings() const {
+  if (!server->hasArg("bookId")) {
+    server->send(400, "text/plain", "Missing bookId");
+    return;
+  }
+  const String bookId = server->arg("bookId");
+
+  ReadingLog log;
+  const auto readings = log.loadForBook(bookId.c_str());
+
+  // Remap compact storage keys → human-readable API keys
+  JsonDocument out;
+  JsonArray outArr = out.to<JsonArray>();
+  for (const auto& r : readings) {
+    JsonObject outR = outArr.add<JsonObject>();
+    outR["id"]          = r.id;
+    outR["status"]      = ReadingLog::statusToStr(r.status);
+    outR["readingType"] = r.readingType == ReadingType::Chapter ? 1 : 0;
+
+    JsonArray outSessions = outR["sessions"].to<JsonArray>();
+    for (const auto& sv : r.sessions) {
+      JsonObject outSv  = outSessions.add<JsonObject>();
+      outSv["date"]     = sv.date;
+      outSv["position"] = sv.position;
+    }
+  }
+
+  String result;
+  serializeJson(out, result);
+  server->send(200, "application/json", result);
+}
+
+static ReadingStatus webStrToStatus(const char* s) {
+  if (!s)                       return ReadingStatus::Reading;
+  if (strcmp(s, "want")     == 0) return ReadingStatus::WantToRead;
+  if (strcmp(s, "paused")   == 0) return ReadingStatus::Paused;
+  if (strcmp(s, "finished") == 0) return ReadingStatus::Finished;
+  if (strcmp(s, "dropped")  == 0) return ReadingStatus::Dropped;
+  return ReadingStatus::Reading;
+}
+
+void MyneWebServer::handleSaveReadings() {
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON body");
+    return;
+  }
+
+  JsonDocument doc;
+  if (deserializeJson(doc, server->arg("plain")) != DeserializationError::Ok) {
+    server->send(400, "text/plain", "Invalid JSON");
+    return;
+  }
+
+  const char* bookId = doc["bookId"] | "";
+  if (!bookId || bookId[0] == '\0') {
+    server->send(400, "text/plain", "bookId is required");
+    return;
+  }
+
+  JsonArray arr = doc["readings"].as<JsonArray>();
+  if (arr.isNull()) {
+    server->send(400, "text/plain", "readings array is required");
+    return;
+  }
+
+  std::vector<Reading> readings;
+  readings.reserve(arr.size());
+  for (JsonObject r : arr) {
+    Reading reading;
+    reading.id         = r["id"] | "";
+    if (reading.id.empty()) reading.id = ReadingLog::newId();
+    reading.status     = webStrToStatus(r["status"] | "reading");
+    reading.readingType = (r["readingType"] | 0) == 1 ? ReadingType::Chapter : ReadingType::Page;
+
+    JsonArray sessions = r["sessions"].as<JsonArray>();
+    if (!sessions.isNull()) {
+      reading.sessions.reserve(std::min(sessions.size(), ReadingLog::MAX_SESSIONS));
+      for (JsonObject sv : sessions) {
+        if (reading.sessions.size() >= ReadingLog::MAX_SESSIONS) break;
+        ReadingSession s;
+        s.date     = sv["date"] | "";
+        s.position = sv["position"] | 0;
+        reading.sessions.push_back(std::move(s));
+      }
+    }
+    readings.push_back(std::move(reading));
+  }
+
+  const std::string bookIdStr = bookId;
+  doc.clear();  // free request body memory before saveForBook loads reading_log.json
+
+  ReadingLog log;
+  if (!log.saveForBook(bookIdStr, readings)) {
+    server->send(500, "text/plain", "Failed to save readings");
+    return;
+  }
+
+  writeSyncFlag();
+  server->send(200, "application/json", "{\"ok\":true}");
 }

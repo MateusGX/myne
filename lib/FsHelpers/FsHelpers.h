@@ -40,24 +40,6 @@ inline bool hasGifExtension(const String& fileName) {
   return hasGifExtension(std::string_view{fileName.c_str(), fileName.length()});
 }
 
-// Check for .epub extension (case-insensitive)
-bool hasEpubExtension(std::string_view fileName);
-inline bool hasEpubExtension(const String& fileName) {
-  return hasEpubExtension(std::string_view{fileName.c_str(), fileName.length()});
-}
-
-// Check for either .xtc or .xtch extension (case-insensitive)
-bool hasXtcExtension(std::string_view fileName);
-
-// Check for .txt extension (case-insensitive)
-bool hasTxtExtension(std::string_view fileName);
-inline bool hasTxtExtension(const String& fileName) {
-  return hasTxtExtension(std::string_view{fileName.c_str(), fileName.length()});
-}
-
-// Check for .md extension (case-insensitive)
-bool hasMarkdownExtension(std::string_view fileName);
-
 std::string extractFolderPath(const std::string& filePath);
 
 /**

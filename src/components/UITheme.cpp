@@ -4,51 +4,9 @@
 #include <GfxRenderer.h>
 #include <Logging.h>
 
-#include <memory>
-
-#include "MappedInputManager.h"
-#include "RecentBooksStore.h"
-#include "components/themes/BaseTheme.h"
-#include "components/themes/lyra/Lyra3CoversTheme.h"
-#include "components/themes/lyra/LyraTheme.h"
-#include "components/themes/roundedraff/RoundedRaffTheme.h"
+#include "MyneSettings.h"
 
 UITheme UITheme::instance;
-
-UITheme::UITheme() {
-  auto themeType = static_cast<CrossPointSettings::UI_THEME>(SETTINGS.uiTheme);
-  setTheme(themeType);
-}
-
-void UITheme::reload() {
-  auto themeType = static_cast<CrossPointSettings::UI_THEME>(SETTINGS.uiTheme);
-  setTheme(themeType);
-}
-
-void UITheme::setTheme(CrossPointSettings::UI_THEME type) {
-  switch (type) {
-    case CrossPointSettings::UI_THEME::CLASSIC:
-      LOG_DBG("UI", "Using Classic theme");
-      currentTheme = std::make_unique<BaseTheme>();
-      currentMetrics = &BaseMetrics::values;
-      break;
-    case CrossPointSettings::UI_THEME::LYRA:
-      LOG_DBG("UI", "Using Lyra theme");
-      currentTheme = std::make_unique<LyraTheme>();
-      currentMetrics = &LyraMetrics::values;
-      break;
-    case CrossPointSettings::UI_THEME::ROUNDEDRAFF:
-      LOG_DBG("UI", "Using RoundedRaff theme");
-      currentTheme = std::make_unique<RoundedRaffTheme>();
-      currentMetrics = &RoundedRaffMetrics::values;
-      break;
-    case CrossPointSettings::UI_THEME::LYRA_3_COVERS:
-      LOG_DBG("UI", "Using Lyra 3 Covers theme");
-      currentTheme = std::make_unique<Lyra3CoversTheme>();
-      currentMetrics = &Lyra3CoversMetrics::values;
-      break;
-  }
-}
 
 int UITheme::getNumberOfItemsPerPage(const GfxRenderer& renderer, bool hasHeader, bool hasTabBar, bool hasButtonHints,
                                      bool hasSubtitle, int extraReservedHeight) {
@@ -78,29 +36,21 @@ std::string UITheme::getCoverThumbPath(std::string coverBmpPath, int coverHeight
 
 UIIcon UITheme::getFileIcon(const std::string& filename) {
   if (filename.back() == '/') {
-    return Folder;
-  }
-  if (FsHelpers::hasEpubExtension(filename) || FsHelpers::hasXtcExtension(filename)) {
-    return Book;
-  }
-  if (FsHelpers::hasTxtExtension(filename) || FsHelpers::hasMarkdownExtension(filename)) {
-    return Text;
+    return UIIcon::FolderIcon;
   }
   if (FsHelpers::hasBmpExtension(filename)) {
-    return Image;
+    return UIIcon::ImageIcon;
   }
-  return File;
+  return UIIcon::FileIcon;
 }
 
 int UITheme::getStatusBarHeight() {
   const ThemeMetrics& metrics = UITheme::getInstance().getMetrics();
-
-  // Add status bar margin
   const bool showStatusBar = SETTINGS.statusBarChapterPageCount || SETTINGS.statusBarBookProgressPercentage ||
-                             SETTINGS.statusBarTitle != CrossPointSettings::STATUS_BAR_TITLE::HIDE_TITLE ||
+                             SETTINGS.statusBarTitle != MyneSettings::STATUS_BAR_TITLE::HIDE_TITLE ||
                              SETTINGS.statusBarBattery;
   const bool showProgressBar =
-      SETTINGS.statusBarProgressBar != CrossPointSettings::STATUS_BAR_PROGRESS_BAR::HIDE_PROGRESS;
+      SETTINGS.statusBarProgressBar != MyneSettings::STATUS_BAR_PROGRESS_BAR::HIDE_PROGRESS;
   return (showStatusBar ? (metrics.statusBarVerticalMargin) : 0) +
          (showProgressBar ? (((SETTINGS.statusBarProgressBarThickness + 1) * 2) + metrics.progressBarMarginTop) : 0);
 }
@@ -108,6 +58,6 @@ int UITheme::getStatusBarHeight() {
 int UITheme::getProgressBarHeight() {
   const ThemeMetrics& metrics = UITheme::getInstance().getMetrics();
   const bool showProgressBar =
-      SETTINGS.statusBarProgressBar != CrossPointSettings::STATUS_BAR_PROGRESS_BAR::HIDE_PROGRESS;
+      SETTINGS.statusBarProgressBar != MyneSettings::STATUS_BAR_PROGRESS_BAR::HIDE_PROGRESS;
   return (showProgressBar ? (((SETTINGS.statusBarProgressBarThickness + 1) * 2) + metrics.progressBarMarginTop) : 0);
 }

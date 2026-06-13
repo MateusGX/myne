@@ -6,9 +6,11 @@
 #include <algorithm>
 #include <iterator>
 
-#include "CrossPointSettings.h"
+#include "MyneSettings.h"
 #include "I18nKeys.h"
 #include "MappedInputManager.h"
+#include "SettingsActivityUI.h"
+#include "components/UITheme.h"
 #include "fontIds.h"
 
 void LanguageSelectActivity::onEnter() {
@@ -71,18 +73,32 @@ void LanguageSelectActivity::render(RenderLock&&) {
   const auto pageHeight = renderer.getScreenHeight();
   auto metrics = UITheme::getInstance().getMetrics();
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_LANGUAGE));
+  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight});
+  const int heroY = metrics.topPadding + metrics.headerHeight + 8;
+  SettingsActivityUI::hero(renderer,
+                           Rect{SettingsActivityUI::PAD, heroY,
+                                pageWidth - SettingsActivityUI::PAD * 2, 104},
+                           tr(STR_SETTINGS_TITLE), tr(STR_LANGUAGE), tr(STR_SELECT));
 
   // Current language marker
-  const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
-  const int contentHeight = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing;
   const auto currentLang = static_cast<uint8_t>(I18N.getLanguage());
-  GUI.drawList(
-      renderer, Rect{0, contentTop, pageWidth, contentHeight}, totalItems, selectedIndex,
-      [this](int index) { return I18N.getLanguageName(static_cast<Language>(SORTED_LANGUAGE_INDICES[index])); },
-      nullptr, nullptr,
-      [this, currentLang](int index) { return SORTED_LANGUAGE_INDICES[index] == currentLang ? tr(STR_SELECTED) : ""; },
-      true);
+  const int listTop = heroY + 124;
+  const int listBottom = pageHeight - metrics.buttonHintsHeight - 20;
+  constexpr int rowH = 58;
+  constexpr int rowGap = 10;
+  const int maxRows = std::max(1, (listBottom - listTop + rowGap) / (rowH + rowGap));
+  int start = 0;
+  if (selectedIndex >= maxRows) start = selectedIndex - maxRows + 1;
+  const int end = std::min(static_cast<int>(totalItems), start + maxRows);
+  for (int i = start; i < end; ++i) {
+    const uint8_t langIndex = SORTED_LANGUAGE_INDICES[i];
+    const char* state = langIndex == currentLang ? tr(STR_SELECTED) : "";
+    SettingsActivityUI::option(
+        renderer,
+        Rect{SettingsActivityUI::PAD, listTop + (i - start) * (rowH + rowGap),
+             pageWidth - SettingsActivityUI::PAD * 2, rowH},
+        I18N.getLanguageName(static_cast<Language>(langIndex)), state, i == selectedIndex);
+  }
 
   // Button hints
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));

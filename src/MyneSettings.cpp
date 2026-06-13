@@ -1,4 +1,4 @@
-#include "CrossPointSettings.h"
+#include "MyneSettings.h"
 
 #include <HalStorage.h>
 #include <JsonSettingsIO.h>
@@ -12,7 +12,7 @@
 #include "fontIds.h"
 
 // Initialize the static instance
-CrossPointSettings CrossPointSettings::instance;
+MyneSettings MyneSettings::instance;
 
 void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
   uint8_t tempValue;
@@ -24,46 +24,15 @@ void readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
 
 namespace {
 constexpr uint8_t SETTINGS_FILE_VERSION = 1;
-constexpr char SETTINGS_FILE_BIN[] = "/.crosspoint/settings.bin";
-constexpr char SETTINGS_FILE_JSON[] = "/.crosspoint/settings.json";
-constexpr char SETTINGS_FILE_BAK[] = "/.crosspoint/settings.bin.bak";
-constexpr char LANG_FILE_BIN[] = "/.crosspoint/language.bin";
-constexpr char LANG_FILE_BAK[] = "/.crosspoint/language.bin.bak";
-
-// Convert legacy front button layout into explicit logical->hardware mapping.
-void applyLegacyFrontButtonLayout(CrossPointSettings& settings) {
-  switch (static_cast<CrossPointSettings::FRONT_BUTTON_LAYOUT>(settings.frontButtonLayout)) {
-    case CrossPointSettings::LEFT_RIGHT_BACK_CONFIRM:
-      settings.frontButtonBack = CrossPointSettings::FRONT_HW_LEFT;
-      settings.frontButtonConfirm = CrossPointSettings::FRONT_HW_RIGHT;
-      settings.frontButtonLeft = CrossPointSettings::FRONT_HW_BACK;
-      settings.frontButtonRight = CrossPointSettings::FRONT_HW_CONFIRM;
-      break;
-    case CrossPointSettings::LEFT_BACK_CONFIRM_RIGHT:
-      settings.frontButtonBack = CrossPointSettings::FRONT_HW_CONFIRM;
-      settings.frontButtonConfirm = CrossPointSettings::FRONT_HW_LEFT;
-      settings.frontButtonLeft = CrossPointSettings::FRONT_HW_BACK;
-      settings.frontButtonRight = CrossPointSettings::FRONT_HW_RIGHT;
-      break;
-    case CrossPointSettings::BACK_CONFIRM_RIGHT_LEFT:
-      settings.frontButtonBack = CrossPointSettings::FRONT_HW_BACK;
-      settings.frontButtonConfirm = CrossPointSettings::FRONT_HW_CONFIRM;
-      settings.frontButtonLeft = CrossPointSettings::FRONT_HW_RIGHT;
-      settings.frontButtonRight = CrossPointSettings::FRONT_HW_LEFT;
-      break;
-    case CrossPointSettings::BACK_CONFIRM_LEFT_RIGHT:
-    default:
-      settings.frontButtonBack = CrossPointSettings::FRONT_HW_BACK;
-      settings.frontButtonConfirm = CrossPointSettings::FRONT_HW_CONFIRM;
-      settings.frontButtonLeft = CrossPointSettings::FRONT_HW_LEFT;
-      settings.frontButtonRight = CrossPointSettings::FRONT_HW_RIGHT;
-      break;
-  }
-}
+constexpr char SETTINGS_FILE_BIN[] = "/.myne/settings.bin";
+constexpr char SETTINGS_FILE_JSON[] = "/.myne/settings.json";
+constexpr char SETTINGS_FILE_BAK[] = "/.myne/settings.bin.bak";
+constexpr char LANG_FILE_BIN[] = "/.myne/language.bin";
+constexpr char LANG_FILE_BAK[] = "/.myne/language.bin.bak";
 
 }  // namespace
 
-void CrossPointSettings::validateFrontButtonMapping(CrossPointSettings& settings) {
+void MyneSettings::validateFrontButtonMapping(MyneSettings& settings) {
   const uint8_t mapping[] = {settings.frontButtonBack, settings.frontButtonConfirm, settings.frontButtonLeft,
                              settings.frontButtonRight};
   for (size_t i = 0; i < 4; i++) {
@@ -79,12 +48,12 @@ void CrossPointSettings::validateFrontButtonMapping(CrossPointSettings& settings
   }
 }
 
-bool CrossPointSettings::saveToFile() const {
-  Storage.mkdir("/.crosspoint");
+bool MyneSettings::saveToFile() const {
+  Storage.mkdir("/.myne");
   return JsonSettingsIO::saveSettings(*this, SETTINGS_FILE_JSON);
 }
 
-bool CrossPointSettings::loadFromFile() {
+bool MyneSettings::loadFromFile() {
   // Try JSON first
   if (Storage.exists(SETTINGS_FILE_JSON)) {
     String json = Storage.readFile(SETTINGS_FILE_JSON);
@@ -122,7 +91,7 @@ bool CrossPointSettings::loadFromFile() {
   return migrateLanguageBinaryFile();
 }
 
-bool CrossPointSettings::migrateLanguageBinaryFile() {
+bool MyneSettings::migrateLanguageBinaryFile() {
   // V1_LANGUAGES / V1_LANGUAGE_COUNT are emitted by gen_i18n.py with the
   // frozen enum order from 2f969a9.
   if (!Storage.exists(LANG_FILE_BIN)) return false;
@@ -145,7 +114,7 @@ bool CrossPointSettings::migrateLanguageBinaryFile() {
   return true;
 }
 
-bool CrossPointSettings::loadFromBinaryFile() {
+bool MyneSettings::loadFromBinaryFile() {
   FsFile inputFile;
   if (!Storage.openFileForRead("CPS", SETTINGS_FILE_BIN, inputFile)) {
     return false;
@@ -162,21 +131,15 @@ bool CrossPointSettings::loadFromBinaryFile() {
   serialization::readPod(inputFile, fileSettingsCount);
 
   uint8_t settingsRead = 0;
-  bool frontButtonMappingRead = false;
+
   do {
     readAndValidate(inputFile, sleepScreen, SLEEP_SCREEN_MODE_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
     serialization::readPod(inputFile, extraParagraphSpacing);
     if (++settingsRead >= fileSettingsCount) break;
-    readAndValidate(inputFile, shortPwrBtn, SHORT_PWRBTN_COUNT);
-    if (++settingsRead >= fileSettingsCount) break;
     readAndValidate(inputFile, statusBar, STATUS_BAR_MODE_COUNT);  // legacy
     if (++settingsRead >= fileSettingsCount) break;
     readAndValidate(inputFile, orientation, ORIENTATION_COUNT);
-    if (++settingsRead >= fileSettingsCount) break;
-    readAndValidate(inputFile, frontButtonLayout, FRONT_BUTTON_LAYOUT_COUNT);
-    if (++settingsRead >= fileSettingsCount) break;
-    readAndValidate(inputFile, sideButtonLayout, SIDE_BUTTON_LAYOUT_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
     readAndValidate(inputFile, fontFamily, FONT_FAMILY_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
@@ -225,7 +188,7 @@ bool CrossPointSettings::loadFromBinaryFile() {
     if (++settingsRead >= fileSettingsCount) break;
     readAndValidate(inputFile, sleepScreenCoverFilter, SLEEP_SCREEN_COVER_FILTER_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
-    serialization::readPod(inputFile, uiTheme);
+    { uint8_t ignored; serialization::readPod(inputFile, ignored); }  // legacy uiTheme
     if (++settingsRead >= fileSettingsCount) break;
     readAndValidate(inputFile, frontButtonBack, FRONT_BUTTON_HARDWARE_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
@@ -234,7 +197,6 @@ bool CrossPointSettings::loadFromBinaryFile() {
     readAndValidate(inputFile, frontButtonLeft, FRONT_BUTTON_HARDWARE_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
     readAndValidate(inputFile, frontButtonRight, FRONT_BUTTON_HARDWARE_COUNT);
-    frontButtonMappingRead = true;
     if (++settingsRead >= fileSettingsCount) break;
     serialization::readPod(inputFile, fadingFix);
     if (++settingsRead >= fileSettingsCount) break;
@@ -242,30 +204,13 @@ bool CrossPointSettings::loadFromBinaryFile() {
     if (++settingsRead >= fileSettingsCount) break;
   } while (false);
 
-  if (frontButtonMappingRead) {
-    CrossPointSettings::validateFrontButtonMapping(*this);
-  } else {
-    applyLegacyFrontButtonLayout(*this);
-  }
+  MyneSettings::validateFrontButtonMapping(*this);
 
   LOG_DBG("CPS", "Settings loaded from binary file");
   return true;
 }
 
-float CrossPointSettings::getReaderLineCompression() const {
-  // SD card fonts use same compression as Bookerly (the most neutral values)
-  if (sdFontFamilyName[0] != '\0') {
-    switch (lineSpacing) {
-      case TIGHT:
-        return 0.95f;
-      case NORMAL:
-      default:
-        return 1.0f;
-      case WIDE:
-        return 1.1f;
-    }
-  }
-
+float MyneSettings::getReaderLineCompression() const {
   switch (fontFamily) {
     case NOTOSERIF:
     default:
@@ -301,7 +246,7 @@ float CrossPointSettings::getReaderLineCompression() const {
   }
 }
 
-unsigned long CrossPointSettings::getSleepTimeoutMs() const {
+unsigned long MyneSettings::getSleepTimeoutMs() const {
   switch (sleepTimeout) {
     case SLEEP_1_MIN:
       return 1UL * 60 * 1000;
@@ -317,7 +262,7 @@ unsigned long CrossPointSettings::getSleepTimeoutMs() const {
   }
 }
 
-int CrossPointSettings::getRefreshFrequency() const {
+int MyneSettings::getRefreshFrequency() const {
   switch (refreshFrequency) {
     case REFRESH_1:
       return 1;
@@ -333,14 +278,7 @@ int CrossPointSettings::getRefreshFrequency() const {
   }
 }
 
-int CrossPointSettings::getReaderFontId() const {
-  // Check SD card font first
-  if (sdFontFamilyName[0] != '\0' && sdFontIdResolver) {
-    int id = sdFontIdResolver(sdFontResolverCtx, sdFontFamilyName, fontSize);
-    if (id != 0) return id;
-    // Fall through to built-in if SD font not found
-  }
-
+int MyneSettings::getReaderFontId() const {
   switch (fontFamily) {
     case NOTOSERIF:
     default:

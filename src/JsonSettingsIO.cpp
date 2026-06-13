@@ -8,81 +8,75 @@
 #include <cstring>
 #include <string>
 
-#include "CrossPointSettings.h"
-#include "CrossPointState.h"
-#include "KOReaderCredentialStore.h"
-#include "OpdsServerStore.h"
-#include "RecentBooksStore.h"
+#include "MyneSettings.h"
+#include "MyneState.h"
 #include "SettingsList.h"
 #include "WifiCredentialStore.h"
 
 // Convert legacy settings.
-void applyLegacyStatusBarSettings(CrossPointSettings& settings) {
-  switch (static_cast<CrossPointSettings::STATUS_BAR_MODE>(settings.statusBar)) {
-    case CrossPointSettings::NONE:
+void applyLegacyStatusBarSettings(MyneSettings& settings) {
+  switch (static_cast<MyneSettings::STATUS_BAR_MODE>(settings.statusBar)) {
+    case MyneSettings::NONE:
       settings.statusBarChapterPageCount = 0;
       settings.statusBarBookProgressPercentage = 0;
-      settings.statusBarProgressBar = CrossPointSettings::HIDE_PROGRESS;
-      settings.statusBarTitle = CrossPointSettings::HIDE_TITLE;
+      settings.statusBarProgressBar = MyneSettings::HIDE_PROGRESS;
+      settings.statusBarTitle = MyneSettings::HIDE_TITLE;
       settings.statusBarBattery = 0;
       break;
-    case CrossPointSettings::NO_PROGRESS:
+    case MyneSettings::NO_PROGRESS:
       settings.statusBarChapterPageCount = 0;
       settings.statusBarBookProgressPercentage = 0;
-      settings.statusBarProgressBar = CrossPointSettings::HIDE_PROGRESS;
-      settings.statusBarTitle = CrossPointSettings::CHAPTER_TITLE;
+      settings.statusBarProgressBar = MyneSettings::HIDE_PROGRESS;
+      settings.statusBarTitle = MyneSettings::CHAPTER_TITLE;
       settings.statusBarBattery = 1;
       break;
-    case CrossPointSettings::BOOK_PROGRESS_BAR:
+    case MyneSettings::BOOK_PROGRESS_BAR:
       settings.statusBarChapterPageCount = 1;
       settings.statusBarBookProgressPercentage = 0;
-      settings.statusBarProgressBar = CrossPointSettings::BOOK_PROGRESS;
-      settings.statusBarTitle = CrossPointSettings::CHAPTER_TITLE;
+      settings.statusBarProgressBar = MyneSettings::BOOK_PROGRESS;
+      settings.statusBarTitle = MyneSettings::CHAPTER_TITLE;
       settings.statusBarBattery = 1;
       break;
-    case CrossPointSettings::ONLY_BOOK_PROGRESS_BAR:
+    case MyneSettings::ONLY_BOOK_PROGRESS_BAR:
       settings.statusBarChapterPageCount = 1;
       settings.statusBarBookProgressPercentage = 0;
-      settings.statusBarProgressBar = CrossPointSettings::BOOK_PROGRESS;
-      settings.statusBarTitle = CrossPointSettings::HIDE_TITLE;
+      settings.statusBarProgressBar = MyneSettings::BOOK_PROGRESS;
+      settings.statusBarTitle = MyneSettings::HIDE_TITLE;
       settings.statusBarBattery = 0;
       break;
-    case CrossPointSettings::CHAPTER_PROGRESS_BAR:
+    case MyneSettings::CHAPTER_PROGRESS_BAR:
       settings.statusBarChapterPageCount = 0;
       settings.statusBarBookProgressPercentage = 1;
-      settings.statusBarProgressBar = CrossPointSettings::CHAPTER_PROGRESS;
-      settings.statusBarTitle = CrossPointSettings::CHAPTER_TITLE;
+      settings.statusBarProgressBar = MyneSettings::CHAPTER_PROGRESS;
+      settings.statusBarTitle = MyneSettings::CHAPTER_TITLE;
       settings.statusBarBattery = 1;
       break;
-    case CrossPointSettings::FULL:
+    case MyneSettings::FULL:
     default:
       settings.statusBarChapterPageCount = 1;
       settings.statusBarBookProgressPercentage = 1;
-      settings.statusBarProgressBar = CrossPointSettings::HIDE_PROGRESS;
-      settings.statusBarTitle = CrossPointSettings::CHAPTER_TITLE;
+      settings.statusBarProgressBar = MyneSettings::HIDE_PROGRESS;
+      settings.statusBarTitle = MyneSettings::CHAPTER_TITLE;
       settings.statusBarBattery = 1;
       break;
   }
 }
 
-// ---- CrossPointState ----
+// ---- MyneState ----
 
-bool JsonSettingsIO::saveState(const CrossPointState& s, const char* path) {
+bool JsonSettingsIO::saveState(const MyneState& s, const char* path) {
   JsonDocument doc;
-  doc["openEpubPath"] = s.openEpubPath;
   JsonArray recentArr = doc["recentSleepImages"].to<JsonArray>();
-  for (int i = 0; i < CrossPointState::SLEEP_RECENT_COUNT; i++) recentArr.add(s.recentSleepImages[i]);
+  for (int i = 0; i < MyneState::SLEEP_RECENT_COUNT; i++) recentArr.add(s.recentSleepImages[i]);
   doc["recentSleepPos"] = s.recentSleepPos;
   doc["recentSleepFill"] = s.recentSleepFill;
-  doc["readerActivityLoadCount"] = s.readerActivityLoadCount;
-  doc["lastSleepFromReader"] = s.lastSleepFromReader;
 
   String json;
   serializeJson(doc, json);
   return Storage.writeFile(path, json);
 }
 
-bool JsonSettingsIO::loadState(CrossPointState& s, const char* json) {
+bool JsonSettingsIO::loadState(MyneState& s, const char* json) {
   JsonDocument doc;
   auto error = deserializeJson(doc, json);
   if (error) {
@@ -90,32 +84,23 @@ bool JsonSettingsIO::loadState(CrossPointState& s, const char* json) {
     return false;
   }
 
-  s.openEpubPath = doc["openEpubPath"] | std::string("");
   memset(s.recentSleepImages, 0, sizeof(s.recentSleepImages));
   JsonArrayConst recentArr = doc["recentSleepImages"];
   const int actualCount = recentArr.isNull() ? 0
                                              : std::min(static_cast<int>(recentArr.size()),
-                                                        static_cast<int>(CrossPointState::SLEEP_RECENT_COUNT));
+                                                        static_cast<int>(MyneState::SLEEP_RECENT_COUNT));
   for (int i = 0; i < actualCount; i++) s.recentSleepImages[i] = recentArr[i] | static_cast<uint16_t>(0);
   s.recentSleepPos = doc["recentSleepPos"] | static_cast<uint8_t>(0);
-  if (s.recentSleepPos >= CrossPointState::SLEEP_RECENT_COUNT)
-    s.recentSleepPos = actualCount > 0 ? s.recentSleepPos % CrossPointState::SLEEP_RECENT_COUNT : 0;
+  if (s.recentSleepPos >= MyneState::SLEEP_RECENT_COUNT)
+    s.recentSleepPos = actualCount > 0 ? s.recentSleepPos % MyneState::SLEEP_RECENT_COUNT : 0;
   s.recentSleepFill = doc["recentSleepFill"] | static_cast<uint8_t>(0);
   s.recentSleepFill = static_cast<uint8_t>(std::min(static_cast<int>(s.recentSleepFill), actualCount));
-  // Migrate legacy single-image field from old state.json (pre-recency-buffer).
-  // Only seeds the buffer if the new buffer is empty (fresh migration, not a resave).
-  if (s.recentSleepFill == 0 && !doc["lastSleepImage"].isNull()) {
-    const uint8_t legacy = doc["lastSleepImage"] | static_cast<uint8_t>(UINT8_MAX);
-    if (legacy != UINT8_MAX) s.pushRecentSleep(static_cast<uint16_t>(legacy));
-  }
-  s.readerActivityLoadCount = doc["readerActivityLoadCount"] | static_cast<uint8_t>(0);
-  s.lastSleepFromReader = doc["lastSleepFromReader"] | false;
   return true;
 }
 
-// ---- CrossPointSettings ----
+// ---- MyneSettings ----
 
-bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path) {
+bool JsonSettingsIO::saveSettings(const MyneSettings& s, const char* path) {
   JsonDocument doc;
 
   for (const auto& info : getSettingsList()) {
@@ -140,16 +125,6 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["frontButtonConfirm"] = s.frontButtonConfirm;
   doc["frontButtonLeft"] = s.frontButtonLeft;
   doc["frontButtonRight"] = s.frontButtonRight;
-  // Font family — uses dynamic getter/setter in SettingsList so the generic loop skips it.
-  doc["fontFamily"] = s.fontFamily;
-  // SD card font family name — not in SettingsList, save manually
-  if (s.sdFontFamilyName[0] != '\0') {
-    doc["sdFontFamilyName"] = s.sdFontFamilyName;
-  }
-
-  // Language -- managed by LanguageSelectActivity, not in SettingsList.
-  // Stored as ISO code string ("EN", "DE", ...) for stability across enum reorders.
-  doc["language"] = (s.language < getLanguageCount()) ? LANGUAGE_CODES[s.language] : "EN";
 
   // Language -- managed by LanguageSelectActivity, not in SettingsList.
   // Stored as ISO code string ("EN", "DE", ...) for stability across enum reorders.
@@ -160,7 +135,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   return Storage.writeFile(path, json);
 }
 
-bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool* needsResave) {
+bool JsonSettingsIO::loadSettings(MyneSettings& s, const char* json, bool* needsResave) {
   if (needsResave) *needsResave = false;
   JsonDocument doc;
   auto error = deserializeJson(doc, json);
@@ -209,7 +184,10 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
       const uint8_t fieldDefault = s.*(info.valuePtr);  // struct-initializer default, read before we overwrite it
       uint8_t v = doc[info.key] | fieldDefault;
       if (info.type == SettingType::ENUM) {
-        v = clamp(v, (uint8_t)info.enumValues.size(), fieldDefault);
+        const uint8_t enumCount = !info.enumStringValues.empty()
+            ? static_cast<uint8_t>(info.enumStringValues.size())
+            : static_cast<uint8_t>(info.enumValues.size());
+        v = clamp(v, enumCount, fieldDefault);
       } else if (info.type == SettingType::TOGGLE) {
         v = clamp(v, (uint8_t)2, fieldDefault);
       } else if (info.type == SettingType::VALUE) {
@@ -223,7 +201,7 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   }
 
   // Front button remap — managed by RemapFrontButtons sub-activity, not in SettingsList.
-  using S = CrossPointSettings;
+  using S = MyneSettings;
   s.frontButtonBack =
       clamp(doc["frontButtonBack"] | (uint8_t)S::FRONT_HW_BACK, S::FRONT_BUTTON_HARDWARE_COUNT, S::FRONT_HW_BACK);
   s.frontButtonConfirm = clamp(doc["frontButtonConfirm"] | (uint8_t)S::FRONT_HW_CONFIRM, S::FRONT_BUTTON_HARDWARE_COUNT,
@@ -232,14 +210,7 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
       clamp(doc["frontButtonLeft"] | (uint8_t)S::FRONT_HW_LEFT, S::FRONT_BUTTON_HARDWARE_COUNT, S::FRONT_HW_LEFT);
   s.frontButtonRight =
       clamp(doc["frontButtonRight"] | (uint8_t)S::FRONT_HW_RIGHT, S::FRONT_BUTTON_HARDWARE_COUNT, S::FRONT_HW_RIGHT);
-  CrossPointSettings::validateFrontButtonMapping(s);
-
-  // Font family — uses dynamic getter/setter in SettingsList so the generic loop skips it.
-  s.fontFamily = clamp(doc["fontFamily"] | (uint8_t)0, CrossPointSettings::BUILTIN_FONT_COUNT, 0);
-  // SD card font family name — not in SettingsList, load manually
-  const char* sfn = doc["sdFontFamilyName"] | "";
-  strncpy(s.sdFontFamilyName, sfn, sizeof(s.sdFontFamilyName) - 1);
-  s.sdFontFamilyName[sizeof(s.sdFontFamilyName) - 1] = '\0';
+  MyneSettings::validateFrontButtonMapping(s);
 
   // Language -- stored as code string for stability across enum reorders.
   if (doc["language"].is<const char*>()) {
@@ -248,44 +219,6 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
 
   LOG_DBG("CPS", "Settings loaded from file");
 
-  return true;
-}
-
-// ---- KOReaderCredentialStore ----
-
-bool JsonSettingsIO::saveKOReader(const KOReaderCredentialStore& store, const char* path) {
-  JsonDocument doc;
-  doc["username"] = store.getUsername();
-  doc["password_obf"] = obfuscation::obfuscateToBase64(store.getPassword());
-  doc["serverUrl"] = store.getServerUrl();
-  doc["matchMethod"] = static_cast<uint8_t>(store.getMatchMethod());
-
-  String json;
-  serializeJson(doc, json);
-  return Storage.writeFile(path, json);
-}
-
-bool JsonSettingsIO::loadKOReader(KOReaderCredentialStore& store, const char* json, bool* needsResave) {
-  if (needsResave) *needsResave = false;
-  JsonDocument doc;
-  auto error = deserializeJson(doc, json);
-  if (error) {
-    LOG_ERR("KRS", "JSON parse error: %s", error.c_str());
-    return false;
-  }
-
-  store.username = doc["username"] | std::string("");
-  bool ok = false;
-  store.password = obfuscation::deobfuscateFromBase64(doc["password_obf"] | "", &ok);
-  if (!ok || store.password.empty()) {
-    store.password = doc["password"] | std::string("");
-    if (!store.password.empty() && needsResave) *needsResave = true;
-  }
-  store.serverUrl = doc["serverUrl"] | std::string("");
-  uint8_t method = doc["matchMethod"] | (uint8_t)0;
-  store.matchMethod = static_cast<DocumentMatchMethod>(method);
-
-  LOG_DBG("KRS", "Loaded KOReader credentials for user: %s", store.username.c_str());
   return true;
 }
 
@@ -334,100 +267,5 @@ bool JsonSettingsIO::loadWifi(WifiCredentialStore& store, const char* json, bool
   }
 
   LOG_DBG("WCS", "Loaded %zu WiFi credentials from file", store.credentials.size());
-  return true;
-}
-
-// ---- RecentBooksStore ----
-
-bool JsonSettingsIO::saveRecentBooks(const RecentBooksStore& store, const char* path) {
-  JsonDocument doc;
-  JsonArray arr = doc["books"].to<JsonArray>();
-  for (const auto& book : store.getBooks()) {
-    JsonObject obj = arr.add<JsonObject>();
-    obj["path"] = book.path;
-    obj["title"] = book.title;
-    obj["author"] = book.author;
-    obj["coverBmpPath"] = book.coverBmpPath;
-  }
-
-  String json;
-  serializeJson(doc, json);
-  return Storage.writeFile(path, json);
-}
-
-bool JsonSettingsIO::loadRecentBooks(RecentBooksStore& store, const char* json) {
-  JsonDocument doc;
-  auto error = deserializeJson(doc, json);
-  if (error) {
-    LOG_ERR("RBS", "JSON parse error: %s", error.c_str());
-    return false;
-  }
-
-  store.recentBooks.clear();
-  JsonArray arr = doc["books"].as<JsonArray>();
-  for (JsonObject obj : arr) {
-    if (store.getCount() >= 10) break;
-    RecentBook book;
-    book.path = obj["path"] | std::string("");
-    book.title = obj["title"] | std::string("");
-    book.author = obj["author"] | std::string("");
-    book.coverBmpPath = obj["coverBmpPath"] | std::string("");
-    store.recentBooks.push_back(book);
-  }
-
-  LOG_DBG("RBS", "Recent books loaded from file (%d entries)", store.getCount());
-  return true;
-}
-
-// ---- OpdsServerStore ----
-// Follows the same save/load pattern as WifiCredentialStore above.
-// Passwords are XOR-obfuscated with the device MAC and base64-encoded ("password_obf" key).
-
-bool JsonSettingsIO::saveOpds(const OpdsServerStore& store, const char* path) {
-  JsonDocument doc;
-
-  JsonArray arr = doc["servers"].to<JsonArray>();
-  for (const auto& server : store.getServers()) {
-    JsonObject obj = arr.add<JsonObject>();
-    obj["name"] = server.name;
-    obj["url"] = server.url;
-    obj["username"] = server.username;
-    obj["password_obf"] = obfuscation::obfuscateToBase64(server.password);
-  }
-
-  String json;
-  serializeJson(doc, json);
-  return Storage.writeFile(path, json);
-}
-
-bool JsonSettingsIO::loadOpds(OpdsServerStore& store, const char* json, bool* needsResave) {
-  if (needsResave) *needsResave = false;
-  JsonDocument doc;
-  auto error = deserializeJson(doc, json);
-  if (error) {
-    LOG_ERR("OPS", "JSON parse error: %s", error.c_str());
-    return false;
-  }
-
-  store.servers.clear();
-  JsonArray arr = doc["servers"].as<JsonArray>();
-  for (JsonObject obj : arr) {
-    if (store.servers.size() >= OpdsServerStore::MAX_SERVERS) break;
-    OpdsServer server;
-    server.name = obj["name"] | std::string("");
-    server.url = obj["url"] | std::string("");
-    server.username = obj["username"] | std::string("");
-    // Try the obfuscated key first; fall back to plaintext "password" for
-    // files written before obfuscation was added (or hand-edited JSON).
-    bool ok = false;
-    server.password = obfuscation::deobfuscateFromBase64(obj["password_obf"] | "", &ok);
-    if (!ok || server.password.empty()) {
-      server.password = obj["password"] | std::string("");
-      if (!server.password.empty() && needsResave) *needsResave = true;
-    }
-    store.servers.push_back(std::move(server));
-  }
-
-  LOG_DBG("OPS", "Loaded %zu OPDS servers from file", store.servers.size());
   return true;
 }

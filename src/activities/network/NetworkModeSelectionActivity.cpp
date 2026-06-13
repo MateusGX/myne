@@ -4,11 +4,12 @@
 #include <I18n.h>
 
 #include "MappedInputManager.h"
+#include "NetworkActivityUI.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
 namespace {
-constexpr int MENU_ITEM_COUNT = 3;
+constexpr int MENU_ITEM_COUNT = 2;
 }  // namespace
 
 void NetworkModeSelectionActivity::onEnter() {
@@ -34,8 +35,6 @@ void NetworkModeSelectionActivity::loop() {
   if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
     NetworkMode mode = NetworkMode::JOIN_NETWORK;
     if (selectedIndex == 1) {
-      mode = NetworkMode::CONNECT_CALIBRE;
-    } else if (selectedIndex == 2) {
       mode = NetworkMode::CREATE_HOTSPOT;
     }
     onModeSelected(mode);
@@ -58,26 +57,34 @@ void NetworkModeSelectionActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
+  const int pageWidth = renderer.getScreenWidth();
+  const int pageHeight = renderer.getScreenHeight();
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_FILE_TRANSFER));
+  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight});
 
-  const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
-  const int contentHeight = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing * 2;
-  // Menu items and descriptions
-  static constexpr StrId menuItems[MENU_ITEM_COUNT] = {StrId::STR_JOIN_NETWORK, StrId::STR_CALIBRE_WIRELESS,
-                                                       StrId::STR_CREATE_HOTSPOT};
-  static constexpr StrId menuDescs[MENU_ITEM_COUNT] = {StrId::STR_JOIN_DESC, StrId::STR_CALIBRE_DESC,
-                                                       StrId::STR_HOTSPOT_DESC};
-  static constexpr UIIcon menuIcons[MENU_ITEM_COUNT] = {UIIcon::Wifi, UIIcon::Library, UIIcon::Hotspot};
+  const int heroY = metrics.topPadding + metrics.headerHeight + 8;
+  NetworkActivityUI::hero(renderer, Rect{NetworkActivityUI::PAD, heroY,
+                                         pageWidth - NetworkActivityUI::PAD * 2, 104},
+                          tr(STR_NETWORK), tr(STR_NETWORK), tr(STR_SELECT));
 
-  GUI.drawList(
-      renderer, Rect{0, contentTop, pageWidth, contentHeight}, static_cast<int>(MENU_ITEM_COUNT), selectedIndex,
-      [](int index) { return std::string(I18N.get(menuItems[index])); },
-      [](int index) { return std::string(I18N.get(menuDescs[index])); }, [](int index) { return menuIcons[index]; });
+  const int contentY = heroY + 124;
+  const int cardW = pageWidth - NetworkActivityUI::PAD * 2;
+  const int cardH = 116;
+  NetworkActivityUI::choice(renderer, Rect{NetworkActivityUI::PAD, contentY, cardW, cardH},
+                            tr(STR_JOIN_NETWORK), tr(STR_JOIN_DESC), selectedIndex == 0);
+  NetworkActivityUI::choice(renderer,
+                            Rect{NetworkActivityUI::PAD, contentY + cardH + NetworkActivityUI::GAP,
+                                 cardW, cardH},
+                            tr(STR_CREATE_HOTSPOT), tr(STR_HOTSPOT_DESC), selectedIndex == 1);
 
-  // Draw help text at bottom
+  const int footerY = pageHeight - metrics.buttonHintsHeight - 84;
+  if (footerY > contentY + cardH * 2 + NetworkActivityUI::GAP) {
+    NetworkActivityUI::stateCard(renderer,
+                                 Rect{NetworkActivityUI::PAD, footerY,
+                                      pageWidth - NetworkActivityUI::PAD * 2, 64},
+                                 selectedIndex == 0 ? tr(STR_WIFI_NETWORKS) : tr(STR_HOTSPOT_MODE));
+  }
+
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 

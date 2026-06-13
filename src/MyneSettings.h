@@ -4,18 +4,18 @@
 #include <cstdint>
 #include <iosfwd>
 
-class CrossPointSettings {
+class MyneSettings {
  private:
   // Private constructor for singleton
-  CrossPointSettings() = default;
+  MyneSettings() = default;
 
   // Static instance
-  static CrossPointSettings instance;
+  static MyneSettings instance;
 
  public:
   // Delete copy constructor and assignment
-  CrossPointSettings(const CrossPointSettings&) = delete;
-  CrossPointSettings& operator=(const CrossPointSettings&) = delete;
+  MyneSettings(const MyneSettings&) = delete;
+  MyneSettings& operator=(const MyneSettings&) = delete;
 
   enum SLEEP_SCREEN_MODE {
     DARK = 0,
@@ -97,7 +97,7 @@ class CrossPointSettings {
   // Swapped: Next, Previous
   enum SIDE_BUTTON_LAYOUT { PREV_NEXT = 0, NEXT_PREV = 1, SIDE_BUTTON_LAYOUT_COUNT };
 
-  // Font family options (built-in fonts only; SD card fonts use sdFontFamilyName)
+  // Font family options (built-in fonts only)
   enum FONT_FAMILY { NOTOSERIF = 0, NOTOSANS = 1, OPENDYSLEXIC = 2, FONT_FAMILY_COUNT };
   static constexpr uint8_t BUILTIN_FONT_COUNT = FONT_FAMILY_COUNT;
   // Font size options
@@ -146,13 +146,9 @@ class CrossPointSettings {
     LONG_PRESS_BUTTON_BEHAVIOR_COUNT
   };
 
-  // UI Theme
-  enum UI_THEME { CLASSIC = 0, LYRA = 1, LYRA_3_COVERS = 2, ROUNDEDRAFF = 3 };
 
   // Image rendering in EPUB reader
   enum IMAGE_RENDERING { IMAGES_DISPLAY = 0, IMAGES_PLACEHOLDER = 1, IMAGES_SUPPRESS = 2, IMAGE_RENDERING_COUNT };
-
-  enum TILT_PAGE_TURN { TILT_OFF = 0, TILT_NORMAL = 1, TILT_NVERTED = 2, TILT_PAGE_TURN_COUNT };
 
   // Sleep screen settings
   uint8_t sleepScreen = DARK;
@@ -172,14 +168,9 @@ class CrossPointSettings {
   // Text rendering settings
   uint8_t extraParagraphSpacing = 1;
   uint8_t textAntiAliasing = 1;
-  // Short power button click behaviour
-  uint8_t shortPwrBtn = IGNORE;
   // EPUB reading orientation settings
   // 0 = portrait (default), 1 = landscape clockwise, 2 = inverted, 3 = landscape counter-clockwise
   uint8_t orientation = PORTRAIT;
-  // Button layouts (front layout retained for migration only)
-  uint8_t frontButtonLayout = BACK_CONFIRM_LEFT_RIGHT;
-  uint8_t sideButtonLayout = PREV_NEXT;
   // Front button remap (logical -> hardware)
   // Used by MappedInputManager to translate logical buttons into physical front buttons.
   uint8_t frontButtonBack = FRONT_HW_BACK;
@@ -207,38 +198,28 @@ class CrossPointSettings {
   uint8_t hideBatteryPercentage = HIDE_NEVER;
   // Long-press page turn button behavior
   uint8_t longPressButtonBehavior = OFF;
-  // UI Theme
-  uint8_t uiTheme = LYRA;
   // Sunlight fading compensation
   uint8_t fadingFix = 0;
   // Use book's embedded CSS styles for EPUB rendering (1 = enabled, 0 = disabled)
   uint8_t embeddedStyle = 1;
   // Focus Reading - emphasizes the first part of words with bold
   uint8_t focusReadingEnabled = 0;
-  // SD card font family name (empty = use built-in fontFamily)
-  char sdFontFamilyName[32] = "";
   // Show hidden files/directories (starting with '.') in the file browser (0 = hidden, 1 = show)
   uint8_t showHiddenFiles = 0;
   // Image rendering mode in EPUB reader
   uint8_t imageRendering = IMAGES_DISPLAY;
-  // Tilt-based page turning (X3 only — requires QMI8658 IMU)
-  uint8_t tiltPageTurn = TILT_OFF;
   // Language setting (Language enum index, default 0 = EN)
   uint8_t language = 0;
+  // Timezone offset index: 0 = UTC-12, 12 = UTC+0, 26 = UTC+14
+  uint8_t timezoneOffset = 12;
 
-  ~CrossPointSettings() = default;
+  ~MyneSettings() = default;
 
   // Get singleton instance
-  static CrossPointSettings& getInstance() { return instance; }
-
-  // Callback to resolve SD card font IDs. Set by SdCardFontSystem::begin().
-  // Returns font ID or 0 if not found.
-  using SdFontIdResolver = int (*)(void* ctx, const char* familyName, uint8_t fontSize);
-  SdFontIdResolver sdFontIdResolver = nullptr;
-  void* sdFontResolverCtx = nullptr;
+  static MyneSettings& getInstance() { return instance; }
 
   uint16_t getPowerButtonDuration() const {
-    return (shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::SLEEP) ? 10 : 400;
+    return 300;
   }
   int getReaderFontId() const;
 
@@ -248,7 +229,7 @@ class CrossPointSettings {
   bool saveToFile() const;
   bool loadFromFile();
 
-  static void validateFrontButtonMapping(CrossPointSettings& settings);
+  static void validateFrontButtonMapping(MyneSettings& settings);
 
  private:
   bool loadFromBinaryFile();
@@ -258,7 +239,8 @@ class CrossPointSettings {
   float getReaderLineCompression() const;
   unsigned long getSleepTimeoutMs() const;
   int getRefreshFrequency() const;
+  int getTimezoneOffsetHours() const { return static_cast<int>(timezoneOffset) - 12; }
 };
 
 // Helper macro to access settings
-#define SETTINGS CrossPointSettings::getInstance()
+#define SETTINGS MyneSettings::getInstance()

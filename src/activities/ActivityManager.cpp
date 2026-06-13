@@ -1,21 +1,24 @@
 #include "ActivityManager.h"
 
+#include <ArduinoJson.h>
 #include <HalPowerManager.h>
+#include <HalStorage.h>
+#include <I18n.h>
 
 #include <algorithm>
 
-#include "OpdsServerStore.h"
-#include "SdCardFontGlobals.h"
 #include "boot_sleep/BootActivity.h"
 #include "boot_sleep/SleepActivity.h"
-#include "browser/OpdsBookBrowserActivity.h"
-#include "home/CrashActivity.h"
-#include "home/FileBrowserActivity.h"
+#include "books/BookReadingsActivity.h"
+#include "books/LetterPickerActivity.h"
+#include "books/PhysicalBookDetailActivity.h"
+#include "books/ReadingStatsActivity.h"
+#include "browser/FileBrowserActivity.h"
 #include "home/HomeActivity.h"
-#include "home/RecentBooksActivity.h"
-#include "network/CrossPointWebServerActivity.h"
-#include "reader/ReaderActivity.h"
-#include "settings/OpdsServerListActivity.h"
+#include "util/CrashActivity.h"
+#ifndef SIMULATOR
+#include "network/MyneWebServerActivity.h"
+#endif
 #include "settings/SettingsActivity.h"
 #include "util/FullScreenMessageActivity.h"
 
@@ -170,32 +173,15 @@ void ActivityManager::replaceActivity(std::unique_ptr<Activity>&& newActivity) {
 }
 
 void ActivityManager::goToFileTransfer() {
-  replaceActivity(std::make_unique<CrossPointWebServerActivity>(renderer, mappedInput));
+#ifndef SIMULATOR
+  replaceActivity(std::make_unique<MyneWebServerActivity>(renderer, mappedInput));
+#endif
 }
 
 void ActivityManager::goToSettings() { replaceActivity(std::make_unique<SettingsActivity>(renderer, mappedInput)); }
 
 void ActivityManager::goToFileBrowser(std::string path) {
   replaceActivity(std::make_unique<FileBrowserActivity>(renderer, mappedInput, std::move(path)));
-}
-
-void ActivityManager::goToRecentBooks() {
-  replaceActivity(std::make_unique<RecentBooksActivity>(renderer, mappedInput));
-}
-
-void ActivityManager::goToBrowser() {
-  const auto& servers = OPDS_STORE.getServers();
-  // Skip the server picker when there's only one server configured
-  if (servers.size() == 1) {
-    replaceActivity(std::make_unique<OpdsBookBrowserActivity>(renderer, mappedInput, servers[0]));
-  } else {
-    replaceActivity(std::make_unique<OpdsServerListActivity>(renderer, mappedInput, true));
-  }
-}
-
-void ActivityManager::goToReader(std::string path) {
-  ensureSdFontLoaded();
-  replaceActivity(std::make_unique<ReaderActivity>(renderer, mappedInput, std::move(path)));
 }
 
 void ActivityManager::goToSleep() {
@@ -205,13 +191,119 @@ void ActivityManager::goToSleep() {
 
 void ActivityManager::goToBoot() { replaceActivity(std::make_unique<BootActivity>(renderer, mappedInput)); }
 
-void ActivityManager::goToFullScreenMessage(std::string message, EpdFontFamily::Style style) {
-  replaceActivity(std::make_unique<FullScreenMessageActivity>(renderer, mappedInput, std::move(message), style));
+void ActivityManager::goToFullScreenMessage(std::string message, EpdFontFamily::Style style, bool showBack) {
+  replaceActivity(std::make_unique<FullScreenMessageActivity>(renderer, mappedInput, std::move(message), style, HalDisplay::FAST_REFRESH, showBack));
 }
 
 void ActivityManager::goToCrashReport() { replaceActivity(std::make_unique<CrashActivity>(renderer, mappedInput)); }
 
 void ActivityManager::goHome() { replaceActivity(std::make_unique<HomeActivity>(renderer, mappedInput)); }
+
+void ActivityManager::goToPhysicalBooks() {
+  replaceActivity(std::make_unique<LetterPickerActivity>(renderer, mappedInput));
+}
+
+void ActivityManager::goToPhysicalBookDetail(PhysicalBook book) {
+  pushActivity(std::make_unique<PhysicalBookDetailActivity>(renderer, mappedInput, std::move(book)));
+}
+
+void ActivityManager::goToBookReadings(PhysicalBook book) {
+  pushActivity(std::make_unique<BookReadingsActivity>(renderer, mappedInput, std::move(book)));
+}
+
+void ActivityManager::goToReadingStats() {
+  replaceActivity(std::make_unique<ReadingStatsActivity>(renderer, mappedInput));
+}
+
+void ActivityManager::goToLastRead() {
+  // Iterate /.myne/readings/ — one small file per book.
+  // For each, scan sessions for the latest date. O(1) memory per file.
+  std::string bestBookId;
+  std::string bestDate;
+
+  if (Storage.exists(ReadingLog::DIR_PATH)) {
+    HalFile dir = Storage.open(ReadingLog::DIR_PATH);
+    if (dir && dir.isDirectory()) {
+      static constexpr size_t BUF_SIZE = 4096;
+      auto* buf = static_cast<char*>(malloc(BUF_SIZE));
+      if (buf) {
+        while (true) {
+          HalFile entry = dir.openNextFile();
+          if (!entry) break;
+          if (entry.isDirectory()) continue;
+
+          char name[64];
+          entry.getName(name, sizeof(name));
+          const size_t nameLen = strlen(name);
+          if (nameLen < 6 || strcmp(name + nameLen - 5, ".json") != 0) continue;
+
+          // Derive bookId from filename (strip .json)
+          std::string bookId(name, nameLen - 5);
+
+          const size_t n = entry.read(buf, BUF_SIZE - 1);
+          buf[n] = '\0';
+
+          JsonDocument doc;
+          if (deserializeJson(doc, buf) != DeserializationError::Ok) continue;
+
+          JsonArray readings = doc.as<JsonArray>();
+          if (readings.isNull()) continue;
+          for (JsonObject r : readings) {
+            JsonArray sessions = r["sessions"].as<JsonArray>();
+            if (sessions.isNull()) continue;
+            for (JsonObject s : sessions) {
+              const char* d = s["d"] | "";
+              if (d[0] != '\0' && (bestDate.empty() || strcmp(d, bestDate.c_str()) > 0)) {
+                bestDate   = d;
+                bestBookId = bookId;
+              }
+            }
+          }
+        }
+        free(buf);
+      }
+    }
+  }
+
+  if (bestBookId.empty()) {
+    goToFullScreenMessage(tr(STR_NO_LAST_READ), EpdFontFamily::REGULAR, true);
+    return;
+  }
+
+  // Look up the book directly from its own file using short keys.
+  PhysicalBook book;
+  bool found = false;
+
+  char bookPath[80];
+  snprintf(bookPath, sizeof(bookPath), "%s/%s.json", BookStore::DIR_PATH, bestBookId.c_str());
+  if (Storage.exists(bookPath)) {
+    static constexpr size_t BOOK_BUF_SIZE = 512;
+    auto* buf = static_cast<char*>(malloc(BOOK_BUF_SIZE));
+    if (buf) {
+      const size_t n = Storage.readFileToBuffer(bookPath, buf, BOOK_BUF_SIZE);
+      buf[n] = '\0';
+      JsonDocument doc;
+      if (deserializeJson(doc, buf) == DeserializationError::Ok) {
+        book.id         = doc["id"] | "";
+        book.title      = doc["t"]  | "";
+        book.author     = doc["a"]  | "";
+        book.collection = doc["c"]  | "";
+        book.volume     = doc["v"]  | "";
+        book.location   = doc["l"]  | "";
+        book.notes      = doc["n"]  | "";
+        found = !book.id.empty() && !book.title.empty();
+      }
+      free(buf);
+    }
+  }
+
+  if (!found) {
+    goToFullScreenMessage(tr(STR_NO_LAST_READ), EpdFontFamily::REGULAR, true);
+    return;
+  }
+
+  pushActivity(std::make_unique<PhysicalBookDetailActivity>(renderer, mappedInput, std::move(book)));
+}
 
 void ActivityManager::pushActivity(std::unique_ptr<Activity>&& activity) {
   if (pendingActivity) {
@@ -233,12 +325,6 @@ void ActivityManager::popActivity() {
 }
 
 bool ActivityManager::preventAutoSleep() const { return currentActivity && currentActivity->preventAutoSleep(); }
-
-bool ActivityManager::isReaderActivity() const {
-  return std::any_of(stackActivities.begin(), stackActivities.end(),
-                     [](const auto& activity) { return activity->isReaderActivity(); }) ||
-         (currentActivity && currentActivity->isReaderActivity());
-}
 
 bool ActivityManager::skipLoopDelay() const { return currentActivity && currentActivity->skipLoopDelay(); }
 

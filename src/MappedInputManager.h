@@ -5,6 +5,7 @@
 class MappedInputManager {
  public:
   enum class Button { Back, Confirm, Left, Right, Up, Down, Power, PageBack, PageForward };
+  enum class ButtonGroup { BottomLeft, BottomRight };
 
   struct Labels {
     const char* btn1;
@@ -19,6 +20,9 @@ class MappedInputManager {
   bool wasPressed(Button button) const;
   bool wasReleased(Button button) const;
   bool isPressed(Button button) const;
+  bool wasPressedGroup(ButtonGroup buttonGroup) const;
+  bool wasReleasedGroup(ButtonGroup buttonGroup) const;
+  bool isPressedGroup(ButtonGroup buttonGroup) const;
   bool wasAnyPressed() const;
   bool wasAnyReleased() const;
   unsigned long getHeldTime() const;
@@ -30,4 +34,5 @@ class MappedInputManager {
   HalGPIO& gpio;
 
   bool mapButton(Button button, bool (HalGPIO::*fn)(uint8_t) const) const;
+  bool mapButtonGroup(ButtonGroup buttonGroup, bool (HalGPIO::*fn)(uint8_t) const) const;
 };

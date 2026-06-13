@@ -3,8 +3,9 @@
 #include <GfxRenderer.h>
 #include <I18n.h>
 
-#include "CrossPointSettings.h"
+#include "MyneSettings.h"
 #include "MappedInputManager.h"
+#include "SettingsActivityUI.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
@@ -47,10 +48,10 @@ void ButtonRemapActivity::loop() {
   // - Down: cancel without saving.
   if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
     // Persist default mapping immediately so the user can recover quickly.
-    SETTINGS.frontButtonBack = CrossPointSettings::FRONT_HW_BACK;
-    SETTINGS.frontButtonConfirm = CrossPointSettings::FRONT_HW_CONFIRM;
-    SETTINGS.frontButtonLeft = CrossPointSettings::FRONT_HW_LEFT;
-    SETTINGS.frontButtonRight = CrossPointSettings::FRONT_HW_RIGHT;
+    SETTINGS.frontButtonBack = MyneSettings::FRONT_HW_BACK;
+    SETTINGS.frontButtonConfirm = MyneSettings::FRONT_HW_CONFIRM;
+    SETTINGS.frontButtonLeft = MyneSettings::FRONT_HW_LEFT;
+    SETTINGS.frontButtonRight = MyneSettings::FRONT_HW_RIGHT;
     SETTINGS.saveToFile();
     finish();
     return;
@@ -106,46 +107,51 @@ void ButtonRemapActivity::render(RenderLock&&) {
 
   const auto& metrics = UITheme::getInstance().getMetrics();
   const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
 
   renderer.clearScreen();
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_REMAP_FRONT_BUTTONS));
-  GUI.drawSubHeader(renderer, Rect{0, metrics.topPadding + metrics.headerHeight, pageWidth, metrics.tabBarHeight},
-                    tr(STR_REMAP_PROMPT));
+  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight});
+  const int heroY = metrics.topPadding + metrics.headerHeight + 8;
+  SettingsActivityUI::hero(renderer,
+                           Rect{SettingsActivityUI::PAD, heroY,
+                                pageWidth - SettingsActivityUI::PAD * 2, 104},
+                           tr(STR_SETTINGS_TITLE), tr(STR_REMAP_FRONT_BUTTONS), tr(STR_REMAP_PROMPT));
 
-  int topOffset = metrics.topPadding + metrics.headerHeight + metrics.tabBarHeight + metrics.verticalSpacing;
-  int contentHeight = pageHeight - topOffset - metrics.buttonHintsHeight - metrics.verticalSpacing;
-  GUI.drawList(
-      renderer, Rect{0, topOffset, pageWidth, contentHeight}, kRoleCount, currentStep,
-      [&](int index) { return getRoleName(static_cast<uint8_t>(index)); }, nullptr, nullptr,
-      [&](int index) {
-        uint8_t assignedButton = tempMapping[static_cast<uint8_t>(index)];
-        return (assignedButton == kUnassigned) ? tr(STR_UNASSIGNED) : getHardwareName(assignedButton);
-      },
-      true);
+  const int gridTop = heroY + 124;
+  constexpr int cardH = 76;
+  constexpr int cardGap = 10;
+  const int cardW = (pageWidth - SettingsActivityUI::PAD * 2 - SettingsActivityUI::GAP) / 2;
+  for (uint8_t i = 0; i < kRoleCount; ++i) {
+    const int col = i % 2;
+    const int row = i / 2;
+    const int x = SettingsActivityUI::PAD + col * (cardW + SettingsActivityUI::GAP);
+    const int y = gridTop + row * (cardH + cardGap);
+    const uint8_t assignedButton = tempMapping[i];
+    SettingsActivityUI::choice(renderer, Rect{x, y, cardW, cardH}, getRoleName(i),
+                               assignedButton == kUnassigned ? tr(STR_UNASSIGNED) : getHardwareName(assignedButton),
+                               i == currentStep);
+  }
 
   // Temporary warning banner for duplicates.
   if (!errorMessage.empty()) {
-    GUI.drawHelpText(renderer,
-                     Rect{0, pageHeight - metrics.buttonHintsHeight - metrics.contentSidePadding - 15, pageWidth, 20},
-                     errorMessage.c_str());
+    SettingsActivityUI::stateCard(renderer,
+                                  Rect{SettingsActivityUI::PAD, gridTop + 2 * (cardH + cardGap) + 8,
+                                       pageWidth - SettingsActivityUI::PAD * 2, 66},
+                                  errorMessage.c_str());
+  } else {
+    const int helpTop = gridTop + 2 * (cardH + cardGap) + 8;
+    SettingsActivityUI::choice(renderer,
+                               Rect{SettingsActivityUI::PAD, helpTop,
+                                    pageWidth - SettingsActivityUI::PAD * 2, 62},
+                               tr(STR_REMAP_RESET_HINT), tr(STR_REMAP_CANCEL_HINT));
   }
-
-  // Provide side button actions at the bottom of the screen (split across two lines).
-  GUI.drawHelpText(renderer,
-                   Rect{0, topOffset + 4 * metrics.listRowHeight + 4 * metrics.verticalSpacing, pageWidth, 20},
-                   tr(STR_REMAP_RESET_HINT));
-  GUI.drawHelpText(renderer,
-                   Rect{0, topOffset + 4 * metrics.listRowHeight + 5 * metrics.verticalSpacing + 20, pageWidth, 20},
-                   tr(STR_REMAP_CANCEL_HINT));
 
   // Live preview of logical labels under front buttons.
   // This mirrors the on-device front button order: Back, Confirm, Left, Right.
-  GUI.drawButtonHints(renderer, labelForHardware(CrossPointSettings::FRONT_HW_BACK),
-                      labelForHardware(CrossPointSettings::FRONT_HW_CONFIRM),
-                      labelForHardware(CrossPointSettings::FRONT_HW_LEFT),
-                      labelForHardware(CrossPointSettings::FRONT_HW_RIGHT));
+  GUI.drawButtonHints(renderer, labelForHardware(MyneSettings::FRONT_HW_BACK),
+                      labelForHardware(MyneSettings::FRONT_HW_CONFIRM),
+                      labelForHardware(MyneSettings::FRONT_HW_LEFT),
+                      labelForHardware(MyneSettings::FRONT_HW_RIGHT));
   renderer.displayBuffer();
 }
 
@@ -185,13 +191,13 @@ const char* ButtonRemapActivity::getRoleName(const uint8_t roleIndex) const {
 
 const char* ButtonRemapActivity::getHardwareName(const uint8_t buttonIndex) const {
   switch (buttonIndex) {
-    case CrossPointSettings::FRONT_HW_BACK:
+    case MyneSettings::FRONT_HW_BACK:
       return tr(STR_HW_BACK_LABEL);
-    case CrossPointSettings::FRONT_HW_CONFIRM:
+    case MyneSettings::FRONT_HW_CONFIRM:
       return tr(STR_HW_CONFIRM_LABEL);
-    case CrossPointSettings::FRONT_HW_LEFT:
+    case MyneSettings::FRONT_HW_LEFT:
       return tr(STR_HW_LEFT_LABEL);
-    case CrossPointSettings::FRONT_HW_RIGHT:
+    case MyneSettings::FRONT_HW_RIGHT:
       return tr(STR_HW_RIGHT_LABEL);
     default:
       return "Unknown";

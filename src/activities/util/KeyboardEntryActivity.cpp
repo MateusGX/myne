@@ -366,11 +366,13 @@ void KeyboardEntryActivity::render(RenderLock&&) {
   const auto pageHeight = renderer.getScreenHeight();
   const auto& metrics = UITheme::getInstance().getMetrics();
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, title.c_str());
+  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight});
+  GUI.drawPageTitle(renderer, Rect{0, metrics.topPadding + metrics.headerHeight, pageWidth, metrics.pageTitleHeight},
+                    title.c_str());
 
   const int lineHeight = renderer.getLineHeight(UI_12_FONT_ID);
-  const int inputStartY = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing +
-                          metrics.verticalSpacing * 4 + metrics.keyboardVerticalOffset;
+  const int inputStartY = metrics.topPadding + metrics.headerHeight + metrics.pageTitleHeight +
+                          metrics.verticalSpacing + metrics.verticalSpacing * 4 + metrics.keyboardVerticalOffset;
   int inputHeight = 0;
 
   std::string displayText;
@@ -735,7 +737,7 @@ void KeyboardEntryActivity::render(RenderLock&&) {
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
-  GUI.drawSideButtonHints(renderer, ">", "<");
+  GUI.drawSideButtonHints(renderer, tr(STR_DIR_DOWN), tr(STR_DIR_UP));
 
   renderer.displayBuffer();
 }

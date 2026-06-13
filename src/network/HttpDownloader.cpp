@@ -67,7 +67,7 @@ bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, const 
 
   http.begin(*client, url.c_str());
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.addHeader("User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
+  http.addHeader("User-Agent", "Myne-ESP32-" MYNE_VERSION);
 
   if (!username.empty() && !password.empty()) {
     std::string credentials = username + ":" + password;
@@ -118,7 +118,7 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
 
   http.begin(*client, url.c_str());
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.addHeader("User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
+  http.addHeader("User-Agent", "Myne-ESP32-" MYNE_VERSION);
 
   if (!username.empty() && !password.empty()) {
     std::string credentials = username + ":" + password;

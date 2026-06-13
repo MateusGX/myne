@@ -9,16 +9,31 @@
 #include <string>
 #include <vector>
 
+class BookStore;
+
 // Structure to hold file information
 struct FileInfo {
   String name;
   size_t size;
-  bool isEpub;
   bool isDirectory;
 };
 
-class CrossPointWebServer {
+class MyneWebServer {
  public:
+  struct FirmwareFlashEvent {
+    enum Phase { VALIDATING, FLASHING, DONE, FAILED };
+    Phase phase = VALIDATING;
+    size_t written = 0;
+    size_t total = 0;
+    const char* error = nullptr;
+  };
+  using FirmwareFlashNotify = void (*)(const FirmwareFlashEvent&, void* ctx);
+
+  void setFirmwareFlashNotify(FirmwareFlashNotify cb, void* ctx) {
+    firmwareFlashNotify = cb;
+    firmwareFlashNotifyCtx = ctx;
+  }
+
   struct WsUploadStatus {
     bool inProgress = false;
     size_t received = 0;
@@ -48,8 +63,8 @@ class CrossPointWebServer {
     UploadState() { buffer.resize(UPLOAD_BUFFER_SIZE); }
   } upload;
 
-  CrossPointWebServer();
-  ~CrossPointWebServer();
+  MyneWebServer();
+  ~MyneWebServer();
 
   // Start the web server (call after WiFi is connected)
   void begin();
@@ -69,6 +84,9 @@ class CrossPointWebServer {
   uint16_t getPort() const { return port; }
 
  private:
+  FirmwareFlashNotify firmwareFlashNotify = nullptr;
+  void* firmwareFlashNotifyCtx = nullptr;
+
   std::unique_ptr<WebServer> server = nullptr;
   std::unique_ptr<WebSocketsServer> wsServer = nullptr;
   bool running = false;
@@ -86,14 +104,10 @@ class CrossPointWebServer {
   // File scanning
   void scanFiles(const char* path, const std::function<void(FileInfo)>& callback) const;
   String formatFileSize(size_t bytes) const;
-  bool isEpubFile(const String& filename) const;
-
   // Request handlers
   void handleRoot() const;
-  void handleJszip() const;
   void handleNotFound() const;
   void handleStatus() const;
-  void handleFileList() const;
   void handleFileListData() const;
   void handleDownload() const;
   void handleUpload(UploadState& state) const;
@@ -102,41 +116,38 @@ class CrossPointWebServer {
   void handleRename() const;
   void handleMove() const;
   void handleDelete() const;
+  void handleFirmwareFlash();
 
   // Settings handlers
-  void handleSettingsPage() const;
   void handleGetSettings() const;
   void handlePostSettings();
-
-  // Font management handlers
-  void handleFontsPage() const;
-  void handleFontList() const;
-  void handleFontUpload();
-  void handleFontUploadData();
-  void handleFontDelete();
-
-  // Font upload state
-  struct FontUploadState {
-    FsFile file;
-    std::string familyName;
-    std::string filePath;
-    bool valid = false;
-    bool magicChecked = false;
-    size_t bytesWritten = 0;
-    static constexpr size_t BUFFER_SIZE = 4096;
-    std::vector<uint8_t> buffer;
-    size_t bufferPos = 0;
-
-    FontUploadState() { buffer.resize(BUFFER_SIZE); }
-  } fontUpload;
-
-  // OPDS server handlers
-  void handleGetOpdsServers() const;
-  void handlePostOpdsServer();
-  void handleDeleteOpdsServer();
 
   // Wi-Fi credential handlers
   void handleGetWifiNetworks() const;
   void handlePostWifiNetwork();
   void handleDeleteWifiNetwork();
+
+  // Physical book handlers
+#ifndef SIMULATOR
+  std::unique_ptr<BookStore> bookStore;
+#endif
+  bool bookStoreInitialized = false;
+  bool ensureBookStoreInitialized();
+  void handleGetBooks() const;
+  void handleCreateBook();
+  void handleUpdateBook();
+  void handleDeleteBook();
+
+  // Collection note handlers
+  void handleGetCollectionNote() const;
+  void handleSetCollectionNote();
+  void handleDeleteCollectionNote();
+
+  // Collection registry handlers
+  void handleGetCollections() const;
+  void handleRenameCollection();
+
+  // Reading log handlers
+  void handleGetReadings() const;
+  void handleSaveReadings();
 };

@@ -20,7 +20,7 @@ void CrashActivity::onEnter() {
 }
 
 void CrashActivity::loop() {
-  if (mappedInput.isPressed(MappedInputManager::Button::Back)) {
+  if (mappedInput.isPressedGroup(MappedInputManager::ButtonGroup::BottomLeft)) {
     finish();
   }
 }
@@ -34,9 +34,11 @@ void CrashActivity::render(RenderLock&&) {
   const auto x = metrics.contentSidePadding;
   const auto lineHeight = renderer.getLineHeight(UI_10_FONT_ID);
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_CRASH_TITLE));
+  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight});
+  GUI.drawPageTitle(renderer, Rect{0, metrics.topPadding + metrics.headerHeight, pageWidth, metrics.pageTitleHeight},
+                    tr(STR_CRASH_TITLE));
 
-  int y = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
+  int y = metrics.topPadding + metrics.headerHeight + metrics.pageTitleHeight + metrics.verticalSpacing;
 
   auto descLines = renderer.wrappedText(UI_10_FONT_ID, tr(STR_CRASH_DESCRIPTION), contentWidth, 10);
   for (const auto& line : descLines) {

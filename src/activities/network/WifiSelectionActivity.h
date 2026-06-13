@@ -93,7 +93,6 @@ class WifiSelectionActivity final : public Activity {
   void selectNetwork(int index);
   void attemptConnection();
   void checkConnectionStatus();
-  std::string getSignalStrengthIndicator(int32_t rssi) const;
 
   void onComplete(bool connected);
 

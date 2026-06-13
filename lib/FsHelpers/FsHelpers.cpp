@@ -121,16 +121,6 @@ bool hasBmpExtension(std::string_view fileName) { return checkFileExtension(file
 
 bool hasGifExtension(std::string_view fileName) { return checkFileExtension(fileName, ".gif"); }
 
-bool hasEpubExtension(std::string_view fileName) { return checkFileExtension(fileName, ".epub"); }
-
-bool hasXtcExtension(std::string_view fileName) {
-  return checkFileExtension(fileName, ".xtc") || checkFileExtension(fileName, ".xtch");
-}
-
-bool hasTxtExtension(std::string_view fileName) { return checkFileExtension(fileName, ".txt"); }
-
-bool hasMarkdownExtension(std::string_view fileName) { return checkFileExtension(fileName, ".md"); }
-
 std::string extractFolderPath(const std::string& filePath) {
   const auto lastSlash = filePath.find_last_of('/');
   if (lastSlash == std::string::npos || lastSlash == 0) {

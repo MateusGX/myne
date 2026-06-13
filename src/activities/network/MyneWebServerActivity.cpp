@@ -1,8 +1,10 @@
-#include "CrossPointWebServerActivity.h"
+#include "MyneWebServerActivity.h"
 
+#include <BookCatalog.h>
 #include <DNSServer.h>
 #include <ESPmDNS.h>
 #include <GfxRenderer.h>
+#include <HalStorage.h>
 #include <I18n.h>
 #include <WiFi.h>
 #include <esp_task_wdt.h>
@@ -10,22 +12,31 @@
 #include <cstddef>
 
 #include "MappedInputManager.h"
+#include "NetworkActivityUI.h"
 #include "NetworkModeSelectionActivity.h"
 #include "WifiSelectionActivity.h"
-#include "activities/network/CalibreConnectActivity.h"
+#include "../books/CatalogSyncActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/QrUtils.h"
 
 namespace {
+void goHomeOrSync(GfxRenderer& r, MappedInputManager& m) {
+  if (Storage.exists(BookCatalog::SYNC_FLAG_PATH)) {
+    activityManager.replaceActivity(std::make_unique<CatalogSyncActivity>(r, m));
+  } else {
+    activityManager.goHome();
+  }
+}
+}  // anonymous namespace (extended)
+
+namespace {
 // AP Mode configuration
-constexpr const char* AP_SSID = "CrossPoint-Reader";
+constexpr const char* AP_SSID = "Myne";
 constexpr const char* AP_PASSWORD = nullptr;  // Open network for ease of use
-constexpr const char* AP_HOSTNAME = "crosspoint";
+constexpr const char* AP_HOSTNAME = "myne";
 constexpr uint8_t AP_CHANNEL = 1;
 constexpr uint8_t AP_MAX_CONNECTIONS = 4;
-constexpr int QR_CODE_WIDTH = 198;
-constexpr int QR_CODE_HEIGHT = 198;
 
 // DNS server for captive portal (redirects all DNS queries to our IP)
 DNSServer* dnsServer = nullptr;
@@ -40,9 +51,18 @@ int barsForRssi(int rssi, int currentBars) {
   while (bars > 0 && rssi < FALL_DBM[bars - 1]) bars--;
   return bars;
 }
+
+// Wifi signal icon drawn in the top-right corner of the hero panel.
+constexpr int WIFI_ICON_BAR_COUNT = 4;
+constexpr int WIFI_ICON_BAR_WIDTH = 4;
+constexpr int WIFI_ICON_BAR_GAP = 2;
+constexpr int WIFI_ICON_HEIGHT = 14;
+constexpr int WIFI_ICON_WIDTH =
+    WIFI_ICON_BAR_COUNT * WIFI_ICON_BAR_WIDTH + (WIFI_ICON_BAR_COUNT - 1) * WIFI_ICON_BAR_GAP;
+constexpr int WIFI_ICON_RIGHT_RESERVE = WIFI_ICON_WIDTH + NetworkActivityUI::INNER + 8;
 }  // namespace
 
-void CrossPointWebServerActivity::onEnter() {
+void MyneWebServerActivity::onEnter() {
   Activity::onEnter();
 
   LOG_DBG("WEBACT", "Free heap at onEnter: %d bytes", ESP.getFreeHeap());
@@ -68,7 +88,7 @@ void CrossPointWebServerActivity::onEnter() {
                          });
 }
 
-void CrossPointWebServerActivity::onExit() {
+void MyneWebServerActivity::onExit() {
   Activity::onExit();
 
   LOG_DBG("WEBACT", "Free heap at onExit start: %d bytes", ESP.getFreeHeap());
@@ -109,34 +129,15 @@ void CrossPointWebServerActivity::onExit() {
   LOG_DBG("WEBACT", "Free heap at onExit end: %d bytes", ESP.getFreeHeap());
 }
 
-void CrossPointWebServerActivity::onNetworkModeSelected(const NetworkMode mode) {
+void MyneWebServerActivity::onNetworkModeSelected(const NetworkMode mode) {
   const char* modeName = "Join Network";
-  if (mode == NetworkMode::CONNECT_CALIBRE) {
-    modeName = "Connect to Calibre";
-  } else if (mode == NetworkMode::CREATE_HOTSPOT) {
+  if (mode == NetworkMode::CREATE_HOTSPOT) {
     modeName = "Create Hotspot";
   }
   LOG_DBG("WEBACT", "Network mode selected: %s", modeName);
 
   networkMode = mode;
   isApMode = (mode == NetworkMode::CREATE_HOTSPOT);
-
-  if (mode == NetworkMode::CONNECT_CALIBRE) {
-    startActivityForResult(
-        std::make_unique<CalibreConnectActivity>(renderer, mappedInput), [this](const ActivityResult& result) {
-          state = WebServerActivityState::MODE_SELECTION;
-
-          startActivityForResult(std::make_unique<NetworkModeSelectionActivity>(renderer, mappedInput),
-                                 [this](const ActivityResult& result) {
-                                   if (result.isCancelled) {
-                                     onGoHome();
-                                   } else {
-                                     onNetworkModeSelected(std::get<NetworkModeResult>(result.data).mode);
-                                   }
-                                 });
-        });
-    return;
-  }
 
   if (mode == NetworkMode::JOIN_NETWORK) {
     // STA mode - launch WiFi selection
@@ -158,16 +159,19 @@ void CrossPointWebServerActivity::onNetworkModeSelected(const NetworkMode mode) 
     // AP mode - start access point
     state = WebServerActivityState::AP_STARTING;
     requestUpdate();
+    yield();
     startAccessPoint();
   }
 }
 
-void CrossPointWebServerActivity::onWifiSelectionComplete(const bool connected) {
+void MyneWebServerActivity::onWifiSelectionComplete(const bool connected) {
   LOG_DBG("WEBACT", "WifiSelectionActivity completed, connected=%d", connected);
 
   if (connected) {
-    // Get connection info before exiting subactivity
     isApMode = false;
+    state = WebServerActivityState::AP_STARTING;
+    requestUpdate();
+    yield();
 
     // Start mDNS for hostname resolution
     if (MDNS.begin(AP_HOSTNAME)) {
@@ -191,11 +195,12 @@ void CrossPointWebServerActivity::onWifiSelectionComplete(const bool connected) 
   }
 }
 
-void CrossPointWebServerActivity::startAccessPoint() {
+void MyneWebServerActivity::startAccessPoint() {
   LOG_DBG("WEBACT", "Starting Access Point mode...");
   LOG_DBG("WEBACT", "Free heap before AP start: %d bytes", ESP.getFreeHeap());
 
   // Configure and start the AP
+  esp_task_wdt_reset();
   WiFi.mode(WIFI_AP);
   delay(100);
 
@@ -214,6 +219,7 @@ void CrossPointWebServerActivity::startAccessPoint() {
     return;
   }
 
+  esp_task_wdt_reset();
   delay(100);  // Wait for AP to fully initialize
 
   // Get AP IP address
@@ -247,12 +253,15 @@ void CrossPointWebServerActivity::startAccessPoint() {
   startWebServer();
 }
 
-void CrossPointWebServerActivity::startWebServer() {
+void MyneWebServerActivity::startWebServer() {
   LOG_DBG("WEBACT", "Starting web server...");
 
+  esp_task_wdt_reset();
   // Create the web server instance
-  webServer.reset(new CrossPointWebServer());
+  webServer.reset(new MyneWebServer());
+  webServer->setFirmwareFlashNotify(firmwareFlashCallback, this);
   webServer->begin();
+  esp_task_wdt_reset();
 
   if (webServer->isRunning()) {
     state = WebServerActivityState::SERVER_RUNNING;
@@ -270,7 +279,7 @@ void CrossPointWebServerActivity::startWebServer() {
   }
 }
 
-void CrossPointWebServerActivity::stopWebServer() {
+void MyneWebServerActivity::stopWebServer() {
   if (webServer && webServer->isRunning()) {
     LOG_DBG("WEBACT", "Stopping web server...");
     webServer->stop();
@@ -279,9 +288,16 @@ void CrossPointWebServerActivity::stopWebServer() {
   webServer.reset();
 }
 
-void CrossPointWebServerActivity::loop() {
+void MyneWebServerActivity::loop() {
   // Handle different states
   if (state == WebServerActivityState::SERVER_RUNNING) {
+    // Prefer UI responsiveness over raw HTTP throughput. This is checked before
+    // any network work so the user can always leave the server screen.
+    if (mappedInput.wasPressedGroup(MappedInputManager::ButtonGroup::BottomLeft)) {
+      goHomeOrSync(renderer, mappedInput);
+      return;
+    }
+
     // Handle DNS requests for captive portal (AP mode only)
     if (isApMode && dnsServer) {
       dnsServer->processNextRequest();
@@ -307,7 +323,7 @@ void CrossPointWebServerActivity::loop() {
           if (millis() - firstDisconnectAt > WIFI_ABANDON_MS) {
             LOG_DBG("WEBACT", "WiFi unavailable for >%lu s; returning to network selection", WIFI_ABANDON_MS / 1000UL);
             state = WebServerActivityState::SHUTTING_DOWN;
-            onGoHome();
+            goHomeOrSync(renderer, mappedInput);
             return;
           }
         } else {
@@ -344,170 +360,226 @@ void CrossPointWebServerActivity::loop() {
       // Reset watchdog BEFORE processing - HTTP header parsing can be slow
       esp_task_wdt_reset();
 
-      // Process HTTP requests in tight loop for maximum throughput
-      // More iterations = more data processed per main loop cycle
-      constexpr int MAX_ITERATIONS = 500;
+      // Process HTTP requests in a short, bounded burst. A large fixed loop can
+      // monopolize the activity when a browser loads the dashboard and makes
+      // the Back button feel frozen.
+      constexpr int MAX_ITERATIONS = 32;
+      constexpr unsigned long MAX_BURST_MS = 12;
+      const unsigned long burstStart = millis();
       for (int i = 0; i < MAX_ITERATIONS && webServer->isRunning(); i++) {
         webServer->handleClient();
-        // Reset watchdog every 32 iterations
-        if ((i & 0x1F) == 0x1F) {
+        if ((i & 0x03) == 0x03) {
           esp_task_wdt_reset();
-        }
-        // Yield and check for exit button every 64 iterations
-        if ((i & 0x3F) == 0x3F) {
           yield();
-          // Force trigger an update of which buttons are being pressed so be have accurate state
-          // for back button checking
           mappedInput.update();
-          // Check for exit button inside loop for responsiveness
-          if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-            onGoHome();
+          if (mappedInput.wasPressedGroup(MappedInputManager::ButtonGroup::BottomLeft)) {
+            goHomeOrSync(renderer, mappedInput);
             return;
           }
         }
+        if (millis() - burstStart >= MAX_BURST_MS) {
+          break;
+        }
       }
       lastHandleClientTime = millis();
-    }
-
-    // Handle exit on Back button (also check outside loop)
-    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-      onGoHome();
-      return;
+      yield();
     }
   }
 }
 
-void CrossPointWebServerActivity::render(RenderLock&&) {
-  // Only render our own UI when server is running
-  // Subactivities handle their own rendering
+// ── Web firmware flash ────────────────────────────────────────────────────────
+
+void MyneWebServerActivity::firmwareFlashCallback(
+    const MyneWebServer::FirmwareFlashEvent& evt, void* ctx) {
+  auto* self = static_cast<MyneWebServerActivity*>(ctx);
+  using Phase = MyneWebServer::FirmwareFlashEvent::Phase;
+
+  // Throttle FLASHING redraws to once per 1% to spare the e-ink panel
+  if (evt.phase == Phase::FLASHING) {
+    const int pct = evt.total > 0 ? static_cast<int>((evt.written * 100) / evt.total) : 0;
+    if (pct == self->lastFlashPercent) return;
+    self->lastFlashPercent = pct;
+  }
+
+  self->lastFlashEvent = evt;
+  self->state = WebServerActivityState::WEB_FIRMWARE_FLASH;
+  self->renderWebFirmwareFlash();
+}
+
+void MyneWebServerActivity::renderWebFirmwareFlash() const {
+  using Phase = MyneWebServer::FirmwareFlashEvent::Phase;
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  const int W = renderer.getScreenWidth();
+
+  renderer.clearScreen();
+  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, W, metrics.headerHeight});
+  const int heroY = metrics.topPadding + metrics.headerHeight + 8;
+  NetworkActivityUI::hero(renderer, Rect{NetworkActivityUI::PAD, heroY,
+                                         W - NetworkActivityUI::PAD * 2, 104},
+                          tr(STR_NETWORK), tr(STR_WEB_FIRMWARE_UPDATE));
+  const int cardY = heroY + 136;
+  const int cardW = W - NetworkActivityUI::PAD * 2;
+
+  switch (lastFlashEvent.phase) {
+    case Phase::VALIDATING:
+      NetworkActivityUI::stateCard(renderer,
+                                   Rect{NetworkActivityUI::PAD, cardY, cardW, 180},
+                                   tr(STR_VALIDATING_FIRMWARE));
+      break;
+
+    case Phase::FLASHING: {
+      const int pct = lastFlashEvent.total > 0
+                          ? static_cast<int>((lastFlashEvent.written * 100) / lastFlashEvent.total)
+                          : 0;
+      NetworkActivityUI::panel(renderer, Rect{NetworkActivityUI::PAD, cardY, cardW, 210}, true);
+      renderer.drawCenteredText(UI_10_FONT_ID, cardY + 40, tr(STR_UPDATING), true,
+                                EpdFontFamily::BOLD);
+      GUI.drawProgressBar(renderer,
+                          Rect{NetworkActivityUI::PAD + NetworkActivityUI::INNER, cardY + 92,
+                               cardW - NetworkActivityUI::INNER * 2, metrics.progressBarHeight},
+                          pct, 100);
+      renderer.drawCenteredText(SMALL_FONT_ID, cardY + 154,
+                                tr(STR_FIRMWARE_UPDATE_DO_NOT_POWER_OFF), true,
+                                EpdFontFamily::BOLD);
+      break;
+    }
+
+    case Phase::DONE:
+      NetworkActivityUI::stateCard(renderer,
+                                   Rect{NetworkActivityUI::PAD, cardY, cardW, 180},
+                                   tr(STR_UPDATE_COMPLETE), tr(STR_RESTARTING_HINT));
+      break;
+
+    case Phase::FAILED:
+      NetworkActivityUI::stateCard(renderer,
+                                   Rect{NetworkActivityUI::PAD, cardY, cardW, 180},
+                                   tr(STR_UPDATE_FAILED), lastFlashEvent.error);
+      break;
+  }
+
+  renderer.displayBuffer();
+}
+
+// ── render ────────────────────────────────────────────────────────────────────
+
+void MyneWebServerActivity::render(RenderLock&&) {
   if (state == WebServerActivityState::SERVER_RUNNING || state == WebServerActivityState::AP_STARTING) {
     renderer.clearScreen();
     const auto& metrics = UITheme::getInstance().getMetrics();
-    const auto pageWidth = renderer.getScreenWidth();
-    const auto pageHeight = renderer.getScreenHeight();
+    const int pageWidth = renderer.getScreenWidth();
 
-    GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight},
-                   isApMode ? tr(STR_HOTSPOT_MODE) : tr(STR_FILE_TRANSFER), nullptr);
+    GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight});
+    const int heroY = metrics.topPadding + metrics.headerHeight + 8;
+    const bool showWifiIndicator = !isApMode && state == WebServerActivityState::SERVER_RUNNING;
+    NetworkActivityUI::hero(renderer, Rect{NetworkActivityUI::PAD, heroY,
+                                           pageWidth - NetworkActivityUI::PAD * 2, 104},
+                            isApMode ? tr(STR_HOTSPOT_MODE) : tr(STR_NETWORK),
+                            state == WebServerActivityState::SERVER_RUNNING ? tr(STR_OPEN_URL_HINT)
+                                                                            : (isApMode ? tr(STR_STARTING_HOTSPOT)
+                                                                                        : tr(STR_STARTING_SERVER)),
+                            connectedSSID.c_str(),
+                            showWifiIndicator ? WIFI_ICON_RIGHT_RESERVE : 0);
 
     if (state == WebServerActivityState::SERVER_RUNNING) {
-      GUI.drawSubHeader(renderer, Rect{0, metrics.topPadding + metrics.headerHeight, pageWidth, metrics.tabBarHeight},
-                        connectedSSID.c_str());
       renderServerRunning();
     } else {
-      const auto height = renderer.getLineHeight(UI_10_FONT_ID);
-      const auto top = (pageHeight - height) / 2;
-      renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_STARTING_HOTSPOT));
+      NetworkActivityUI::stateCard(renderer,
+                                   Rect{NetworkActivityUI::PAD, heroY + 140,
+                                        pageWidth - NetworkActivityUI::PAD * 2, 180},
+                                   isApMode ? tr(STR_STARTING_HOTSPOT) : tr(STR_STARTING_SERVER));
     }
     renderer.displayBuffer();
   }
 }
 
-void CrossPointWebServerActivity::renderServerRunning() const {
+void MyneWebServerActivity::renderServerRunning() const {
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const auto pageWidth = renderer.getScreenWidth();
+  const int pageWidth = renderer.getScreenWidth();
+  const int heroY = metrics.topPadding + metrics.headerHeight + 8;
+  const int contentY = heroY + 124;
+  constexpr int qrSize = 166;
+  const int contentW = pageWidth - NetworkActivityUI::PAD * 2;
+  const Rect heroRect{NetworkActivityUI::PAD, heroY, contentW, 104};
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight},
-                 isApMode ? tr(STR_HOTSPOT_MODE) : tr(STR_FILE_TRANSFER), nullptr);
-  GUI.drawSubHeader(renderer, Rect{0, metrics.topPadding + metrics.headerHeight, pageWidth, metrics.tabBarHeight},
-                    connectedSSID.c_str());
-
-  if (!isApMode) {
-    renderWifiIndicator(metrics.topPadding + metrics.headerHeight);
-  }
-
-  int startY = metrics.topPadding + metrics.headerHeight + metrics.tabBarHeight + metrics.verticalSpacing * 2;
-  int height10 = renderer.getLineHeight(UI_10_FONT_ID);
   if (isApMode) {
-    // AP mode display
-    renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, startY, tr(STR_CONNECT_WIFI_HINT), true,
-                      EpdFontFamily::BOLD);
-    startY += height10 + metrics.verticalSpacing * 2;
-
-    // Show QR code for Wifi
     const std::string wifiConfig = std::string("WIFI:S:") + connectedSSID + ";;";
-    const Rect qrBoundsWifi(metrics.contentSidePadding, startY, QR_CODE_WIDTH, QR_CODE_HEIGHT);
-    QrUtils::drawQrCode(renderer, qrBoundsWifi, wifiConfig);
-
-    // Show network name
-    renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 80,
-                      connectedSSID.c_str());
-
-    startY += QR_CODE_HEIGHT + 2 * metrics.verticalSpacing;
-
-    // Show primary URL (hostname)
-    renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, startY, tr(STR_OPEN_URL_HINT), true,
-                      EpdFontFamily::BOLD);
-    startY += height10 + metrics.verticalSpacing * 2;
-
     std::string hostnameUrl = std::string("http://") + AP_HOSTNAME + ".local/";
     std::string ipUrl = tr(STR_OR_HTTP_PREFIX) + connectedIP + "/";
 
-    // Show QR code for URL
-    const Rect qrBoundsUrl(metrics.contentSidePadding, startY, QR_CODE_WIDTH, QR_CODE_HEIGHT);
-    QrUtils::drawQrCode(renderer, qrBoundsUrl, hostnameUrl);
+    const int cardH = qrSize + 52;
+    NetworkActivityUI::panel(renderer, Rect{NetworkActivityUI::PAD, contentY, contentW, cardH});
+    NetworkActivityUI::text(renderer, SMALL_FONT_ID, NetworkActivityUI::PAD + NetworkActivityUI::INNER,
+                            contentY + 16, tr(STR_CONNECT_WIFI_HINT), contentW - NetworkActivityUI::INNER * 2,
+                            EpdFontFamily::BOLD);
+    QrUtils::drawQrCode(renderer,
+                        Rect{NetworkActivityUI::PAD + NetworkActivityUI::INNER, contentY + 42,
+                             qrSize, qrSize},
+                        wifiConfig);
+    NetworkActivityUI::metric(renderer,
+                              Rect{NetworkActivityUI::PAD + NetworkActivityUI::INNER + qrSize + NetworkActivityUI::GAP,
+                                   contentY + 58, contentW - qrSize - NetworkActivityUI::INNER * 2 - NetworkActivityUI::GAP,
+                                   96},
+                              "SSID", connectedSSID.c_str());
 
-    // Show IP address as fallback
-    renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 80,
-                      hostnameUrl.c_str());
-    renderer.drawText(SMALL_FONT_ID, metrics.contentSidePadding + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 100,
-                      ipUrl.c_str());
+    const int urlY = contentY + cardH + NetworkActivityUI::GAP;
+    NetworkActivityUI::panel(renderer, Rect{NetworkActivityUI::PAD, urlY, contentW, 132});
+    NetworkActivityUI::text(renderer, SMALL_FONT_ID, NetworkActivityUI::PAD + NetworkActivityUI::INNER,
+                            urlY + 16, tr(STR_OPEN_URL_HINT), contentW - NetworkActivityUI::INNER * 2,
+                            EpdFontFamily::BOLD);
+    NetworkActivityUI::text(renderer, UI_10_FONT_ID, NetworkActivityUI::PAD + NetworkActivityUI::INNER,
+                            urlY + 48, hostnameUrl.c_str(), contentW - NetworkActivityUI::INNER * 2,
+                            EpdFontFamily::BOLD);
+    NetworkActivityUI::text(renderer, SMALL_FONT_ID, NetworkActivityUI::PAD + NetworkActivityUI::INNER,
+                            urlY + 86, ipUrl.c_str(), contentW - NetworkActivityUI::INNER * 2);
   } else {
-    startY += metrics.verticalSpacing * 2;
-
-    // STA mode display (original behavior)
-    // std::string ipInfo = "IP Address: " + connectedIP;
-    renderer.drawCenteredText(UI_10_FONT_ID, startY, tr(STR_OPEN_URL_HINT), true, EpdFontFamily::BOLD);
-    startY += height10;
-    renderer.drawCenteredText(UI_10_FONT_ID, startY, tr(STR_SCAN_QR_HINT), true, EpdFontFamily::BOLD);
-    startY += height10 + metrics.verticalSpacing * 2;
-
-    // Show QR code for URL
     std::string webInfo = "http://" + connectedIP + "/";
-    const Rect qrBounds((pageWidth - QR_CODE_WIDTH) / 2, startY, QR_CODE_WIDTH, QR_CODE_HEIGHT);
-    QrUtils::drawQrCode(renderer, qrBounds, webInfo);
-    startY += QR_CODE_HEIGHT + metrics.verticalSpacing * 2;
-
-    // Show web server URL prominently
-    renderer.drawCenteredText(UI_10_FONT_ID, startY, webInfo.c_str(), true);
-    startY += height10 + 5;
-
-    // Also show hostname URL
     std::string hostnameUrl = std::string(tr(STR_OR_HTTP_PREFIX)) + AP_HOSTNAME + ".local/";
-    renderer.drawCenteredText(SMALL_FONT_ID, startY, hostnameUrl.c_str(), true);
+
+    NetworkActivityUI::panel(renderer, Rect{NetworkActivityUI::PAD, contentY, contentW, 330}, true);
+    NetworkActivityUI::text(renderer, SMALL_FONT_ID, NetworkActivityUI::PAD + NetworkActivityUI::INNER,
+                            contentY + 18, tr(STR_SCAN_QR_HINT), contentW - NetworkActivityUI::INNER * 2,
+                            EpdFontFamily::BOLD);
+    const int qrX = (pageWidth - qrSize) / 2;
+    QrUtils::drawQrCode(renderer, Rect{qrX, contentY + 58, qrSize, qrSize}, webInfo);
+    renderer.drawCenteredText(UI_10_FONT_ID, contentY + 236, webInfo.c_str(), true,
+                              EpdFontFamily::BOLD);
+    renderer.drawCenteredText(SMALL_FONT_ID, contentY + 270, hostnameUrl.c_str(), true);
+
+    const int statY = contentY + 346;
+    const int statW = (contentW - NetworkActivityUI::GAP) / 2;
+    NetworkActivityUI::metric(renderer, Rect{NetworkActivityUI::PAD, statY, statW, 92},
+                              "SSID", connectedSSID.c_str());
+    NetworkActivityUI::metric(renderer,
+                              Rect{NetworkActivityUI::PAD + statW + NetworkActivityUI::GAP, statY, statW, 92},
+                              tr(STR_IP_ADDRESS_PREFIX), connectedIP.c_str(), true);
+    renderWifiIndicator(heroRect);
   }
 
   const auto labels = mappedInput.mapLabels(tr(STR_EXIT), "", "", "");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
 
-void CrossPointWebServerActivity::renderWifiIndicator(int subHeaderTop) const {
-  constexpr int BAR_COUNT = 4;
-  constexpr int BAR_WIDTH = 4;
-  constexpr int BAR_GAP = 2;
-  constexpr int ICON_HEIGHT = 14;
-  const auto& metrics = UITheme::getInstance().getMetrics();
-  const int iconWidth = BAR_COUNT * BAR_WIDTH + (BAR_COUNT - 1) * BAR_GAP;
-  const int iconRight = renderer.getScreenWidth() - metrics.contentSidePadding;
-  const int iconLeft = iconRight - iconWidth;
-  const int iconBottom = subHeaderTop + metrics.tabBarHeight - metrics.verticalSpacing;
+void MyneWebServerActivity::renderWifiIndicator(Rect heroRect) const {
+  const int iconRight = heroRect.x + heroRect.width - NetworkActivityUI::INNER;
+  const int iconLeft = iconRight - WIFI_ICON_WIDTH;
+  const int iconTop = heroRect.y + 14;
+  const int iconBottom = iconTop + WIFI_ICON_HEIGHT;
 
   const bool wifiUp = (WiFi.status() == WL_CONNECTED) && (consecutiveDisconnects == 0);
   if (wifiUp) {
-    for (int i = 0; i < BAR_COUNT; i++) {
-      const int barHeight = (i + 1) * ICON_HEIGHT / BAR_COUNT;
-      const int x = iconLeft + i * (BAR_WIDTH + BAR_GAP);
+    for (int i = 0; i < WIFI_ICON_BAR_COUNT; i++) {
+      const int barHeight = (i + 1) * WIFI_ICON_HEIGHT / WIFI_ICON_BAR_COUNT;
+      const int x = iconLeft + i * (WIFI_ICON_BAR_WIDTH + WIFI_ICON_BAR_GAP);
       const int y = iconBottom - barHeight;
       if (i < lastWifiBars) {
-        renderer.fillRect(x, y, BAR_WIDTH, barHeight, true);
+        renderer.fillRect(x, y, WIFI_ICON_BAR_WIDTH, barHeight, true);
       } else {
-        renderer.drawRect(x, y, BAR_WIDTH, barHeight, true);
+        renderer.drawRect(x, y, WIFI_ICON_BAR_WIDTH, barHeight, true);
       }
     }
   } else {
-    const int xSize = ICON_HEIGHT;
-    const int x0 = iconRight - xSize;
-    const int y0 = iconBottom - xSize;
-    renderer.drawLine(x0, y0, x0 + xSize, y0 + xSize, 2, true);
-    renderer.drawLine(x0, y0 + xSize, x0 + xSize, y0, 2, true);
+    const int x0 = iconRight - WIFI_ICON_HEIGHT;
+    renderer.drawLine(x0, iconTop, x0 + WIFI_ICON_HEIGHT, iconBottom, 2, true);
+    renderer.drawLine(x0, iconBottom, x0 + WIFI_ICON_HEIGHT, iconTop, 2, true);
   }
 }

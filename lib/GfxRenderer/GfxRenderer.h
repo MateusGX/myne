@@ -3,9 +3,6 @@
 #include <EpdFontFamily.h>
 #include <HalDisplay.h>
 
-class FontCacheManager;
-class SdCardFont;
-
 #include <cstring>
 #include <map>
 #include <string>
@@ -43,17 +40,6 @@ class GfxRenderer {
   uint32_t frameBufferSize = HalDisplay::BUFFER_SIZE;
   std::vector<uint8_t*> bwBufferChunks;
   std::map<int, EpdFontFamily> fontMap;
-  // Mutable because ensureSdCardFontReady() is const (called from layout code
-  // that holds a const GfxRenderer&) but triggers SD card reads and heap
-  // allocation inside the SdCardFont objects. Same pragmatic compromise as
-  // fontCacheManager_ below.
-  mutable std::map<int, SdCardFont*> sdCardFonts_;
-
-  // Mutable because drawText() is const but needs to delegate scan-mode
-  // recording to the (non-const) FontCacheManager. Same pragmatic compromise
-  // as before, concentrated in a single pointer instead of four fields.
-  mutable FontCacheManager* fontCacheManager_ = nullptr;
-
   void renderChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, int* y, bool pixelState,
                   EpdFontFamily::Style style) const;
   void freeBwBufferChunks();
@@ -75,27 +61,8 @@ class GfxRenderer {
   // Setup
   void begin();  // must be called right after display.begin()
   void insertFont(int fontId, EpdFontFamily font);
-  // Clears both the flash-font map and any SD-font registration for fontId.
-  // Coupled to avoid dangling SdCardFont* in sdCardFonts_ when callers free
-  // the underlying SdCardFont and forget the SD-side unregister.
-  void removeFont(int fontId) {
-    fontMap.erase(fontId);
-    sdCardFonts_.erase(fontId);
-  }
-  void setFontCacheManager(FontCacheManager* m) { fontCacheManager_ = m; }
-  FontCacheManager* getFontCacheManager() const { return fontCacheManager_; }
+  void removeFont(int fontId) { fontMap.erase(fontId); }
   const std::map<int, EpdFontFamily>& getFontMap() const { return fontMap; }
-  void registerSdCardFont(int fontId, SdCardFont* font) { sdCardFonts_[fontId] = font; }
-  void unregisterSdCardFont(int fontId) { removeFont(fontId); }
-  void clearSdCardFonts() { sdCardFonts_.clear(); }
-  const std::map<int, SdCardFont*>& getSdCardFonts() const { return sdCardFonts_; }
-  bool isSdCardFont(int fontId) const { return sdCardFonts_.count(fontId) > 0; }
-  // Ensure SD card font glyph data is loaded for the given text. Called from layout code
-  // (which holds a const GfxRenderer&) before measuring word widths. Safe to call on non-SD fonts (no-op).
-  // styleMask: bitmask of styles to prepare (bit 0=regular, 1=bold, 2=italic, 3=bold-italic).
-  void ensureSdCardFontReady(int fontId, const char* utf8Text, uint8_t styleMask = 0x0F) const;
-  void ensureSdCardFontReady(int fontId, const std::vector<std::string>& words, bool includeHyphen,
-                             uint8_t styleMask = 0x0F) const;
 
   // Orientation control (affects logical width/height and coordinate transforms)
   void setOrientation(const Orientation o) { orientation = o; }
@@ -135,6 +102,15 @@ class GfxRenderer {
   void drawBitmap(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight, float cropX = 0,
                   float cropY = 0) const;
   void drawBitmap1Bit(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight) const;
+  // Decodes a JPEG from SD and renders it within the given box (centred, fit-scale).
+  // Returns false if the file cannot be opened or decoded. JPEGDEC is heap-allocated
+  // to keep stack pressure below the render task's 8 KB limit.
+  bool drawJpegFromFile(const char* path, int x, int y, int maxW, int maxH) const;
+  // 4-gray grayscale variant with histogram normalisation and SD cache.
+  // Internally: BW pre-render pass → displayBuffer(HALF_REFRESH) → LSB/MSB passes →
+  // displayGrayBuffer. All BW content that should appear alongside the image must be
+  // drawn into the framebuffer BEFORE this call. Non-const (changes render mode).
+  bool drawJpegGrayscaleFromFile(const char* path, int x, int y, int maxW, int maxH);
   void fillPolygon(const int* xPoints, const int* yPoints, int numPoints, bool state = true) const;
 
   // Text

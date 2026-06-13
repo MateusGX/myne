@@ -1,6 +1,5 @@
 #include "WebDAVHandler.h"
 
-#include <Epub.h>
 #include <FsHelpers.h>
 #include <HalStorage.h>
 #include <Logging.h>
@@ -662,7 +661,7 @@ void WebDAVHandler::handleLock(WebServer& s) {
       "<D:locktype><D:write/></D:locktype>\n"
       "<D:lockscope><D:exclusive/></D:lockscope>\n"
       "<D:depth>infinity</D:depth>\n"
-      "<D:owner><D:href>crosspoint</D:href></D:owner>\n"
+      "<D:owner><D:href>myne</D:href></D:owner>\n"
       "<D:timeout>Second-3600</D:timeout>\n"
       "<D:locktoken><D:href>urn:uuid:dummy-lock-token</D:href></D:locktoken>\n"
       "<D:lockroot><D:href>/</D:href></D:lockroot>\n"
@@ -797,17 +796,12 @@ bool WebDAVHandler::getOverwrite(WebServer& s) const {
   return true;  // Default is T
 }
 
-void WebDAVHandler::clearEpubCacheIfNeeded(const String& path) const {
-  if (FsHelpers::hasEpubExtension(path)) {
-    Epub(path.c_str(), "/.crosspoint").clearCache();
-    LOG_DBG("DAV", "Cleared epub cache for: %s", path.c_str());
-  }
-}
+void WebDAVHandler::clearEpubCacheIfNeeded(const String& path) const {}
 
 String WebDAVHandler::getMimeType(const String& path) const {
-  if (FsHelpers::hasEpubExtension(path)) return "application/epub+zip";
+  if (FsHelpers::checkFileExtension(path, ".epub")) return "application/epub+zip";
   if (FsHelpers::checkFileExtension(path, ".pdf")) return "application/pdf";
-  if (FsHelpers::hasTxtExtension(path)) return "text/plain";
+  if (FsHelpers::checkFileExtension(path, ".txt")) return "text/plain";
   if (FsHelpers::checkFileExtension(path, ".html") || FsHelpers::checkFileExtension(path, ".htm")) return "text/html";
   if (FsHelpers::checkFileExtension(path, ".css")) return "text/css";
   if (FsHelpers::checkFileExtension(path, ".js")) return "application/javascript";

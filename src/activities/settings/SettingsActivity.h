@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "CrossPointSettings.h"
+#include "MyneSettings.h"
 #include "activities/Activity.h"
 #include "util/ButtonNavigator.h"
 
@@ -14,21 +14,16 @@ enum class SettingType { TOGGLE, ENUM, ACTION, VALUE, STRING };
 enum class SettingAction {
   None,
   RemapFrontButtons,
-  CustomiseStatusBar,
-  KOReaderSync,
-  OPDSBrowser,
   Network,
-  ClearCache,
   CheckForUpdates,
   SdFirmwareUpdate,
   Language,
-  DownloadFonts,
 };
 
 struct SettingInfo {
   StrId nameId;
   SettingType type;
-  uint8_t CrossPointSettings::* valuePtr = nullptr;
+  uint8_t MyneSettings::* valuePtr = nullptr;
   std::vector<StrId> enumValues;
   std::vector<std::string> enumStringValues;  // runtime alternative to StrId enumValues (for SD card fonts etc.)
   SettingAction action = SettingAction::None;
@@ -44,11 +39,11 @@ struct SettingInfo {
   StrId category = StrId::STR_NONE_OPT;  // Category for web UI grouping
   bool obfuscated = false;               // Save/load via base64 obfuscation (passwords)
 
-  // Direct char[] string fields (for settings stored in CrossPointSettings)
+  // Direct char[] string fields (for settings stored in MyneSettings)
   size_t stringOffset = 0;
   size_t stringMaxLen = 0;
 
-  // Dynamic accessors (for settings stored outside CrossPointSettings, e.g. KOReaderCredentialStore)
+  // Dynamic accessors (for settings stored outside MyneSettings, e.g. KOReaderCredentialStore)
   std::function<uint8_t()> valueGetter;
   std::function<void(uint8_t)> valueSetter;
   std::function<std::string()> stringGetter;
@@ -59,7 +54,7 @@ struct SettingInfo {
     return *this;
   }
 
-  static SettingInfo Toggle(StrId nameId, uint8_t CrossPointSettings::* ptr, const char* key = nullptr,
+  static SettingInfo Toggle(StrId nameId, uint8_t MyneSettings::* ptr, const char* key = nullptr,
                             StrId category = StrId::STR_NONE_OPT) {
     SettingInfo s;
     s.nameId = nameId;
@@ -70,13 +65,26 @@ struct SettingInfo {
     return s;
   }
 
-  static SettingInfo Enum(StrId nameId, uint8_t CrossPointSettings::* ptr, std::vector<StrId> values,
+  static SettingInfo Enum(StrId nameId, uint8_t MyneSettings::* ptr, std::vector<StrId> values,
                           const char* key = nullptr, StrId category = StrId::STR_NONE_OPT) {
     SettingInfo s;
     s.nameId = nameId;
     s.type = SettingType::ENUM;
     s.valuePtr = ptr;
     s.enumValues = std::move(values);
+    s.key = key;
+    s.category = category;
+    return s;
+  }
+
+  static SettingInfo EnumStrings(StrId nameId, uint8_t MyneSettings::* ptr,
+                                 std::vector<std::string> values,
+                                 const char* key = nullptr, StrId category = StrId::STR_NONE_OPT) {
+    SettingInfo s;
+    s.nameId = nameId;
+    s.type = SettingType::ENUM;
+    s.valuePtr = ptr;
+    s.enumStringValues = std::move(values);
     s.key = key;
     s.category = category;
     return s;
@@ -90,7 +98,7 @@ struct SettingInfo {
     return s;
   }
 
-  static SettingInfo Value(StrId nameId, uint8_t CrossPointSettings::* ptr, const ValueRange valueRange,
+  static SettingInfo Value(StrId nameId, uint8_t MyneSettings::* ptr, const ValueRange valueRange,
                            const char* key = nullptr, StrId category = StrId::STR_NONE_OPT) {
     SettingInfo s;
     s.nameId = nameId;
@@ -151,12 +159,11 @@ class SettingsActivity final : public Activity {
 
   // Per-category settings derived from shared list + device-only actions
   std::vector<SettingInfo> displaySettings;
-  std::vector<SettingInfo> readerSettings;
   std::vector<SettingInfo> controlsSettings;
   std::vector<SettingInfo> systemSettings;
   const std::vector<SettingInfo>* currentSettings = nullptr;
 
-  static constexpr int categoryCount = 4;
+  static constexpr int categoryCount = 3;
   static const StrId categoryNames[categoryCount];
 
   void enterCategory(int categoryIndex);
