@@ -1,6 +1,5 @@
 #include "FileBrowserActivity.h"
 
-#include <Epub.h>
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
@@ -9,7 +8,7 @@
 #include <algorithm>
 
 #include "../util/ConfirmationActivity.h"
-#include "CrossPointSettings.h"
+#include "MyneSettings.h"
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
@@ -40,13 +39,10 @@ void FileBrowserActivity::loadFiles() {
     } else {
       std::string_view filename{name};
       if (mode == Mode::PickFirmware) {
-        // Firmware picker: only show .bin files.
         if (FsHelpers::checkFileExtension(filename, ".bin")) {
           files.emplace_back(filename);
         }
-      } else if (FsHelpers::hasEpubExtension(filename) || FsHelpers::hasXtcExtension(filename) ||
-                 FsHelpers::hasTxtExtension(filename) || FsHelpers::hasMarkdownExtension(filename) ||
-                 FsHelpers::hasBmpExtension(filename)) {
+      } else {
         files.emplace_back(filename);
       }
     }
@@ -90,18 +86,10 @@ void FileBrowserActivity::onExit() {
   files.clear();
 }
 
-void FileBrowserActivity::clearFileMetadata(const std::string& fullPath) {
-  // Only clear cache for .epub files
-  if (FsHelpers::hasEpubExtension(fullPath)) {
-    Epub(fullPath, "/.crosspoint").clearCache();
-    LOG_DBG("FileBrowser", "Cleared metadata cache for: %s", fullPath.c_str());
-  }
-}
-
 void FileBrowserActivity::loop() {
   // Long press BACK (1s+) goes to root folder (Books mode only).
   // In firmware-pick mode we keep navigation simple: short Back = up dir / cancel.
-  if (mode == Mode::Books && mappedInput.isPressed(MappedInputManager::Button::Back) &&
+  if (mode == Mode::Files && mappedInput.isPressed(MappedInputManager::Button::Back) &&
       mappedInput.getHeldTime() >= GO_HOME_MS && basepath != "/" && !lockLongPressBack) {
     basepath = "/";
     loadFiles();
@@ -139,7 +127,7 @@ void FileBrowserActivity::loop() {
       return;
     }
 
-    if (mode == Mode::Books && mappedInput.getHeldTime() >= GO_HOME_MS) {
+    if (mode == Mode::Files && mappedInput.getHeldTime() >= GO_HOME_MS) {
       // --- LONG PRESS ACTION: DELETE FILE OR DIRECTORY ---
       std::string cleanBasePath = basepath;
       if (cleanBasePath.back() != '/') cleanBasePath += "/";
@@ -148,9 +136,6 @@ void FileBrowserActivity::loop() {
       auto handler = [this, fullPath, isDirectory](const ActivityResult& res) {
         if (!res.isCancelled) {
           LOG_DBG("FileBrowser", "Attempting to delete: %s", fullPath.c_str());
-          if (!isDirectory) {
-            clearFileMetadata(fullPath);
-          }
           const bool deleted = isDirectory ? Storage.removeDir(fullPath.c_str()) : Storage.remove(fullPath.c_str());
           if (deleted) {
             LOG_DBG("FileBrowser", "Deleted successfully");
@@ -176,7 +161,7 @@ void FileBrowserActivity::loop() {
       startActivityForResult(std::make_unique<ConfirmationActivity>(renderer, mappedInput, heading, entry), handler);
       return;
     } else {
-      // --- SHORT PRESS ACTION: OPEN/NAVIGATE ---
+      // --- SHORT PRESS ACTION: NAVIGATE INTO DIRECTORY ---
       if (basepath.back() != '/') basepath += "/";
 
       if (isDirectory) {
@@ -184,9 +169,8 @@ void FileBrowserActivity::loop() {
         loadFiles();
         selectorIndex = 0;
         requestUpdate();
-      } else {
-        onSelectBook(basepath + entry);
       }
+      // Files cannot be opened (no reader)
     }
     return;
   }
@@ -243,9 +227,6 @@ void FileBrowserActivity::loop() {
 std::string getFileName(std::string filename) {
   if (filename.back() == '/') {
     filename.pop_back();
-    if (!UITheme::getInstance().getTheme().showsFileIcons()) {
-      return "[" + filename + "]";
-    }
     return filename;
   }
   const auto pos = filename.rfind('.');
@@ -271,11 +252,13 @@ void FileBrowserActivity::render(RenderLock&&) {
       (mode == Mode::PickFirmware)
           ? std::string(tr(STR_SELECT_FIRMWARE_FILE))
           : ((basepath == "/") ? std::string(tr(STR_SD_CARD)) : basepath.substr(basepath.rfind('/') + 1));
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, folderName.c_str());
+  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight});
+  GUI.drawPageTitle(renderer, Rect{0, metrics.topPadding + metrics.headerHeight, pageWidth, metrics.pageTitleHeight},
+                    folderName.c_str());
 
   const int pathLineHeight = renderer.getLineHeight(SMALL_FONT_ID);
   const int pathReserved = pathLineHeight + metrics.verticalSpacing;
-  const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
+  const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.pageTitleHeight + metrics.verticalSpacing;
   const int contentHeight =
       pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing - pathReserved;
   if (files.empty()) {

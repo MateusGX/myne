@@ -5,17 +5,14 @@
 #include <vector>
 
 #include "../Activity.h"
-#include "RecentBooksStore.h"
 #include "util/ButtonNavigator.h"
 
 class FileBrowserActivity final : public Activity {
  public:
-  // Books = standard reader browser; PickFirmware = filter to .bin only and return path via ActivityResult.
-  enum class Mode { Books, PickFirmware };
+  // Files = standard browser; PickFirmware = filter to .bin only and return path via ActivityResult.
+  enum class Mode { Files, PickFirmware };
 
  private:
-  // Deletion
-  void clearFileMetadata(const std::string& fullPath);
 
   ButtonNavigator buttonNavigator;
 
@@ -26,7 +23,7 @@ class FileBrowserActivity final : public Activity {
   // release so we don't immediately auto-open the first entry.
   bool lockNextConfirmRelease = false;
 
-  Mode mode = Mode::Books;
+  Mode mode = Mode::Files;
 
   // Files state
   std::string basepath = "/";
@@ -38,7 +35,7 @@ class FileBrowserActivity final : public Activity {
 
  public:
   explicit FileBrowserActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string initialPath = "/",
-                               Mode mode = Mode::Books)
+                               Mode mode = Mode::Files)
       : Activity("FileBrowser", renderer, mappedInput),
         mode(mode),
         basepath(initialPath.empty() ? "/" : std::move(initialPath)) {}
