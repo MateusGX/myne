@@ -13,7 +13,6 @@ class FileBrowserActivity final : public Activity {
   enum class Mode { Files, PickFirmware };
 
  private:
-
   ButtonNavigator buttonNavigator;
 
   size_t selectorIndex = 0;

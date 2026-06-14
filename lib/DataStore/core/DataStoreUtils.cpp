@@ -12,9 +12,7 @@
 
 namespace DataStoreUtils {
 
-void generateId(char* out, size_t size) {
-  snprintf(out, size, "%lu", (unsigned long)millis());
-}
+void generateId(char* out, size_t size) { snprintf(out, size, "%lu", (unsigned long)millis()); }
 
 void currentDate(char* out) {
   time_t now = time(nullptr);

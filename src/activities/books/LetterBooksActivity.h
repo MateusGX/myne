@@ -1,8 +1,9 @@
 #pragma once
 
-#include "../Activity.h"
 #include <BookCatalog.h>
 #include <BookStore.h>
+
+#include "../Activity.h"
 #include "util/ButtonNavigator.h"
 
 // Shows all entries (collections and standalone books) for one letter.
@@ -13,11 +14,11 @@ class LetterBooksActivity final : public Activity {
   char letter_;
 
   // Pagination state — all counts are absolute indices into the full letter list.
-  int totalCount_  = 0;  // total entries for this letter (from idx.bin)
-  int selIdx_      = 0;  // absolute selected entry index
-  int pageItems_   = 0;  // entries per screen page (from UITheme, cached in onEnter)
-  int bufStart_    = -1; // index of first entry currently in buf_
-  int bufCount_    = 0;  // number of valid entries in buf_
+  int totalCount_ = 0;  // total entries for this letter (from idx.bin)
+  int selIdx_ = 0;      // absolute selected entry index
+  int pageItems_ = 0;   // entries per screen page (from UITheme, cached in onEnter)
+  int bufStart_ = -1;   // index of first entry currently in buf_
+  int bufCount_ = 0;    // number of valid entries in buf_
 
   BookCatalog::Entry* buf_ = nullptr;  // heap-allocated [pageItems_] entries
 

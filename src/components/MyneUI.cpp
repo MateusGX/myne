@@ -121,8 +121,7 @@ void MyneUI::drawBatteryRight(const GfxRenderer& renderer, Rect rect, const bool
 // drawProgressBar — BaseTheme version
 // ---------------------------------------------------------------------------
 
-void MyneUI::drawProgressBar(const GfxRenderer& renderer, Rect rect, const size_t current,
-                                   const size_t total) const {
+void MyneUI::drawProgressBar(const GfxRenderer& renderer, Rect rect, const size_t current, const size_t total) const {
   if (total == 0) {
     return;
   }
@@ -150,8 +149,7 @@ void MyneUI::drawProgressBar(const GfxRenderer& renderer, Rect rect, const size_
 // ---------------------------------------------------------------------------
 
 void MyneUI::drawHeader(const GfxRenderer& renderer, Rect rect) const {
-  const bool showPercentage =
-      SETTINGS.hideBatteryPercentage != MyneSettings::HIDE_BATTERY_PERCENTAGE::HIDE_ALWAYS;
+  const bool showPercentage = SETTINGS.hideBatteryPercentage != MyneSettings::HIDE_BATTERY_PERCENTAGE::HIDE_ALWAYS;
   const int batteryX = rect.x + rect.width - 12 - MyneUIMetrics::values.batteryWidth;
   drawBatteryRight(renderer,
                    Rect{batteryX, rect.y + (rect.height - MyneUIMetrics::values.batteryHeight) / 2,
@@ -163,26 +161,22 @@ void MyneUI::drawHeader(const GfxRenderer& renderer, Rect rect) const {
 // drawPageTitle
 // ---------------------------------------------------------------------------
 
-void MyneUI::drawPageTitle(const GfxRenderer& renderer, Rect rect, const char* title,
-                                 const char* subtitle) const {
-  const int pad   = MyneUIMetrics::values.contentSidePadding;
-  const int lh12  = renderer.getLineHeight(UI_12_FONT_ID);
-  const int lhSm  = renderer.getLineHeight(SMALL_FONT_ID);
+void MyneUI::drawPageTitle(const GfxRenderer& renderer, Rect rect, const char* title, const char* subtitle) const {
+  const int pad = MyneUIMetrics::values.contentSidePadding;
+  const int lh12 = renderer.getLineHeight(UI_12_FONT_ID);
+  const int lhSm = renderer.getLineHeight(SMALL_FONT_ID);
   const int textH = rect.height - 1;  // 1px for bottom border
 
   if (title) {
-    const int availW = subtitle
-                           ? rect.width - pad * 3 - renderer.getTextWidth(SMALL_FONT_ID, subtitle)
-                           : rect.width - pad * 2;
+    const int availW =
+        subtitle ? rect.width - pad * 3 - renderer.getTextWidth(SMALL_FONT_ID, subtitle) : rect.width - pad * 2;
     const auto t = renderer.truncatedText(UI_12_FONT_ID, title, availW, EpdFontFamily::BOLD);
-    renderer.drawText(UI_12_FONT_ID, rect.x + pad, rect.y + (textH - lh12) / 2, t.c_str(), true,
-                      EpdFontFamily::BOLD);
+    renderer.drawText(UI_12_FONT_ID, rect.x + pad, rect.y + (textH - lh12) / 2, t.c_str(), true, EpdFontFamily::BOLD);
   }
 
   if (subtitle) {
     const int sw = renderer.getTextWidth(SMALL_FONT_ID, subtitle);
-    renderer.drawText(SMALL_FONT_ID, rect.x + rect.width - pad - sw,
-                      rect.y + (textH - lhSm) / 2, subtitle, true);
+    renderer.drawText(SMALL_FONT_ID, rect.x + rect.width - pad - sw, rect.y + (textH - lhSm) / 2, subtitle, true);
   }
 
   renderer.drawLine(rect.x, rect.y + rect.height - 1, rect.x + rect.width - 1, rect.y + rect.height - 1);
@@ -192,23 +186,20 @@ void MyneUI::drawPageTitle(const GfxRenderer& renderer, Rect rect, const char* t
 // drawSubHeader — Lyra version
 // ---------------------------------------------------------------------------
 
-void MyneUI::drawSubHeader(const GfxRenderer& renderer, Rect rect, const char* label,
-                                 const char* rightLabel) const {
+void MyneUI::drawSubHeader(const GfxRenderer& renderer, Rect rect, const char* label, const char* rightLabel) const {
   int currentX = rect.x + MyneUIMetrics::values.contentSidePadding;
   int rightSpace = MyneUIMetrics::values.contentSidePadding;
   if (rightLabel) {
     auto truncatedRightLabel =
         renderer.truncatedText(SMALL_FONT_ID, rightLabel, maxListValueWidth, EpdFontFamily::REGULAR);
     int rightLabelWidth = renderer.getTextWidth(SMALL_FONT_ID, truncatedRightLabel.c_str());
-    renderer.drawText(SMALL_FONT_ID,
-                      rect.x + rect.width - MyneUIMetrics::values.contentSidePadding - rightLabelWidth,
+    renderer.drawText(SMALL_FONT_ID, rect.x + rect.width - MyneUIMetrics::values.contentSidePadding - rightLabelWidth,
                       rect.y + 7, truncatedRightLabel.c_str());
     rightSpace += rightLabelWidth + hPaddingInSelection;
   }
 
   auto truncatedLabel = renderer.truncatedText(
-      UI_10_FONT_ID, label, rect.width - MyneUIMetrics::values.contentSidePadding - rightSpace,
-      EpdFontFamily::REGULAR);
+      UI_10_FONT_ID, label, rect.width - MyneUIMetrics::values.contentSidePadding - rightSpace, EpdFontFamily::REGULAR);
   renderer.drawText(UI_10_FONT_ID, currentX, rect.y + 6, truncatedLabel.c_str(), true, EpdFontFamily::REGULAR);
 
   renderer.drawLine(rect.x, rect.y + rect.height - 1, rect.x + rect.width - 1, rect.y + rect.height - 1, true);
@@ -218,8 +209,7 @@ void MyneUI::drawSubHeader(const GfxRenderer& renderer, Rect rect, const char* l
 // drawTabBar — Lyra version
 // ---------------------------------------------------------------------------
 
-void MyneUI::drawTabBar(const GfxRenderer& renderer, Rect rect, const std::vector<TabInfo>& tabs,
-                              bool selected) const {
+void MyneUI::drawTabBar(const GfxRenderer& renderer, Rect rect, const std::vector<TabInfo>& tabs, bool selected) const {
   int currentX = rect.x + MyneUIMetrics::values.contentSidePadding;
 
   if (selected) {
@@ -241,8 +231,8 @@ void MyneUI::drawTabBar(const GfxRenderer& renderer, Rect rect, const std::vecto
       }
     }
 
-    renderer.drawText(UI_10_FONT_ID, currentX + hPaddingInSelection, rect.y + 6, tab.label,
-                      !(tab.selected && selected), EpdFontFamily::REGULAR);
+    renderer.drawText(UI_10_FONT_ID, currentX + hPaddingInSelection, rect.y + 6, tab.label, !(tab.selected && selected),
+                      EpdFontFamily::REGULAR);
 
     currentX += textWidth + MyneUIMetrics::values.tabSpacing + 2 * hPaddingInSelection;
   }
@@ -255,13 +245,13 @@ void MyneUI::drawTabBar(const GfxRenderer& renderer, Rect rect, const std::vecto
 // ---------------------------------------------------------------------------
 
 void MyneUI::drawList(const GfxRenderer& renderer, Rect rect, int itemCount, int selectedIndex,
-                            const std::function<std::string(int index)>& rowTitle,
-                            const std::function<std::string(int index)>& rowSubtitle,
-                            const std::function<UIIcon(int index)>& rowIcon,
-                            const std::function<std::string(int index)>& rowValue, bool highlightValue,
-                            const std::function<bool(int index)>& rowDimmed) const {
-  int rowHeight = (rowSubtitle != nullptr) ? MyneUIMetrics::values.listWithSubtitleRowHeight
-                                           : MyneUIMetrics::values.listRowHeight;
+                      const std::function<std::string(int index)>& rowTitle,
+                      const std::function<std::string(int index)>& rowSubtitle,
+                      const std::function<UIIcon(int index)>& rowIcon,
+                      const std::function<std::string(int index)>& rowValue, bool highlightValue,
+                      const std::function<bool(int index)>& rowDimmed) const {
+  int rowHeight =
+      (rowSubtitle != nullptr) ? MyneUIMetrics::values.listWithSubtitleRowHeight : MyneUIMetrics::values.listRowHeight;
   int pageItems = rect.height / rowHeight;
 
   const int totalPages = (itemCount + pageItems - 1) / pageItems;
@@ -280,12 +270,10 @@ void MyneUI::drawList(const GfxRenderer& renderer, Rect rect, int itemCount, int
 
   // Draw selection
   int contentWidth =
-      rect.width - (totalPages > 1
-                        ? (MyneUIMetrics::values.scrollBarWidth + MyneUIMetrics::values.scrollBarRightOffset)
-                        : 1);
+      rect.width -
+      (totalPages > 1 ? (MyneUIMetrics::values.scrollBarWidth + MyneUIMetrics::values.scrollBarRightOffset) : 1);
   if (selectedIndex >= 0) {
-    renderer.fillRoundedRect(MyneUIMetrics::values.contentSidePadding,
-                             rect.y + selectedIndex % pageItems * rowHeight,
+    renderer.fillRoundedRect(MyneUIMetrics::values.contentSidePadding, rect.y + selectedIndex % pageItems * rowHeight,
                              contentWidth - MyneUIMetrics::values.contentSidePadding * 2, rowHeight, cornerRadius,
                              Color::LightGray);
   }
@@ -361,9 +349,8 @@ void MyneUI::drawList(const GfxRenderer& renderer, Rect rect, int itemCount, int
       if (rowSubtitle != nullptr) {
         valueY = itemY + 16;
       }
-      renderer.drawText(UI_10_FONT_ID,
-                        rect.x + contentWidth - MyneUIMetrics::values.contentSidePadding - valueWidth, valueY,
-                        valueText.c_str(), !(i == selectedIndex && highlightValue));
+      renderer.drawText(UI_10_FONT_ID, rect.x + contentWidth - MyneUIMetrics::values.contentSidePadding - valueWidth,
+                        valueY, valueText.c_str(), !(i == selectedIndex && highlightValue));
     }
   }
 }
@@ -372,34 +359,34 @@ void MyneUI::drawList(const GfxRenderer& renderer, Rect rect, int itemCount, int
 // drawButtonHints — Lyra version
 // ---------------------------------------------------------------------------
 
-void MyneUI::drawButtonHints(GfxRenderer& renderer, const char* btn1, const char* btn2,
-                                   const char* btn3, const char* btn4) const {
+void MyneUI::drawButtonHints(GfxRenderer& renderer, const char* btn1, const char* btn2, const char* btn3,
+                             const char* btn4) const {
   const GfxRenderer::Orientation orig = renderer.getOrientation();
   renderer.setOrientation(GfxRenderer::Orientation::Portrait);
 
-  const int W      = renderer.getScreenWidth();
-  const int H      = renderer.getScreenHeight();
-  const int lhSm   = renderer.getLineHeight(SMALL_FONT_ID);
-  const int hintH  = MyneUIMetrics::values.buttonHintsHeight;
+  const int W = renderer.getScreenWidth();
+  const int H = renderer.getScreenHeight();
+  const int lhSm = renderer.getLineHeight(SMALL_FONT_ID);
+  const int hintH = MyneUIMetrics::values.buttonHintsHeight;
   const int hintTop = H - hintH;
 
-  static constexpr int SIDE_PAD   = 12;
-  static constexpr int MID_GAP    = 16;
-  static constexpr int V_PAD      = 5;
+  static constexpr int SIDE_PAD = 12;
+  static constexpr int MID_GAP = 16;
+  static constexpr int V_PAD = 5;
   static constexpr int BOTTOM_PAD = 10;
 
-  const int pillH  = hintH - V_PAD - BOTTOM_PAD;
-  const int pillY  = hintTop + V_PAD;
-  const int pillW  = (W - SIDE_PAD * 2 - MID_GAP) / 2;
-  const int leftX  = SIDE_PAD;
+  const int pillH = hintH - V_PAD - BOTTOM_PAD;
+  const int pillY = hintTop + V_PAD;
+  const int pillW = (W - SIDE_PAD * 2 - MID_GAP) / 2;
+  const int leftX = SIDE_PAD;
   const int rightX = SIDE_PAD + pillW + MID_GAP;
-  const int textY  = pillY + (pillH - lhSm) / 2;
+  const int textY = pillY + (pillH - lhSm) / 2;
 
   const char* labels[4] = {btn1, btn2, btn3, btn4};
 
   auto drawPill = [&](int px, int ia, int ib) {
-    const char* la  = labels[ia];
-    const char* lb  = labels[ib];
+    const char* la = labels[ia];
+    const char* lb = labels[ib];
     const bool hasA = la && la[0];
     const bool hasB = lb && lb[0];
     if (!hasA && !hasB) return;
@@ -420,7 +407,7 @@ void MyneUI::drawButtonHints(GfxRenderer& renderer, const char* btn1, const char
     }
   };
 
-  drawPill(leftX,  0, 1);
+  drawPill(leftX, 0, 1);
   drawPill(rightX, 2, 3);
 
   renderer.setOrientation(orig);
@@ -430,8 +417,7 @@ void MyneUI::drawButtonHints(GfxRenderer& renderer, const char* btn1, const char
 // drawSideButtonHints — Lyra version
 // ---------------------------------------------------------------------------
 
-void MyneUI::drawSideButtonHints(const GfxRenderer& renderer, const char* topBtn,
-                                       const char* bottomBtn) const {
+void MyneUI::drawSideButtonHints(const GfxRenderer& renderer, const char* topBtn, const char* bottomBtn) const {
   const int screenWidth = renderer.getScreenWidth();
   constexpr int buttonWidth = MyneUIMetrics::values.sideButtonHintsWidth;
   constexpr int buttonHeight = 78;
@@ -485,14 +471,13 @@ void MyneUI::drawSideButtonHints(const GfxRenderer& renderer, const char* topBtn
 // ---------------------------------------------------------------------------
 
 void MyneUI::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
-                                  const std::function<std::string(int index)>& buttonLabel,
-                                  const std::function<UIIcon(int index)>& rowIcon) const {
+                            const std::function<std::string(int index)>& buttonLabel,
+                            const std::function<UIIcon(int index)>& rowIcon) const {
   for (int i = 0; i < buttonCount; ++i) {
     int tileWidth = rect.width - MyneUIMetrics::values.contentSidePadding * 2;
-    Rect tileRect =
-        Rect{rect.x + MyneUIMetrics::values.contentSidePadding,
-             rect.y + i * (MyneUIMetrics::values.menuRowHeight + MyneUIMetrics::values.menuSpacing),
-             tileWidth, MyneUIMetrics::values.menuRowHeight};
+    Rect tileRect = Rect{rect.x + MyneUIMetrics::values.contentSidePadding,
+                         rect.y + i * (MyneUIMetrics::values.menuRowHeight + MyneUIMetrics::values.menuSpacing),
+                         tileWidth, MyneUIMetrics::values.menuRowHeight};
 
     const bool selected = selectedIndex == i;
 
@@ -524,8 +509,8 @@ void MyneUI::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, i
 // ---------------------------------------------------------------------------
 
 void MyneUI::drawIconGrid(GfxRenderer& renderer, Rect rect, int count, int selectedIndex,
-                                const std::function<std::string(int index)>& labelFn,
-                                const std::function<UIIcon(int index)>& iconFn) const {
+                          const std::function<std::string(int index)>& labelFn,
+                          const std::function<UIIcon(int index)>& iconFn) const {
   if (count <= 0) return;
 
   constexpr int cols = 2;
@@ -644,9 +629,8 @@ void MyneUI::fillPopupProgress(const GfxRenderer& renderer, const Rect& layout, 
 // drawStatusBar — BaseTheme version
 // ---------------------------------------------------------------------------
 
-void MyneUI::drawStatusBar(GfxRenderer& renderer, const float bookProgress, const int currentPage,
-                                 const int pageCount, std::string title, const int paddingBottom,
-                                 const int textYOffset) const {
+void MyneUI::drawStatusBar(GfxRenderer& renderer, const float bookProgress, const int currentPage, const int pageCount,
+                           std::string title, const int paddingBottom, const int textYOffset) const {
   auto metrics = UITheme::getInstance().getMetrics();
   int orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft;
   renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom,
@@ -755,7 +739,7 @@ void MyneUI::drawHelpText(const GfxRenderer& renderer, Rect rect, const char* la
 // ---------------------------------------------------------------------------
 
 void MyneUI::drawTextField(const GfxRenderer& renderer, Rect rect, const int textWidth, bool cursorMode,
-                                 int contentStartX, int contentWidth) const {
+                           int contentStartX, int contentWidth) const {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const int lineHeight = renderer.getLineHeight(UI_12_FONT_ID);
   const int lineY = rect.y + rect.height + lineHeight + metrics.verticalSpacing;
@@ -774,8 +758,7 @@ void MyneUI::drawTextField(const GfxRenderer& renderer, Rect rect, const int tex
 // drawCarouselMenuCard — icon + label card for home screen carousel
 // ---------------------------------------------------------------------------
 
-void MyneUI::drawCarouselMenuCard(GfxRenderer& renderer, Rect rect,
-                                        const CarouselMenuCard& card) const {
+void MyneUI::drawCarouselMenuCard(GfxRenderer& renderer, Rect rect, const CarouselMenuCard& card) const {
   constexpr int iconSize = 64;
   constexpr int cardRadius = 14;
   constexpr int sidePad = 28;
@@ -791,8 +774,7 @@ void MyneUI::drawCarouselMenuCard(GfxRenderer& renderer, Rect rect,
   const int upperH = sepY - rect.y;
   const uint8_t* bmp = iconForName(card.icon, iconSize);
   if (bmp) {
-    renderer.drawIcon(bmp, rect.x + (rect.width - iconSize) / 2,
-                      rect.y + (upperH - iconSize) / 2, iconSize, iconSize);
+    renderer.drawIcon(bmp, rect.x + (rect.width - iconSize) / 2, rect.y + (upperH - iconSize) / 2, iconSize, iconSize);
   }
 
   // Separator line
@@ -801,15 +783,14 @@ void MyneUI::drawCarouselMenuCard(GfxRenderer& renderer, Rect rect,
   // Label anchored near top of lower zone; description below
   const int labelY = sepY + 20;
   const int labelW = renderer.getTextWidth(UI_12_FONT_ID, card.label, EpdFontFamily::BOLD);
-  renderer.drawText(UI_12_FONT_ID, rect.x + (rect.width - labelW) / 2,
-                    labelY, card.label, true, EpdFontFamily::BOLD);
+  renderer.drawText(UI_12_FONT_ID, rect.x + (rect.width - labelW) / 2, labelY, card.label, true, EpdFontFamily::BOLD);
 
   if (card.description != nullptr && card.description[0] != '\0') {
     const int textW = rect.width - sidePad * 2;
     const auto desc = renderer.truncatedText(SMALL_FONT_ID, card.description, textW);
     const int descW = renderer.getTextWidth(SMALL_FONT_ID, desc.c_str());
-    renderer.drawText(SMALL_FONT_ID, rect.x + (rect.width - descW) / 2,
-                      labelY + labelH + labelDescGap, desc.c_str(), true);
+    renderer.drawText(SMALL_FONT_ID, rect.x + (rect.width - descW) / 2, labelY + labelH + labelDescGap, desc.c_str(),
+                      true);
   }
 }
 
@@ -817,8 +798,7 @@ void MyneUI::drawCarouselMenuCard(GfxRenderer& renderer, Rect rect,
 // drawCarouselBookCard — editorial book card for home screen carousel
 // ---------------------------------------------------------------------------
 
-void MyneUI::drawCarouselBookCard(GfxRenderer& renderer, Rect rect,
-                                        const CarouselBookCard& card) const {
+void MyneUI::drawCarouselBookCard(GfxRenderer& renderer, Rect rect, const CarouselBookCard& card) const {
   constexpr int cardRadius = 14;
   constexpr int sidePad = 28;
 
@@ -833,28 +813,28 @@ void MyneUI::drawCarouselBookCard(GfxRenderer& renderer, Rect rect,
     const int upperH = sepY - rect.y;
     const uint8_t* bmp = iconForName(UIIcon::BookHeartIcon, iconSize);
     if (bmp) {
-      renderer.drawIcon(bmp, rect.x + (rect.width - iconSize) / 2,
-                        rect.y + (upperH - iconSize) / 2, iconSize, iconSize);
+      renderer.drawIcon(bmp, rect.x + (rect.width - iconSize) / 2, rect.y + (upperH - iconSize) / 2, iconSize,
+                        iconSize);
     }
     renderer.drawLine(rect.x + sidePad, sepY, rect.x + rect.width - sidePad, sepY);
     const int labelY = sepY + 20;
     const int labelW = renderer.getTextWidth(UI_12_FONT_ID, card.sectionLabel, EpdFontFamily::BOLD);
-    renderer.drawText(UI_12_FONT_ID, rect.x + (rect.width - labelW) / 2,
-                      labelY, card.sectionLabel, true, EpdFontFamily::BOLD);
+    renderer.drawText(UI_12_FONT_ID, rect.x + (rect.width - labelW) / 2, labelY, card.sectionLabel, true,
+                      EpdFontFamily::BOLD);
     if (card.description != nullptr && card.description[0] != '\0') {
       const int textW = rect.width - sidePad * 2;
       const auto desc = renderer.truncatedText(SMALL_FONT_ID, card.description, textW);
       const int descW = renderer.getTextWidth(SMALL_FONT_ID, desc.c_str());
-      renderer.drawText(SMALL_FONT_ID, rect.x + (rect.width - descW) / 2,
-                        labelY + labelH + labelDescGap, desc.c_str(), true);
+      renderer.drawText(SMALL_FONT_ID, rect.x + (rect.width - descW) / 2, labelY + labelH + labelDescGap, desc.c_str(),
+                        true);
     }
     return;
   }
 
   // Editorial text layout — no cover placeholder
-  const int textX  = rect.x + sidePad;
-  const int textW  = rect.width - sidePad * 2;
-  const int lhSm   = renderer.getLineHeight(SMALL_FONT_ID);
+  const int textX = rect.x + sidePad;
+  const int textW = rect.width - sidePad * 2;
+  const int lhSm = renderer.getLineHeight(SMALL_FONT_ID);
   const int lhTitle = renderer.getLineHeight(UI_12_FONT_ID);
 
   // Section label + top separator
@@ -880,11 +860,11 @@ void MyneUI::drawCarouselBookCard(GfxRenderer& renderer, Rect rect,
   }
 
   // Title + author — vertically centered in the middle zone
-  const auto lines     = renderer.wrappedText(UI_12_FONT_ID, card.title, textW, 3, EpdFontFamily::BOLD);
+  const auto lines = renderer.wrappedText(UI_12_FONT_ID, card.title, textW, 3, EpdFontFamily::BOLD);
   const bool hasAuthor = (card.author != nullptr && card.author[0] != '\0');
-  const int blockH     = (int)lines.size() * lhTitle + (hasAuthor ? (8 + lhSm) : 0);
-  const int midTop     = topSepY + 20;
-  const int midBot     = botSepY - 20;
+  const int blockH = (int)lines.size() * lhTitle + (hasAuthor ? (8 + lhSm) : 0);
+  const int midTop = topSepY + 20;
+  const int midBot = botSepY - 20;
   int curY = midTop + ((midBot - midTop) - blockH) / 2;
   if (curY < midTop) curY = midTop;
 
@@ -899,7 +879,6 @@ void MyneUI::drawCarouselBookCard(GfxRenderer& renderer, Rect rect,
     const auto truncated = renderer.truncatedText(SMALL_FONT_ID, authorBuf, textW);
     renderer.drawText(SMALL_FONT_ID, textX, curY, truncated.c_str(), true);
   }
-
 }
 
 // ---------------------------------------------------------------------------
@@ -907,8 +886,8 @@ void MyneUI::drawCarouselBookCard(GfxRenderer& renderer, Rect rect,
 // ---------------------------------------------------------------------------
 
 void MyneUI::drawKeyboardKey(const GfxRenderer& renderer, Rect rect, const char* label, const bool isSelected,
-                                   const char* secondaryLabel, const KeyboardKeyType keyType,
-                                   const bool inactiveSelection) const {
+                             const char* secondaryLabel, const KeyboardKeyType keyType,
+                             const bool inactiveSelection) const {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const int cr = metrics.keyboardKeyCornerRadius;
 

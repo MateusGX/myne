@@ -3,8 +3,8 @@
 #include <GfxRenderer.h>
 #include <I18n.h>
 
-#include "MyneSettings.h"
 #include "MappedInputManager.h"
+#include "MyneSettings.h"
 #include "SettingsActivityUI.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
@@ -112,9 +112,7 @@ void ButtonRemapActivity::render(RenderLock&&) {
 
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight});
   const int heroY = metrics.topPadding + metrics.headerHeight + 8;
-  SettingsActivityUI::hero(renderer,
-                           Rect{SettingsActivityUI::PAD, heroY,
-                                pageWidth - SettingsActivityUI::PAD * 2, 104},
+  SettingsActivityUI::hero(renderer, Rect{SettingsActivityUI::PAD, heroY, pageWidth - SettingsActivityUI::PAD * 2, 104},
                            tr(STR_SETTINGS_TITLE), tr(STR_REMAP_FRONT_BUTTONS), tr(STR_REMAP_PROMPT));
 
   const int gridTop = heroY + 124;
@@ -134,23 +132,21 @@ void ButtonRemapActivity::render(RenderLock&&) {
 
   // Temporary warning banner for duplicates.
   if (!errorMessage.empty()) {
-    SettingsActivityUI::stateCard(renderer,
-                                  Rect{SettingsActivityUI::PAD, gridTop + 2 * (cardH + cardGap) + 8,
-                                       pageWidth - SettingsActivityUI::PAD * 2, 66},
-                                  errorMessage.c_str());
+    SettingsActivityUI::stateCard(
+        renderer,
+        Rect{SettingsActivityUI::PAD, gridTop + 2 * (cardH + cardGap) + 8, pageWidth - SettingsActivityUI::PAD * 2, 66},
+        errorMessage.c_str());
   } else {
     const int helpTop = gridTop + 2 * (cardH + cardGap) + 8;
     SettingsActivityUI::choice(renderer,
-                               Rect{SettingsActivityUI::PAD, helpTop,
-                                    pageWidth - SettingsActivityUI::PAD * 2, 62},
+                               Rect{SettingsActivityUI::PAD, helpTop, pageWidth - SettingsActivityUI::PAD * 2, 62},
                                tr(STR_REMAP_RESET_HINT), tr(STR_REMAP_CANCEL_HINT));
   }
 
   // Live preview of logical labels under front buttons.
   // This mirrors the on-device front button order: Back, Confirm, Left, Right.
   GUI.drawButtonHints(renderer, labelForHardware(MyneSettings::FRONT_HW_BACK),
-                      labelForHardware(MyneSettings::FRONT_HW_CONFIRM),
-                      labelForHardware(MyneSettings::FRONT_HW_LEFT),
+                      labelForHardware(MyneSettings::FRONT_HW_CONFIRM), labelForHardware(MyneSettings::FRONT_HW_LEFT),
                       labelForHardware(MyneSettings::FRONT_HW_RIGHT));
   renderer.displayBuffer();
 }

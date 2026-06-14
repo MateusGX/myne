@@ -6,9 +6,9 @@
 #include <algorithm>
 #include <iterator>
 
-#include "MyneSettings.h"
 #include "I18nKeys.h"
 #include "MappedInputManager.h"
+#include "MyneSettings.h"
 #include "SettingsActivityUI.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
@@ -75,9 +75,7 @@ void LanguageSelectActivity::render(RenderLock&&) {
 
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight});
   const int heroY = metrics.topPadding + metrics.headerHeight + 8;
-  SettingsActivityUI::hero(renderer,
-                           Rect{SettingsActivityUI::PAD, heroY,
-                                pageWidth - SettingsActivityUI::PAD * 2, 104},
+  SettingsActivityUI::hero(renderer, Rect{SettingsActivityUI::PAD, heroY, pageWidth - SettingsActivityUI::PAD * 2, 104},
                            tr(STR_SETTINGS_TITLE), tr(STR_LANGUAGE), tr(STR_SELECT));
 
   // Current language marker
@@ -93,11 +91,10 @@ void LanguageSelectActivity::render(RenderLock&&) {
   for (int i = start; i < end; ++i) {
     const uint8_t langIndex = SORTED_LANGUAGE_INDICES[i];
     const char* state = langIndex == currentLang ? tr(STR_SELECTED) : "";
-    SettingsActivityUI::option(
-        renderer,
-        Rect{SettingsActivityUI::PAD, listTop + (i - start) * (rowH + rowGap),
-             pageWidth - SettingsActivityUI::PAD * 2, rowH},
-        I18N.getLanguageName(static_cast<Language>(langIndex)), state, i == selectedIndex);
+    SettingsActivityUI::option(renderer,
+                               Rect{SettingsActivityUI::PAD, listTop + (i - start) * (rowH + rowGap),
+                                    pageWidth - SettingsActivityUI::PAD * 2, rowH},
+                               I18N.getLanguageName(static_cast<Language>(langIndex)), state, i == selectedIndex);
   }
 
   // Button hints

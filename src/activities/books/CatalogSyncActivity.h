@@ -8,10 +8,10 @@
 class CatalogSyncActivity final : public Activity {
   enum class State { SYNCING, DONE, FAILED };
 
-  State         state_            = State::SYNCING;
-  int           processedCount_   = 0;
-  int           lastRenderedCount = -1;
-  unsigned long doneAt_           = 0;
+  State state_ = State::SYNCING;
+  int processedCount_ = 0;
+  int lastRenderedCount = -1;
+  unsigned long doneAt_ = 0;
 
   void doSync();
 

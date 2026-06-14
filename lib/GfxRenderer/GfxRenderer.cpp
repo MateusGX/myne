@@ -1342,8 +1342,7 @@ static int jpegToBufCallback(JPEGDRAW* pDraw) {
 
 }  // namespace
 
-bool GfxRenderer::drawJpegFromFile(const char* path, const int x, const int y, const int maxW,
-                                   const int maxH) const {
+bool GfxRenderer::drawJpegFromFile(const char* path, const int x, const int y, const int maxW, const int maxH) const {
   FsFile file;
   if (!Storage.openFileForRead("GFX", path, file)) return false;
 
@@ -1357,8 +1356,7 @@ bool GfxRenderer::drawJpegFromFile(const char* path, const int x, const int y, c
   }
 
   if (!jpeg->open(
-          static_cast<void*>(&file), fileSize,
-          [](void*) {},  // close: DESTRUCTOR_CLOSES_FILE handles the FsFile
+          static_cast<void*>(&file), fileSize, [](void*) {},  // close: DESTRUCTOR_CLOSES_FILE handles the FsFile
           [](JPEGFILE* pf, uint8_t* buf, int32_t len) -> int32_t {
             return static_cast<int32_t>(static_cast<FsFile*>(pf->fHandle)->read(buf, len));
           },
@@ -1383,15 +1381,15 @@ bool GfxRenderer::drawJpegFromFile(const char* path, const int x, const int y, c
   // Choose the largest JPEGDEC power-of-2 scale where both dimensions fit.
   // Try full → half → quarter → eighth; fall back to eighth if nothing fits.
   static constexpr int kOpts[] = {0, JPEG_SCALE_HALF, JPEG_SCALE_QUARTER, JPEG_SCALE_EIGHTH};
-  static constexpr int kDiv[]  = {1, 2, 4, 8};
-  int opts    = JPEG_SCALE_EIGHTH;
+  static constexpr int kDiv[] = {1, 2, 4, 8};
+  int opts = JPEG_SCALE_EIGHTH;
   int scaledW = std::max(1, imgW / 8);
   int scaledH = std::max(1, imgH / 8);
   for (int i = 0; i < 4; i++) {
     const int tw = imgW / kDiv[i];
     const int th = imgH / kDiv[i];
     if (tw > 0 && th > 0 && tw <= maxW && th <= maxH) {
-      opts    = kOpts[i];
+      opts = kOpts[i];
       scaledW = tw;
       scaledH = th;
       break;
@@ -1427,10 +1425,10 @@ bool GfxRenderer::drawJpegFromFile(const char* path, const int x, const int y, c
   // This preserves midtones better than Floyd-Steinberg on high-contrast e-ink panels.
   for (int row = 0; row < scaledH; row++) {
     for (int col = 0; col < scaledW; col++) {
-      const int idx  = row * scaledW + col;
+      const int idx = row * scaledW + col;
       const uint8_t old = gray[idx];
       const uint8_t out = old < 128 ? 0 : 255;
-      const int e8   = ((int)old - (int)out) / 8;
+      const int e8 = ((int)old - (int)out) / 8;
       gray[idx] = out;
 
       // Distribute to 6 neighbours
@@ -1440,8 +1438,8 @@ bool GfxRenderer::drawJpegFromFile(const char* path, const int x, const int y, c
           gray[r * scaledW + c] = (uint8_t)(v < 0 ? 0 : v > 255 ? 255 : v);
         }
       };
-      add(row,     col + 1);
-      add(row,     col + 2);
+      add(row, col + 1);
+      add(row, col + 2);
       add(row + 1, col - 1);
       add(row + 1, col);
       add(row + 1, col + 1);
@@ -1479,10 +1477,10 @@ bool GfxRenderer::drawJpegFromFile(const char* path, const int x, const int y, c
 namespace {
 
 static constexpr const char* IMG_CACHE_DIR = "/.myne/imgcache";
-static constexpr uint8_t     GC_MAGIC0     = 'G';
-static constexpr uint8_t     GC_MAGIC1     = 'C';
-static constexpr uint8_t     GC_VERSION    = 1;
-static constexpr int         GC_HDR_SIZE   = 11;  // magic[2]+ver[1]+srcSize[4]+w[2]+h[2]
+static constexpr uint8_t GC_MAGIC0 = 'G';
+static constexpr uint8_t GC_MAGIC1 = 'C';
+static constexpr uint8_t GC_VERSION = 1;
+static constexpr int GC_HDR_SIZE = 11;  // magic[2]+ver[1]+srcSize[4]+w[2]+h[2]
 
 static uint32_t jpegCacheKey(const char* path, int maxW, int maxH) {
   uint32_t h = 5381;
@@ -1492,11 +1490,9 @@ static uint32_t jpegCacheKey(const char* path, int maxW, int maxH) {
 }
 
 // Returns heap-allocated 8-bit normalised gray buffer, or nullptr on miss.
-static uint8_t* imgCacheLoad(const char* path, int maxW, int maxH,
-                              uint32_t srcSize, int* outW, int* outH) {
+static uint8_t* imgCacheLoad(const char* path, int maxW, int maxH, uint32_t srcSize, int* outW, int* outH) {
   char cp[72];
-  snprintf(cp, sizeof(cp), "%s/%08x.gc", IMG_CACHE_DIR,
-           static_cast<unsigned int>(jpegCacheKey(path, maxW, maxH)));
+  snprintf(cp, sizeof(cp), "%s/%08x.gc", IMG_CACHE_DIR, static_cast<unsigned int>(jpegCacheKey(path, maxW, maxH)));
   FsFile f;
   if (!Storage.openFileForRead("GFX", cp, f)) return nullptr;
 
@@ -1516,18 +1512,19 @@ static uint8_t* imgCacheLoad(const char* path, int maxW, int maxH,
 
   auto* gray = static_cast<uint8_t*>(malloc(bytes));
   if (!gray) return nullptr;
-  if (f.read(gray, bytes) != bytes) { free(gray); return nullptr; }
+  if (f.read(gray, bytes) != bytes) {
+    free(gray);
+    return nullptr;
+  }
   *outW = static_cast<int>(cw);
   *outH = static_cast<int>(ch);
   return gray;
 }
 
-static void imgCacheSave(const char* path, int maxW, int maxH,
-                          uint32_t srcSize, const uint8_t* gray, int w, int h) {
+static void imgCacheSave(const char* path, int maxW, int maxH, uint32_t srcSize, const uint8_t* gray, int w, int h) {
   Storage.mkdir(IMG_CACHE_DIR);
   char cp[72];
-  snprintf(cp, sizeof(cp), "%s/%08x.gc", IMG_CACHE_DIR,
-           static_cast<unsigned int>(jpegCacheKey(path, maxW, maxH)));
+  snprintf(cp, sizeof(cp), "%s/%08x.gc", IMG_CACHE_DIR, static_cast<unsigned int>(jpegCacheKey(path, maxW, maxH)));
   FsFile f;
   if (!Storage.openFileForWrite("GFX", cp, f)) return;
 
@@ -1546,8 +1543,8 @@ static void imgCacheSave(const char* path, int maxW, int maxH,
 
 }  // namespace
 
-bool GfxRenderer::drawJpegGrayscaleFromFile(const char* path, const int x, const int y,
-                                             const int maxW, const int maxH) {
+bool GfxRenderer::drawJpegGrayscaleFromFile(const char* path, const int x, const int y, const int maxW,
+                                            const int maxH) {
   // Open JPEG to get file size (used as cache key + invalidation token).
   FsFile srcFile;
   if (!Storage.openFileForRead("GFX", path, srcFile)) return false;
@@ -1560,11 +1557,13 @@ bool GfxRenderer::drawJpegGrayscaleFromFile(const char* path, const int x, const
   if (!gray) {
     // ── Cache miss: decode JPEG via JPEGDEC ──────────────────────────────
     auto* jpeg = new (std::nothrow) JPEGDEC();
-    if (!jpeg) { LOG_ERR("GFX", "OOM for JPEGDEC"); return false; }
+    if (!jpeg) {
+      LOG_ERR("GFX", "OOM for JPEGDEC");
+      return false;
+    }
 
     if (!jpeg->open(
-            static_cast<void*>(&srcFile), static_cast<int32_t>(srcSize),
-            [](void*) {},
+            static_cast<void*>(&srcFile), static_cast<int32_t>(srcSize), [](void*) {},
             [](JPEGFILE* pf, uint8_t* buf, int32_t len) -> int32_t {
               return static_cast<int32_t>(static_cast<FsFile*>(pf->fHandle)->read(buf, len));
             },
@@ -1580,18 +1579,25 @@ bool GfxRenderer::drawJpegGrayscaleFromFile(const char* path, const int x, const
 
     const int imgW = jpeg->getWidth();
     const int imgH = jpeg->getHeight();
-    if (imgW <= 0 || imgH <= 0) { jpeg->close(); delete jpeg; return false; }
+    if (imgW <= 0 || imgH <= 0) {
+      jpeg->close();
+      delete jpeg;
+      return false;
+    }
 
     static constexpr int kOpts[] = {0, JPEG_SCALE_HALF, JPEG_SCALE_QUARTER, JPEG_SCALE_EIGHTH};
-    static constexpr int kDiv[]  = {1, 2, 4, 8};
+    static constexpr int kDiv[] = {1, 2, 4, 8};
     int opts = JPEG_SCALE_EIGHTH;
-    scaledW  = std::max(1, imgW / 8);
-    scaledH  = std::max(1, imgH / 8);
+    scaledW = std::max(1, imgW / 8);
+    scaledH = std::max(1, imgH / 8);
     for (int i = 0; i < 4; i++) {
       const int tw = imgW / kDiv[i];
       const int th = imgH / kDiv[i];
       if (tw > 0 && th > 0 && tw <= maxW && th <= maxH) {
-        opts = kOpts[i]; scaledW = tw; scaledH = th; break;
+        opts = kOpts[i];
+        scaledW = tw;
+        scaledH = th;
+        break;
       }
     }
 
@@ -1599,7 +1605,9 @@ bool GfxRenderer::drawJpegGrayscaleFromFile(const char* path, const int x, const
     gray = static_cast<uint8_t*>(malloc(bufBytes));
     if (!gray) {
       LOG_ERR("GFX", "OOM for JPEG gray buf (%d B)", bufBytes);
-      jpeg->close(); delete jpeg; return false;
+      jpeg->close();
+      delete jpeg;
+      return false;
     }
     memset(gray, 0xFF, bufBytes);
 
@@ -1633,13 +1641,11 @@ bool GfxRenderer::drawJpegGrayscaleFromFile(const char* path, const int x, const
   // Centre within bounding box, same as drawJpegFromFile.
   const int offX = x + std::max(0, (maxW - scaledW) / 2);
   const int offY = y + std::max(0, (maxH - scaledH) / 2);
-  const int sw   = getScreenWidth();
-  const int sh   = getScreenHeight();
+  const int sw = getScreenWidth();
+  const int sh = getScreenHeight();
 
   // Quantise helper: 8-bit → val (0=black,1=dark gray,2=light gray,3=white)
-  auto quant = [](uint8_t g) -> uint8_t {
-    return g < 64 ? 0 : g < 128 ? 1 : g < 192 ? 2 : 3;
-  };
+  auto quant = [](uint8_t g) -> uint8_t { return g < 64 ? 0 : g < 128 ? 1 : g < 192 ? 2 : 3; };
 
   // ── BW pre-render: draw all non-white pixels as black ───────────────────
   // The current framebuffer already contains any surrounding BW UI elements.

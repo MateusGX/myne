@@ -11,7 +11,7 @@
 #include "fontIds.h"
 
 void LetterPickerActivity::loadLetters() {
-  letterCount   = 0;
+  letterCount = 0;
   selectorIndex = 0;
 
   uint16_t idx[27] = {};
@@ -27,9 +27,8 @@ void LetterPickerActivity::loadLetters() {
 void LetterPickerActivity::openSelected() {
   if (letterCount == 0) return;
   const char letter = letters[selectorIndex].letter;
-  startActivityForResult(
-      std::make_unique<LetterBooksActivity>(renderer, mappedInput, letter),
-      [this](const ActivityResult&) { requestUpdate(); });
+  startActivityForResult(std::make_unique<LetterBooksActivity>(renderer, mappedInput, letter),
+                         [this](const ActivityResult&) { requestUpdate(); });
 }
 
 void LetterPickerActivity::onEnter() {
@@ -75,40 +74,35 @@ void LetterPickerActivity::loop() {
 void LetterPickerActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
-  const int   pageWidth  = renderer.getScreenWidth();
-  const auto& metrics    = UITheme::getInstance().getMetrics();
+  const int pageWidth = renderer.getScreenWidth();
+  const auto& metrics = UITheme::getInstance().getMetrics();
 
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight});
 
   const int heroY = metrics.topPadding + metrics.headerHeight + 8;
   char detail[40];
-  snprintf(detail, sizeof(detail), "%d %s", letterCount, letterCount == 1 ? tr(STR_SECTION_SINGULAR) : tr(STR_SECTION_PLURAL));
-  BooksActivityUI::hero(renderer,
-                        Rect{BooksActivityUI::PAD, heroY,
-                             pageWidth - BooksActivityUI::PAD * 2, BooksActivityUI::HERO_H},
-                        tr(STR_PHYSICAL_BOOKS), "A-Z", letterCount > 0 ? detail : nullptr);
+  snprintf(detail, sizeof(detail), "%d %s", letterCount,
+           letterCount == 1 ? tr(STR_SECTION_SINGULAR) : tr(STR_SECTION_PLURAL));
+  BooksActivityUI::hero(
+      renderer, Rect{BooksActivityUI::PAD, heroY, pageWidth - BooksActivityUI::PAD * 2, BooksActivityUI::HERO_H},
+      tr(STR_PHYSICAL_BOOKS), "A-Z", letterCount > 0 ? detail : nullptr);
 
   const int contentTop = heroY + BooksActivityUI::HERO_H + 18;
 
   if (letterCount == 0) {
-    renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, contentTop + 20,
-                      tr(STR_NO_BOOKS));
+    renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, contentTop + 20, tr(STR_NO_BOOKS));
   } else {
     const int pageItems = BookListUI::pageItemsForSections(renderer);
     const int pageStart = (selectorIndex / pageItems) * pageItems;
     for (int i = pageStart; i < letterCount && i < pageStart + pageItems; ++i) {
       const int ry = contentTop + (i - pageStart) * BookListUI::kSectionRowHeight;
-      BookListUI::drawSectionRow(renderer,
-                                 Rect{BookListUI::kPad, ry,
-                                      pageWidth - BookListUI::kPad * 2,
-                                      BookListUI::kSectionRowHeight - 4},
-                                 letters[i].letter, letters[i].count, i + 1, i == selectorIndex);
+      BookListUI::drawSectionRow(
+          renderer, Rect{BookListUI::kPad, ry, pageWidth - BookListUI::kPad * 2, BookListUI::kSectionRowHeight - 4},
+          letters[i].letter, letters[i].count, i + 1, i == selectorIndex);
     }
   }
 
-  const auto btnLabels =
-      mappedInput.mapLabels(tr(STR_HOME), letterCount > 0 ? tr(STR_SELECT) : "", "", "");
-  GUI.drawButtonHints(renderer, btnLabels.btn1, btnLabels.btn2, btnLabels.btn3,
-                      btnLabels.btn4);
+  const auto btnLabels = mappedInput.mapLabels(tr(STR_HOME), letterCount > 0 ? tr(STR_SELECT) : "", "", "");
+  GUI.drawButtonHints(renderer, btnLabels.btn1, btnLabels.btn2, btnLabels.btn3, btnLabels.btn4);
   renderer.displayBuffer();
 }

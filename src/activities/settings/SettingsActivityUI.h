@@ -16,14 +16,12 @@ constexpr int RADIUS = 8;
 inline void panel(const GfxRenderer& r, Rect rect, bool selected = false) {
   r.drawRoundedRect(rect.x, rect.y, rect.width, rect.height, 1, RADIUS, true);
   if (selected) {
-    r.fillRoundedRect(rect.x, rect.y, 8, rect.height, RADIUS,
-                      true, false, true, false, Color::Black);
+    r.fillRoundedRect(rect.x, rect.y, 8, rect.height, RADIUS, true, false, true, false, Color::Black);
   }
 }
 
 inline void text(const GfxRenderer& r, int font, int x, int y, const char* value, int maxW,
-                 EpdFontFamily::Style style = EpdFontFamily::REGULAR,
-                 bool black = true) {
+                 EpdFontFamily::Style style = EpdFontFamily::REGULAR, bool black = true) {
   const auto safe = r.truncatedText(font, value, std::max(12, maxW), style);
   r.drawText(font, x, y, safe.c_str(), black, style);
 }
@@ -31,36 +29,30 @@ inline void text(const GfxRenderer& r, int font, int x, int y, const char* value
 inline void hero(const GfxRenderer& r, Rect rect, const char* eyebrow, const char* title,
                  const char* detail = nullptr) {
   panel(r, rect, true);
-  text(r, SMALL_FONT_ID, rect.x + INNER, rect.y + 14, eyebrow, rect.width - INNER * 2,
-       EpdFontFamily::BOLD);
-  text(r, UI_10_FONT_ID, rect.x + INNER, rect.y + 40, title, rect.width - INNER * 2,
-       EpdFontFamily::BOLD);
+  text(r, SMALL_FONT_ID, rect.x + INNER, rect.y + 14, eyebrow, rect.width - INNER * 2, EpdFontFamily::BOLD);
+  text(r, UI_10_FONT_ID, rect.x + INNER, rect.y + 40, title, rect.width - INNER * 2, EpdFontFamily::BOLD);
   if (detail && detail[0] != '\0') {
     text(r, SMALL_FONT_ID, rect.x + INNER, rect.y + 68, detail, rect.width - INNER * 2);
   }
 }
 
-inline void option(const GfxRenderer& r, Rect rect, const char* title, const char* value,
-                   bool selected = false) {
+inline void option(const GfxRenderer& r, Rect rect, const char* title, const char* value, bool selected = false) {
   panel(r, rect, selected);
   const int x = rect.x + INNER + (selected ? 8 : 0);
   const int rightW = value && value[0] != '\0' ? 112 : 0;
-  text(r, UI_10_FONT_ID, x, rect.y + 14, title,
-       rect.width - INNER * 2 - rightW - (selected ? 8 : 0), EpdFontFamily::BOLD);
+  text(r, UI_10_FONT_ID, x, rect.y + 14, title, rect.width - INNER * 2 - rightW - (selected ? 8 : 0),
+       EpdFontFamily::BOLD);
   if (value && value[0] != '\0') {
     const auto safe = r.truncatedText(SMALL_FONT_ID, value, rightW, EpdFontFamily::BOLD);
     const int tw = r.getTextWidth(SMALL_FONT_ID, safe.c_str(), EpdFontFamily::BOLD);
-    r.drawText(SMALL_FONT_ID, rect.x + rect.width - INNER - tw, rect.y + 20,
-               safe.c_str(), true, EpdFontFamily::BOLD);
+    r.drawText(SMALL_FONT_ID, rect.x + rect.width - INNER - tw, rect.y + 20, safe.c_str(), true, EpdFontFamily::BOLD);
   }
 }
 
-inline void choice(const GfxRenderer& r, Rect rect, const char* title, const char* detail,
-                   bool selected = false) {
+inline void choice(const GfxRenderer& r, Rect rect, const char* title, const char* detail, bool selected = false) {
   panel(r, rect, selected);
   const int x = rect.x + INNER + (selected ? 8 : 0);
-  text(r, UI_10_FONT_ID, x, rect.y + 16, title, rect.width - INNER * 2 - (selected ? 8 : 0),
-       EpdFontFamily::BOLD);
+  text(r, UI_10_FONT_ID, x, rect.y + 16, title, rect.width - INNER * 2 - (selected ? 8 : 0), EpdFontFamily::BOLD);
   if (detail && detail[0] != '\0') {
     text(r, SMALL_FONT_ID, x, rect.y + 50, detail, rect.width - INNER * 2 - (selected ? 8 : 0));
   }

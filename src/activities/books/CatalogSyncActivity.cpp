@@ -39,12 +39,10 @@ void drawPill(const GfxRenderer& renderer, Rect rect, const char* label, bool fi
 
   if (filled) {
     renderer.fillRoundedRect(pillX, rect.y, pillW, lh + 10, 5, Color::Black);
-    renderer.drawText(SMALL_FONT_ID, pillX + (pillW - tw) / 2, rect.y + 5, safe.c_str(), false,
-                      EpdFontFamily::BOLD);
+    renderer.drawText(SMALL_FONT_ID, pillX + (pillW - tw) / 2, rect.y + 5, safe.c_str(), false, EpdFontFamily::BOLD);
   } else {
     renderer.drawRoundedRect(pillX, rect.y, pillW, lh + 10, 1, 5, true);
-    renderer.drawText(SMALL_FONT_ID, pillX + (pillW - tw) / 2, rect.y + 5, safe.c_str(), true,
-                      EpdFontFamily::BOLD);
+    renderer.drawText(SMALL_FONT_ID, pillX + (pillW - tw) / 2, rect.y + 5, safe.c_str(), true, EpdFontFamily::BOLD);
   }
 }
 
@@ -52,8 +50,8 @@ void drawActivityBar(const GfxRenderer& renderer, Rect rect, int processedCount,
   renderer.drawRoundedRect(rect.x, rect.y, rect.width, rect.height, 1, rect.height / 2, true);
 
   if (complete) {
-    renderer.fillRoundedRect(rect.x + 2, rect.y + 2, rect.width - 4, rect.height - 4,
-                             std::max(1, rect.height / 2 - 2), Color::Black);
+    renderer.fillRoundedRect(rect.x + 2, rect.y + 2, rect.width - 4, rect.height - 4, std::max(1, rect.height / 2 - 2),
+                             Color::Black);
     return;
   }
 
@@ -64,8 +62,7 @@ void drawActivityBar(const GfxRenderer& renderer, Rect rect, int processedCount,
   for (int i = 0; i < dashCount; ++i) {
     if ((processedCount + i) % 4 == 0 || (processedCount + i) % 4 == 1) {
       const int x = innerX + i * step;
-      renderer.fillRoundedRect(x, rect.y + 3, std::max(3, step - 4), rect.height - 6, 2,
-                               Color::Black);
+      renderer.fillRoundedRect(x, rect.y + 3, std::max(3, step - 4), rect.height - 6, 2, Color::Black);
     }
   }
 }
@@ -86,8 +83,8 @@ void CatalogSyncActivity::onEnter() {
   Activity::onEnter();
   {
     RenderLock lock(*this);
-    state_            = State::SYNCING;
-    processedCount_   = 0;
+    state_ = State::SYNCING;
+    processedCount_ = 0;
     lastRenderedCount = -1;
   }
   requestUpdateAndWait();  // Show "Rebuilding catalog..." before blocking
@@ -121,8 +118,7 @@ void CatalogSyncActivity::doSync() {
 
 void CatalogSyncActivity::loop() {
   if (state_ == State::DONE) {
-    if (millis() - doneAt_ > 1500 ||
-        mappedInput.wasPressed(MappedInputManager::Button::Confirm) ||
+    if (millis() - doneAt_ > 1500 || mappedInput.wasPressed(MappedInputManager::Button::Confirm) ||
         mappedInput.wasPressed(MappedInputManager::Button::Back)) {
       onGoHome();
     }
@@ -142,16 +138,15 @@ void CatalogSyncActivity::render(RenderLock&&) {
   }
 
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const int   W       = renderer.getScreenWidth();
-  const int   H       = renderer.getScreenHeight();
+  const int W = renderer.getScreenWidth();
+  const int H = renderer.getScreenHeight();
 
   renderer.clearScreen();
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, W, metrics.headerHeight});
 
   const int heroY = metrics.topPadding + metrics.headerHeight + 8;
   BooksActivityUI::hero(renderer,
-                        Rect{BooksActivityUI::PAD, heroY,
-                             W - BooksActivityUI::PAD * 2, BooksActivityUI::HERO_H},
+                        Rect{BooksActivityUI::PAD, heroY, W - BooksActivityUI::PAD * 2, BooksActivityUI::HERO_H},
                         tr(STR_PHYSICAL_BOOKS), tr(STR_CATALOG_SYNC));
 
   const int titleTop = heroY + BooksActivityUI::HERO_H + 14;
@@ -178,8 +173,7 @@ void CatalogSyncActivity::render(RenderLock&&) {
     case State::SYNCING: {
       drawPill(renderer, Rect{textX, cardY + 26, textW, lhSm + 10}, tr(STR_SYNCING_BOOKS), true);
 
-      const auto title = renderer.truncatedText(UI_10_FONT_ID, tr(STR_SYNCING_BOOKS), textW,
-                                                EpdFontFamily::BOLD);
+      const auto title = renderer.truncatedText(UI_10_FONT_ID, tr(STR_SYNCING_BOOKS), textW, EpdFontFamily::BOLD);
       renderer.drawText(UI_10_FONT_ID, textX, cardY + 70, title.c_str(), true, EpdFontFamily::BOLD);
 
       char count[48];
@@ -187,14 +181,13 @@ void CatalogSyncActivity::render(RenderLock&&) {
       renderer.drawText(UI_12_FONT_ID, textX, cardY + 70 + lh10 + 18, count, true, EpdFontFamily::BOLD);
 
       const int countW = renderer.getTextWidth(UI_12_FONT_ID, count, EpdFontFamily::BOLD);
-      const auto label = renderer.truncatedText(SMALL_FONT_ID, tr(STR_BOOKS_PROCESSED),
-                                                std::max(20, textW - countW - 12));
+      const auto label =
+          renderer.truncatedText(SMALL_FONT_ID, tr(STR_BOOKS_PROCESSED), std::max(20, textW - countW - 12));
       renderer.drawText(SMALL_FONT_ID, textX + countW + 12, cardY + 75 + lh10 + 18, label.c_str(), true);
 
       renderer.drawLine(cardX + kInner, barY - 22, cardX + cardW - kInner, barY - 22);
       drawActivityBar(renderer, Rect{barX, barY, barW, barH}, processedCount_, false);
-      renderer.drawText(SMALL_FONT_ID, barX, barY + barH + 14, tr(STR_CATALOG_SYNC), true,
-                        EpdFontFamily::BOLD);
+      renderer.drawText(SMALL_FONT_ID, barX, barY + barH + 14, tr(STR_CATALOG_SYNC), true, EpdFontFamily::BOLD);
       break;
     }
 
@@ -202,8 +195,7 @@ void CatalogSyncActivity::render(RenderLock&&) {
       renderer.fillRoundedRect(cardX, cardY, cardW, 12, kCardR, true, true, false, false, Color::Black);
       drawPill(renderer, Rect{textX, cardY + 26, textW, lhSm + 10}, tr(STR_SYNC_COMPLETE), true);
 
-      const auto title = renderer.truncatedText(UI_10_FONT_ID, tr(STR_SYNC_COMPLETE), textW,
-                                                EpdFontFamily::BOLD);
+      const auto title = renderer.truncatedText(UI_10_FONT_ID, tr(STR_SYNC_COMPLETE), textW, EpdFontFamily::BOLD);
       renderer.drawText(UI_10_FONT_ID, textX, cardY + 70, title.c_str(), true, EpdFontFamily::BOLD);
 
       char buf[48];
@@ -213,16 +205,14 @@ void CatalogSyncActivity::render(RenderLock&&) {
 
       renderer.drawLine(cardX + kInner, barY - 22, cardX + cardW - kInner, barY - 22);
       drawActivityBar(renderer, Rect{barX, barY, barW, barH}, processedCount_, true);
-      renderer.drawText(SMALL_FONT_ID, barX, barY + barH + 14, tr(STR_SYNC_COMPLETE), true,
-                        EpdFontFamily::BOLD);
+      renderer.drawText(SMALL_FONT_ID, barX, barY + barH + 14, tr(STR_SYNC_COMPLETE), true, EpdFontFamily::BOLD);
       break;
     }
 
     case State::FAILED: {
       drawPill(renderer, Rect{textX, cardY + 26, textW, lhSm + 10}, tr(STR_SYNC_FAILED), false);
 
-      const auto title = renderer.truncatedText(UI_10_FONT_ID, tr(STR_SYNC_FAILED), textW,
-                                                EpdFontFamily::BOLD);
+      const auto title = renderer.truncatedText(UI_10_FONT_ID, tr(STR_SYNC_FAILED), textW, EpdFontFamily::BOLD);
       renderer.drawText(UI_10_FONT_ID, textX, cardY + 70, title.c_str(), true, EpdFontFamily::BOLD);
 
       char buf[48];

@@ -7,23 +7,23 @@ namespace {
 void serializeBookImpl(JsonDocument& doc, const void* data) {
   const auto& b = *static_cast<const PhysicalBook*>(data);
   doc["id"] = b.id;
-  doc["t"]  = b.title;
-  doc["a"]  = b.author;
-  doc["c"]  = b.collection;
-  doc["v"]  = b.volume;
-  doc["l"]  = b.location;
-  doc["n"]  = b.notes;
+  doc["t"] = b.title;
+  doc["a"] = b.author;
+  doc["c"] = b.collection;
+  doc["v"] = b.volume;
+  doc["l"] = b.location;
+  doc["n"] = b.notes;
 }
 
 bool deserializeBookImpl(JsonDocument& doc, void* data) {
-  auto& b      = *static_cast<PhysicalBook*>(data);
-  b.id         = doc["id"] | "";
-  b.title      = doc["t"]  | "";
-  b.author     = doc["a"]  | "";
-  b.collection = doc["c"]  | "";
-  b.volume     = doc["v"]  | "";
-  b.location   = doc["l"]  | "";
-  b.notes      = doc["n"]  | "";
+  auto& b = *static_cast<PhysicalBook*>(data);
+  b.id = doc["id"] | "";
+  b.title = doc["t"] | "";
+  b.author = doc["a"] | "";
+  b.collection = doc["c"] | "";
+  b.volume = doc["v"] | "";
+  b.location = doc["l"] | "";
+  b.notes = doc["n"] | "";
   return !b.id.empty();
 }
 

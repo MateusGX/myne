@@ -1,7 +1,7 @@
 #include <HalStorage.h>
+#include <unistd.h>
 
 #include <cstdio>
-#include <unistd.h>
 
 #include "../datastore_common/TestHarness.h"
 #include "BookStore.h"
@@ -27,7 +27,7 @@ void testCreateAssignsId() {
   store.init();
 
   PhysicalBook book;
-  book.title  = "The Pragmatic Programmer";
+  book.title = "The Pragmatic Programmer";
   book.author = "Hunt & Thomas";
 
   ASSERT_TRUE(book.id.empty());
@@ -73,7 +73,7 @@ void testUpdateRequiresExistence() {
   store.init();
 
   PhysicalBook ghost;
-  ghost.id    = "does-not-exist";
+  ghost.id = "does-not-exist";
   ghost.title = "Ghost Book";
   ASSERT_FALSE(store.update(ghost));
 
@@ -87,7 +87,7 @@ void testUpdateOverwrites() {
   store.init();
 
   PhysicalBook book;
-  book.title  = "Original Title";
+  book.title = "Original Title";
   book.author = "Original Author";
   ASSERT_TRUE(store.create(book));
 

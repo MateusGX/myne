@@ -15,15 +15,15 @@
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 struct CollMeta {
-  char id[9];    // 8-hex collection id + NUL
-  char name[33]; // collection name, null-padded
-  char note[65]; // collection note, null-padded
+  char id[9];     // 8-hex collection id + NUL
+  char name[33];  // collection name, null-padded
+  char note[65];  // collection note, null-padded
 };
 
 struct SortIdx {
-  char     key[33];   // sort key (title/name, lowercase-comparable)
-  uint32_t start;     // byte offset of this line in the source file
-  uint16_t len;       // byte length of the line including the trailing '\n'
+  char key[33];    // sort key (title/name, lowercase-comparable)
+  uint32_t start;  // byte offset of this line in the source file
+  uint16_t len;    // byte length of the line including the trailing '\n'
 };
 
 // Max raw bytes (excluding NUL) for a collection name stored in REGISTRY_FILE's
@@ -59,12 +59,14 @@ static void jsonEscapeStr(const char* src, char* dst, size_t maxDst) {
 
 // Extract the value of a JSON string field by name (e.g. "t" from {"t":"Foo"}).
 // Simple scan — does not handle nested objects or escaped quote in the key name.
-static void extractJsonStr(const char* json, const char* field,
-                           char* out, size_t maxOut) {
+static void extractJsonStr(const char* json, const char* field, char* out, size_t maxOut) {
   char needle[16];
   snprintf(needle, sizeof(needle), "\"%s\":\"", field);
   const char* p = strstr(json, needle);
-  if (!p) { out[0] = '\0'; return; }
+  if (!p) {
+    out[0] = '\0';
+    return;
+  }
   p += strlen(needle);
   size_t i = 0;
   while (i < maxOut - 1 && *p && *p != '"') {
@@ -75,32 +77,28 @@ static void extractJsonStr(const char* json, const char* field,
 }
 
 // Format a book as a compact NDJSON line (without trailing '\n').
-static void formatBookLine(char* buf, size_t maxLen,
-                           const char* id, const char* title,
-                           const char* author, const char* location,
-                           const char* volume = "") {
+static void formatBookLine(char* buf, size_t maxLen, const char* id, const char* title, const char* author,
+                           const char* location, const char* volume = "") {
   char eid[36], et[70], ea[46], el[36], ev[36];
-  jsonEscapeStr(id,       eid, sizeof(eid));
-  jsonEscapeStr(title,    et,  sizeof(et));
-  jsonEscapeStr(author,   ea,  sizeof(ea));
-  jsonEscapeStr(location, el,  sizeof(el));
+  jsonEscapeStr(id, eid, sizeof(eid));
+  jsonEscapeStr(title, et, sizeof(et));
+  jsonEscapeStr(author, ea, sizeof(ea));
+  jsonEscapeStr(location, el, sizeof(el));
   jsonEscapeStr(volume ? volume : "", ev, sizeof(ev));
-  snprintf(buf, maxLen,
-           "{\"id\":\"%s\",\"t\":\"%s\",\"a\":\"%s\",\"l\":\"%s\",\"v\":\"%s\"}",
-           eid, et, ea, el, ev);
+  snprintf(buf, maxLen, "{\"id\":\"%s\",\"t\":\"%s\",\"a\":\"%s\",\"l\":\"%s\",\"v\":\"%s\"}", eid, et, ea, el, ev);
 }
 
 // Format a collection header NDJSON line (without trailing '\n').
 // note may be nullptr or empty to omit the "note" field.
-static int formatCollectionHeader(char* buf, size_t maxLen, const char* collId,
-                                  const char* name, int count, const char* note) {
+static int formatCollectionHeader(char* buf, size_t maxLen, const char* collId, const char* name, int count,
+                                  const char* note) {
   char eid[18], et[70], enote[130];
   jsonEscapeStr(collId, eid, sizeof(eid));
-  jsonEscapeStr(name,   et,  sizeof(et));
+  jsonEscapeStr(name, et, sizeof(et));
   if (note && note[0]) {
     jsonEscapeStr(note, enote, sizeof(enote));
-    return snprintf(buf, maxLen, "{\"id\":\"%s\",\"t\":\"%s\",\"c\":1,\"n\":%d,\"note\":\"%s\"}",
-                    eid, et, count, enote);
+    return snprintf(buf, maxLen, "{\"id\":\"%s\",\"t\":\"%s\",\"c\":1,\"n\":%d,\"note\":\"%s\"}", eid, et, count,
+                    enote);
   }
   return snprintf(buf, maxLen, "{\"id\":\"%s\",\"t\":\"%s\",\"c\":1,\"n\":%d}", eid, et, count);
 }
@@ -117,17 +115,20 @@ static void notePath(const char* collId, char* out, size_t outSize) {
 static bool readLine(HalFile& f, char* buf, size_t maxLen) {
   while (true) {
     size_t i = 0;
-    bool   eof = false;
+    bool eof = false;
     while (i < maxLen - 1) {
       int c = f.read();
-      if (c < 0) { eof = true; break; }
+      if (c < 0) {
+        eof = true;
+        break;
+      }
       if (c == '\r') continue;
       if (c == '\n') break;
       buf[i++] = static_cast<char>(c);
     }
     buf[i] = '\0';
     if (i > 0) return true;
-    if (eof)   return false;
+    if (eof) return false;
     // empty line: skip and try again
   }
 }
@@ -146,7 +147,7 @@ static int countLines(const char* path) {
   HalFile f;
   if (!Storage.openFileForRead("CAT", path, f)) return 0;
   char buf[BookCatalog::MAX_LINE];
-  int  n = 0;
+  int n = 0;
   while (readLine(f, buf, sizeof(buf))) ++n;
   return n;
 }
@@ -215,7 +216,7 @@ static void registerNewCollection(const char* key, char* outId) {
 
   char eid[18], en[REG_NAME_MAX * 2 + 4], line[BookCatalog::MAX_LINE];
   jsonEscapeStr(outId, eid, sizeof(eid));
-  jsonEscapeStr(key,   en,  sizeof(en));
+  jsonEscapeStr(key, en, sizeof(en));
   snprintf(line, sizeof(line), "{\"id\":\"%s\",\"n\":\"%s\"}", eid, en);
   Storage.mkdir("/.myne");
   appendLine(BookCatalog::REGISTRY_FILE, line);
@@ -247,7 +248,7 @@ static bool updateRegistryName(const char* collId, const char* newName) {
           found = true;
           char eid[18], en[REG_NAME_MAX * 2 + 4], line[BookCatalog::MAX_LINE];
           jsonEscapeStr(collId, eid, sizeof(eid));
-          jsonEscapeStr(key,    en,  sizeof(en));
+          jsonEscapeStr(key, en, sizeof(en));
           snprintf(line, sizeof(line), "{\"id\":\"%s\",\"n\":\"%s\"}", eid, en);
           dst.write(line, strlen(line));
           dst.write("\n", 1);
@@ -331,13 +332,11 @@ bool BookCatalog::resolveCollectionId(const char* name, char* outId) {
 // ── Sort ──────────────────────────────────────────────────────────────────────
 
 static int cmpSortIdx(const void* a, const void* b) {
-  return strcasecmp(static_cast<const SortIdx*>(a)->key,
-                    static_cast<const SortIdx*>(b)->key);
+  return strcasecmp(static_cast<const SortIdx*>(a)->key, static_cast<const SortIdx*>(b)->key);
 }
 
 static int cmpCollMetaByName(const void* a, const void* b) {
-  return strcasecmp(static_cast<const CollMeta*>(a)->name,
-                    static_cast<const CollMeta*>(b)->name);
+  return strcasecmp(static_cast<const CollMeta*>(a)->name, static_cast<const CollMeta*>(b)->name);
 }
 
 // Sort a NDJSON file by its "t" (title) field.
@@ -349,7 +348,7 @@ static void sortNdjsonByTitle(const char* path) {
   int nLines = 0;
   {
     HalFile f;
-    char    buf[BookCatalog::MAX_LINE];
+    char buf[BookCatalog::MAX_LINE];
     if (Storage.openFileForRead("CAT", path, f))
       while (readLine(f, buf, sizeof(buf))) ++nLines;
   }
@@ -365,15 +364,18 @@ static void sortNdjsonByTitle(const char* path) {
   int n = 0;
   {
     HalFile f;
-    char    buf[BookCatalog::MAX_LINE];
+    char buf[BookCatalog::MAX_LINE];
     if (Storage.openFileForRead("CAT", path, f)) {
       while (n < nLines) {
         const auto lineStart = static_cast<uint32_t>(f.position());
-        size_t     bi        = 0;
-        bool       eof       = false;
+        size_t bi = 0;
+        bool eof = false;
         while (bi < sizeof(buf) - 1) {
           int c = f.read();
-          if (c < 0) { eof = true; break; }
+          if (c < 0) {
+            eof = true;
+            break;
+          }
           if (c == '\r') continue;
           if (c == '\n') break;
           buf[bi++] = static_cast<char>(c);
@@ -382,7 +384,7 @@ static void sortNdjsonByTitle(const char* path) {
         const auto lineEnd = static_cast<uint32_t>(f.position());
         if (bi > 0) {
           idx[n].start = lineStart;
-          idx[n].len   = static_cast<uint16_t>(lineEnd - lineStart);
+          idx[n].len = static_cast<uint16_t>(lineEnd - lineStart);
           extractJsonStr(buf, "t", idx[n].key, sizeof(idx[n].key));
           ++n;
         }
@@ -399,9 +401,8 @@ static void sortNdjsonByTitle(const char* path) {
   snprintf(tmpPath, sizeof(tmpPath), "%s.tmp", path);
   {
     HalFile src, dst;
-    char    buf[BookCatalog::MAX_LINE + 2];
-    if (Storage.openFileForRead("CAT", path, src) &&
-        Storage.openFileForWrite("CAT", tmpPath, dst)) {
+    char buf[BookCatalog::MAX_LINE + 2];
+    if (Storage.openFileForRead("CAT", path, src) && Storage.openFileForWrite("CAT", tmpPath, dst)) {
       for (int i = 0; i < n; ++i) {
         src.seekSet(idx[i].start);
         int got = src.read(buf, idx[i].len);
@@ -431,7 +432,7 @@ static void buildLetterFile(char letter, uint16_t& idxOut) {
   int nColls = 0;
   if (Storage.exists(BookCatalog::COLL_META_FILE)) {
     HalFile mf;
-    char    buf[BookCatalog::MAX_LINE];
+    char buf[BookCatalog::MAX_LINE];
     if (Storage.openFileForRead("CAT", BookCatalog::COLL_META_FILE, mf)) {
       while (readLine(mf, buf, sizeof(buf))) {
         char x[4] = {};
@@ -441,30 +442,27 @@ static void buildLetterFile(char letter, uint16_t& idxOut) {
     }
   }
 
-  CollMeta* colls     = nullptr;
-  int       collCount = 0;
+  CollMeta* colls = nullptr;
+  int collCount = 0;
 
   if (nColls > 0) {
     colls = static_cast<CollMeta*>(malloc(nColls * sizeof(CollMeta)));
     if (colls) {
       HalFile mf;
-      char    buf[BookCatalog::MAX_LINE];
+      char buf[BookCatalog::MAX_LINE];
       if (Storage.openFileForRead("CAT", BookCatalog::COLL_META_FILE, mf)) {
         while (collCount < nColls && readLine(mf, buf, sizeof(buf))) {
           char x[4] = {};
           extractJsonStr(buf, "x", x, sizeof(x));
           if (x[0] != letter) continue;
-          extractJsonStr(buf, "id", colls[collCount].id,   sizeof(colls[collCount].id));
-          extractJsonStr(buf, "t",  colls[collCount].name, sizeof(colls[collCount].name));
+          extractJsonStr(buf, "id", colls[collCount].id, sizeof(colls[collCount].id));
+          extractJsonStr(buf, "t", colls[collCount].name, sizeof(colls[collCount].name));
           // Load persistent collection note (outside catalog dir, survives rebuild)
-          BookCatalog::getCollectionNote(colls[collCount].id,
-                                         colls[collCount].note,
-                                         sizeof(colls[collCount].note));
+          BookCatalog::getCollectionNote(colls[collCount].id, colls[collCount].note, sizeof(colls[collCount].note));
           ++collCount;
         }
       }
-      if (collCount > 1)
-        qsort(colls, collCount, sizeof(CollMeta), cmpCollMetaByName);
+      if (collCount > 1) qsort(colls, collCount, sizeof(CollMeta), cmpCollMetaByName);
     }
   }
 
@@ -472,7 +470,7 @@ static void buildLetterFile(char letter, uint16_t& idxOut) {
   char tmpPath[80];
   snprintf(tmpPath, sizeof(tmpPath), "%s/%c.ndjson", BookCatalog::TMP_DIR, letter);
   const bool hasStandalone = Storage.exists(tmpPath);
-  const int  nStandalone   = hasStandalone ? countLines(tmpPath) : 0;
+  const int nStandalone = hasStandalone ? countLines(tmpPath) : 0;
 
   const int total = collCount + nStandalone;
   if (total == 0) {
@@ -495,8 +493,7 @@ static void buildLetterFile(char letter, uint16_t& idxOut) {
   char buf[BookCatalog::MAX_LINE];
   for (int i = 0; i < collCount; ++i) {
     char collPath[80];
-    snprintf(collPath, sizeof(collPath), "%s/%s.ndjson",
-             BookCatalog::COLL_DIR, colls[i].id);
+    snprintf(collPath, sizeof(collPath), "%s/%s.ndjson", BookCatalog::COLL_DIR, colls[i].id);
     const int cnt = countLines(collPath);
 
     const int len = formatCollectionHeader(buf, sizeof(buf), colls[i].id, colls[i].name, cnt, colls[i].note);
@@ -576,7 +573,7 @@ static void insertLineSorted(const char* path, const char* newLine, const char* 
     HalFile dst;
     if (!Storage.openFileForWrite("CAT", tmpPath, dst)) return;
 
-    bool    inserted = false;
+    bool inserted = false;
     HalFile src;
     if (Storage.openFileForRead("CAT", path, src)) {
       char buf[BookCatalog::MAX_LINE];
@@ -697,8 +694,8 @@ static void removeEntry(const BookCatalog::BookChangeInfo& book) {
     snprintf(collPath, sizeof(collPath), "%s/%s.ndjson", BookCatalog::COLL_DIR, collId);
     if (!removeLineById(collPath, book.id)) return;
 
-    const int  newCount = countLines(collPath);
-    char       letter   = upperFirstLetter(book.collection);
+    const int newCount = countLines(collPath);
+    char letter = upperFirstLetter(book.collection);
     if (!letter) letter = '#';
     char letterPath[80];
     snprintf(letterPath, sizeof(letterPath), "%s/%c.ndjson", BookCatalog::CATALOG_DIR, letter);
@@ -769,13 +766,11 @@ static void addEntry(const BookCatalog::BookChangeInfo& book) {
 
 // ── BookCatalog::rebuild ──────────────────────────────────────────────────────
 
-bool BookCatalog::rebuild(const char* booksDir,
-                          void (*onProgress)(int processed, void* ctx),
-                          void* ctx) {
+bool BookCatalog::rebuild(const char* booksDir, void (*onProgress)(int processed, void* ctx), void* ctx) {
   // ─── Clean and recreate catalog directories ─────────────────────────────
-  cleanFilesInDir(COLL_DIR);    // remove stale collection NDJSON files
-  cleanFilesInDir(CATALOG_DIR); // remove stale letter files and old idx.bin
-  cleanFilesInDir(TMP_DIR);     // remove any leftover tmp files
+  cleanFilesInDir(COLL_DIR);     // remove stale collection NDJSON files
+  cleanFilesInDir(CATALOG_DIR);  // remove stale letter files and old idx.bin
+  cleanFilesInDir(TMP_DIR);      // remove any leftover tmp files
 
   Storage.mkdir(CATALOG_DIR);
   Storage.mkdir(COLL_DIR);
@@ -789,14 +784,14 @@ bool BookCatalog::rebuild(const char* booksDir,
   // registry exceeds the cap, resolveCollectionIdCached falls back to the
   // file-scan resolveCollectionId — correct, just slower.
   auto* regCache = static_cast<RegEntry*>(malloc(MAX_CACHED_COLLECTIONS * sizeof(RegEntry)));
-  int   regCount = 0;
+  int regCount = 0;
   if (regCache) {
     HalFile f;
-    char    buf[MAX_LINE];
+    char buf[MAX_LINE];
     if (Storage.openFileForRead("CAT", REGISTRY_FILE, f)) {
       while (regCount < MAX_CACHED_COLLECTIONS && readLine(f, buf, sizeof(buf))) {
-        extractJsonStr(buf, "id", regCache[regCount].id,   sizeof(regCache[regCount].id));
-        extractJsonStr(buf, "n",  regCache[regCount].name, sizeof(regCache[regCount].name));
+        extractJsonStr(buf, "id", regCache[regCount].id, sizeof(regCache[regCount].id));
+        extractJsonStr(buf, "n", regCache[regCount].name, sizeof(regCache[regCount].name));
         ++regCount;
       }
     }
@@ -810,7 +805,7 @@ bool BookCatalog::rebuild(const char* booksDir,
   // Memory: one JsonDocument (reused), two small stack buffers — O(1).
   {
     JsonDocument doc;
-    char         lineBuf[MAX_LINE];
+    char lineBuf[MAX_LINE];
 
     HalFile dir = Storage.open(booksDir);
     if (!dir || !dir.isDirectory()) {
@@ -837,11 +832,11 @@ bool BookCatalog::rebuild(const char* booksDir,
         doc.clear();
         if (deserializeJson(doc, entry) != DeserializationError::Ok) continue;
 
-        const char* title      = doc["t"] | "";
-        const char* author     = doc["a"] | "";
+        const char* title = doc["t"] | "";
+        const char* author = doc["a"] | "";
         const char* collection = doc["c"] | "";
-        const char* location   = doc["l"] | "";
-        const char* volume     = doc["v"] | "";
+        const char* location = doc["l"] | "";
+        const char* volume = doc["v"] | "";
 
         if (!title[0] && !id[0]) continue;
 
@@ -859,12 +854,11 @@ bool BookCatalog::rebuild(const char* booksDir,
           if (isNew) {
             // Record this collection's metadata for phase 3
             const char letter = upperFirstLetter(collection);
-            char       eid[18], et[70];
-            jsonEscapeStr(collId,     eid, sizeof(eid));
-            jsonEscapeStr(collection, et,  sizeof(et));
-            snprintf(lineBuf, sizeof(lineBuf),
-                     "{\"id\":\"%s\",\"t\":\"%s\",\"x\":\"%c\"}",
-                     eid, et, letter ? letter : '?');
+            char eid[18], et[70];
+            jsonEscapeStr(collId, eid, sizeof(eid));
+            jsonEscapeStr(collection, et, sizeof(et));
+            snprintf(lineBuf, sizeof(lineBuf), "{\"id\":\"%s\",\"t\":\"%s\",\"x\":\"%c\"}", eid, et,
+                     letter ? letter : '?');
             appendLine(COLL_META_FILE, lineBuf);
           }
         } else {
@@ -941,8 +935,7 @@ bool BookCatalog::rebuild(const char* booksDir,
 
   {
     HalFile idxFile;
-    if (Storage.openFileForWrite("CAT", IDX_FILE, idxFile))
-      idxFile.write(idxBuf, sizeof(idxBuf));
+    if (Storage.openFileForWrite("CAT", IDX_FILE, idxFile)) idxFile.write(idxBuf, sizeof(idxBuf));
   }
 
   cleanupTmpDir();
@@ -954,8 +947,7 @@ bool BookCatalog::rebuild(const char* booksDir,
 // ── Read helpers ──────────────────────────────────────────────────────────────
 
 // Read up to maxCount NDJSON entries from 'path' starting at line index 'start'.
-static int readNdjsonPage(const char* path, int start, int maxCount,
-                          BookCatalog::Entry* out) {
+static int readNdjsonPage(const char* path, int start, int maxCount, BookCatalog::Entry* out) {
   if (!Storage.exists(path)) return 0;
   HalFile f;
   if (!Storage.openFileForRead("CAT", path, f)) return 0;
@@ -969,19 +961,25 @@ static int readNdjsonPage(const char* path, int start, int maxCount,
   }
 
   JsonDocument doc;
-  int          n = 0;
+  int n = 0;
   while (n < maxCount && readLine(f, buf, sizeof(buf))) {
     esp_task_wdt_reset();
     doc.clear();
     if (deserializeJson(doc, buf) != DeserializationError::Ok) continue;
-    auto& e        = out[n];
+    auto& e = out[n];
     e.isCollection = (doc["c"] | 0) != 0;
-    strncpy(e.id,       doc["id"]   | "", 16); e.id[16]       = '\0';
-    strncpy(e.title,    doc["t"]    | "", 32); e.title[32]    = '\0';
-    strncpy(e.author,   doc["a"]    | "", 20); e.author[20]   = '\0';
-    strncpy(e.location, doc["l"]    | "", 16); e.location[16] = '\0';
-    strncpy(e.volume,   doc["v"]    | "", 16); e.volume[16]   = '\0';
-    strncpy(e.note,     doc["note"] | "", 64); e.note[64]     = '\0';
+    strncpy(e.id, doc["id"] | "", 16);
+    e.id[16] = '\0';
+    strncpy(e.title, doc["t"] | "", 32);
+    e.title[32] = '\0';
+    strncpy(e.author, doc["a"] | "", 20);
+    e.author[20] = '\0';
+    strncpy(e.location, doc["l"] | "", 16);
+    e.location[16] = '\0';
+    strncpy(e.volume, doc["v"] | "", 16);
+    e.volume[16] = '\0';
+    strncpy(e.note, doc["note"] | "", 64);
+    e.note[64] = '\0';
     e.count = e.isCollection ? (doc["n"] | 0) : 0;
     ++n;
     yield();
@@ -1069,7 +1067,7 @@ void BookCatalog::forEachCollection(void (*cb)(const char* id, const char* name,
   while (readLine(f, buf, sizeof(buf))) {
     char id[9] = {}, name[REG_NAME_MAX + 1] = {};
     extractJsonStr(buf, "id", id, sizeof(id));
-    extractJsonStr(buf, "n",  name, sizeof(name));
+    extractJsonStr(buf, "n", name, sizeof(name));
     if (id[0]) cb(id, name, ctx);
   }
 }

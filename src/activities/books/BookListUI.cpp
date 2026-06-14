@@ -36,8 +36,7 @@ int pageItemsForCollection(const GfxRenderer& renderer) {
   return std::max(1, h / kRowHeight);
 }
 
-void drawSectionRow(const GfxRenderer& renderer, Rect row, char letter, int count,
-                    int itemNumber, bool selected) {
+void drawSectionRow(const GfxRenderer& renderer, Rect row, char letter, int count, int itemNumber, bool selected) {
   const int lh10 = renderer.getLineHeight(UI_10_FONT_ID);
   renderer.drawRoundedRect(row.x, row.y, row.width, row.height, selected ? 2 : 1, kCardR, true);
   if (selected) {
@@ -60,13 +59,13 @@ void drawSectionRow(const GfxRenderer& renderer, Rect row, char letter, int coun
   renderer.drawText(SMALL_FONT_ID, textX, row.y + 12 + lh10 + 6, countBuf, true);
 
   if (const uint8_t* chevron = iconForName(UIIcon::ChevronRightIcon, kChevronSize)) {
-    renderer.drawIcon(chevron, row.x + row.width - 18 - kChevronSize,
-                      row.y + (row.height - kChevronSize) / 2, kChevronSize, kChevronSize);
+    renderer.drawIcon(chevron, row.x + row.width - 18 - kChevronSize, row.y + (row.height - kChevronSize) / 2,
+                      kChevronSize, kChevronSize);
   }
 }
 
-void drawEntryRow(const GfxRenderer& renderer, Rect row, const BookCatalog::Entry& entry,
-                  int itemNumber, bool selected) {
+void drawEntryRow(const GfxRenderer& renderer, Rect row, const BookCatalog::Entry& entry, int itemNumber,
+                  bool selected) {
   const int lh10 = renderer.getLineHeight(UI_10_FONT_ID);
   const int lhSm = renderer.getLineHeight(SMALL_FONT_ID);
 
@@ -78,8 +77,7 @@ void drawEntryRow(const GfxRenderer& renderer, Rect row, const BookCatalog::Entr
   char num[4];
   snprintf(num, sizeof(num), "%02d", itemNumber);
   const int numW = renderer.getTextWidth(UI_10_FONT_ID, num, EpdFontFamily::BOLD);
-  renderer.drawText(UI_10_FONT_ID, row.x + 22 - numW / 2, row.y + 18, num, true,
-                    EpdFontFamily::BOLD);
+  renderer.drawText(UI_10_FONT_ID, row.x + 22 - numW / 2, row.y + 18, num, true, EpdFontFamily::BOLD);
   renderer.drawLine(row.x + 46, row.y + 16, row.x + 46, row.y + row.height - 16);
 
   const int textX = row.x + 62;
@@ -93,8 +91,7 @@ void drawEntryRow(const GfxRenderer& renderer, Rect row, const BookCatalog::Entr
     title += " ";
     title += entry.volume;
   }
-  const auto titleLines = renderer.wrappedText(UI_10_FONT_ID, title.c_str(), titleW, 2,
-                                               EpdFontFamily::BOLD);
+  const auto titleLines = renderer.wrappedText(UI_10_FONT_ID, title.c_str(), titleW, 2, EpdFontFamily::BOLD);
   int y = row.y + 14;
   for (const auto& line : titleLines) {
     renderer.drawText(UI_10_FONT_ID, textX, y, line.c_str(), true, EpdFontFamily::BOLD);
@@ -118,8 +115,7 @@ void drawEntryRow(const GfxRenderer& renderer, Rect row, const BookCatalog::Entr
   } else {
     const auto value = renderer.truncatedText(SMALL_FONT_ID, entry.location, valueW);
     const int vw = renderer.getTextWidth(SMALL_FONT_ID, value.c_str());
-    renderer.drawText(SMALL_FONT_ID, row.x + row.width - 12 - vw,
-                      row.y + row.height - lhSm - 16, value.c_str(), true);
+    renderer.drawText(SMALL_FONT_ID, row.x + row.width - 12 - vw, row.y + row.height - lhSm - 16, value.c_str(), true);
   }
 }
 

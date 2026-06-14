@@ -5,9 +5,7 @@
 
 #include <cstring>
 
-void TimeSeriesStore::init() const {
-  Storage.mkdir(dir_);
-}
+void TimeSeriesStore::init() const { Storage.mkdir(dir_); }
 
 bool TimeSeriesStore::readSummary(void* out, size_t size) const {
   char path[80];

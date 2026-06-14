@@ -21,30 +21,30 @@
 //   Collection: {"id":"...","t":"...","c":1,"n":42}  (c=1: header; n: book count)
 class BookCatalog {
  public:
-  static constexpr const char* CATALOG_DIR    = "/.myne/catalog";
-  static constexpr const char* IDX_FILE       = "/.myne/catalog/idx.bin";
-  static constexpr const char* COLL_DIR       = "/.myne/catalog/c";
-  static constexpr const char* TMP_DIR        = "/.myne/catalog/tmp";
+  static constexpr const char* CATALOG_DIR = "/.myne/catalog";
+  static constexpr const char* IDX_FILE = "/.myne/catalog/idx.bin";
+  static constexpr const char* COLL_DIR = "/.myne/catalog/c";
+  static constexpr const char* TMP_DIR = "/.myne/catalog/tmp";
   static constexpr const char* COLL_META_FILE = "/.myne/catalog/tmp/colls.ndjson";
   static constexpr const char* SYNC_FLAG_PATH = "/.myne/sync_needed";
   // Persistent collection-id registry: one line per collection,
   // {"id":"<8hex>","n":"<name>"}. Lives outside CATALOG_DIR so it survives
   // rebuild()'s cleanFilesInDir() calls.
-  static constexpr const char* REGISTRY_FILE  = "/.myne/collections.ndjson";
+  static constexpr const char* REGISTRY_FILE = "/.myne/collections.ndjson";
   // Persistent per-collection notes, keyed by collection id. Lives outside
   // CATALOG_DIR so notes survive rebuild()'s cleanFilesInDir() calls.
-  static constexpr const char* NOTES_DIR      = "/.myne/notes";
-  static constexpr size_t      MAX_LINE       = 256;
+  static constexpr const char* NOTES_DIR = "/.myne/notes";
+  static constexpr size_t MAX_LINE = 256;
 
   struct Entry {
-    bool  isCollection = false;
-    char  id[17]       = {};   // book id OR 8-hex collection id, null-terminated
-    char  title[33]    = {};   // book title OR collection name
-    char  author[21]   = {};   // empty for collections
-    char  location[17] = {};   // empty for collections
-    char  volume[17]   = {};   // book volume (e.g. "Vol. 1"); empty for collections
-    char  note[65]     = {};   // collection note; empty for books
-    int   count        = 0;    // 0 for books; books-in-collection for headers
+    bool isCollection = false;
+    char id[17] = {};        // book id OR 8-hex collection id, null-terminated
+    char title[33] = {};     // book title OR collection name
+    char author[21] = {};    // empty for collections
+    char location[17] = {};  // empty for collections
+    char volume[17] = {};    // book volume (e.g. "Vol. 1"); empty for collections
+    char note[65] = {};      // collection note; empty for books
+    int count = 0;           // 0 for books; books-in-collection for headers
   };
 
   // Returns the persistent 8-hex id for a collection name, creating a new
@@ -68,8 +68,7 @@ class BookCatalog {
   // Phase 1 is O(1) memory; sort passes are O(letter_size) or O(collection_size).
   // SD card capacity is the only hard limit on the number of books.
   // onProgress(processed, ctx) is called after each book in Phase 1 (pass nullptr to skip).
-  static bool rebuild(const char* booksDir,
-                      void (*onProgress)(int processed, void* ctx) = nullptr,
+  static bool rebuild(const char* booksDir, void (*onProgress)(int processed, void* ctx) = nullptr,
                       void* ctx = nullptr);
 
   // Read per-letter entry counts into out27[27] (index 0 = 'A', index 26 = '#').

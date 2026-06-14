@@ -43,10 +43,8 @@ void drawMetricCard(const GfxRenderer& renderer, Rect r, const char* label, cons
 
   const int lh12 = renderer.getLineHeight(UI_12_FONT_ID);
   renderer.drawText(SMALL_FONT_ID, r.x + kInner, r.y + 14, label, true, EpdFontFamily::BOLD);
-  const auto safeValue = renderer.truncatedText(UI_12_FONT_ID, value, r.width - kInner * 2,
-                                                EpdFontFamily::BOLD);
-  renderer.drawText(UI_12_FONT_ID, r.x + kInner, r.y + 36, safeValue.c_str(), true,
-                    EpdFontFamily::BOLD);
+  const auto safeValue = renderer.truncatedText(UI_12_FONT_ID, value, r.width - kInner * 2, EpdFontFamily::BOLD);
+  renderer.drawText(UI_12_FONT_ID, r.x + kInner, r.y + 36, safeValue.c_str(), true, EpdFontFamily::BOLD);
   if (detail && detail[0]) {
     const auto safeDetail = renderer.truncatedText(SMALL_FONT_ID, detail, r.width - kInner * 2);
     const int lineY = std::max(r.y + 36 + lh12 + 8, r.y + r.height - 28);
@@ -55,8 +53,8 @@ void drawMetricCard(const GfxRenderer& renderer, Rect r, const char* label, cons
   }
 }
 
-void drawNumberMetric(const GfxRenderer& renderer, Rect r, const char* label, int value,
-                      const char* detail = nullptr, bool selected = false) {
+void drawNumberMetric(const GfxRenderer& renderer, Rect r, const char* label, int value, const char* detail = nullptr,
+                      bool selected = false) {
   char num[12];
   snprintf(num, sizeof(num), "%d", value);
   drawMetricCard(renderer, r, label, num, detail, selected);
@@ -64,18 +62,30 @@ void drawNumberMetric(const GfxRenderer& renderer, Rect r, const char* label, in
 
 const char* shortMonth(uint8_t month) {
   switch (month) {
-    case 1: return tr(STR_MONTH_SHORT_JAN);
-    case 2: return tr(STR_MONTH_SHORT_FEB);
-    case 3: return tr(STR_MONTH_SHORT_MAR);
-    case 4: return tr(STR_MONTH_SHORT_APR);
-    case 5: return tr(STR_MONTH_SHORT_MAY);
-    case 6: return tr(STR_MONTH_SHORT_JUN);
-    case 7: return tr(STR_MONTH_SHORT_JUL);
-    case 8: return tr(STR_MONTH_SHORT_AUG);
-    case 9: return tr(STR_MONTH_SHORT_SEP);
-    case 10: return tr(STR_MONTH_SHORT_OCT);
-    case 11: return tr(STR_MONTH_SHORT_NOV);
-    case 12: return tr(STR_MONTH_SHORT_DEC);
+    case 1:
+      return tr(STR_MONTH_SHORT_JAN);
+    case 2:
+      return tr(STR_MONTH_SHORT_FEB);
+    case 3:
+      return tr(STR_MONTH_SHORT_MAR);
+    case 4:
+      return tr(STR_MONTH_SHORT_APR);
+    case 5:
+      return tr(STR_MONTH_SHORT_MAY);
+    case 6:
+      return tr(STR_MONTH_SHORT_JUN);
+    case 7:
+      return tr(STR_MONTH_SHORT_JUL);
+    case 8:
+      return tr(STR_MONTH_SHORT_AUG);
+    case 9:
+      return tr(STR_MONTH_SHORT_SEP);
+    case 10:
+      return tr(STR_MONTH_SHORT_OCT);
+    case 11:
+      return tr(STR_MONTH_SHORT_NOV);
+    case 12:
+      return tr(STR_MONTH_SHORT_DEC);
   }
   return "";
 }
@@ -99,13 +109,11 @@ void drawEmptyState(const GfxRenderer& renderer, Rect r) {
   drawCard(renderer, r);
   const int cx = r.x + r.width / 2;
   const int y = r.y + std::max(28, r.height / 2 - 18);
-  renderer.drawCenteredText(UI_10_FONT_ID, y, tr(STR_NO_SESSIONS), true,
-                            EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_10_FONT_ID, y, tr(STR_NO_SESSIONS), true, EpdFontFamily::BOLD);
 }
 
 void drawMonthRows(const GfxRenderer& renderer, Rect r,
-                   const std::vector<BookReadingStatsActivity::MonthBucket>& buckets,
-                   int startIndex, int maxRows) {
+                   const std::vector<BookReadingStatsActivity::MonthBucket>& buckets, int startIndex, int maxRows) {
   if (buckets.empty()) return;
 
   const int n = std::min(maxRows, static_cast<int>(buckets.size()) - startIndex);
@@ -154,8 +162,8 @@ void drawMonthRows(const GfxRenderer& renderer, Rect r,
 void BookReadingStatsActivity::loadData() {
   totalReadings = 0;
   totalSessions = 0;
-  firstDate[0]  = '\0';
-  lastDate[0]   = '\0';
+  firstDate[0] = '\0';
+  lastDate[0] = '\0';
   monthBuckets.clear();
 
   const auto readings = readingLog.loadForBook(book.id);
@@ -235,9 +243,8 @@ void BookReadingStatsActivity::renderSummary(int contentTop, int W, int H) {
   const auto& m = UITheme::getInstance().getMetrics();
   const int CW = W - kPad * 2;
   const int lh10 = renderer.getLineHeight(UI_10_FONT_ID);
-  const std::string titleStr = book.volume.empty()
-      ? book.title
-      : book.title + " " + tr(STR_BOOK_VOLUME_SHORT) + " " + book.volume;
+  const std::string titleStr =
+      book.volume.empty() ? book.title : book.title + " " + tr(STR_BOOK_VOLUME_SHORT) + " " + book.volume;
 
   int y = contentTop;
 
@@ -253,10 +260,8 @@ void BookReadingStatsActivity::renderSummary(int contentTop, int W, int H) {
   // Metrics
   const int gap = 10;
   const int metricW = (CW - gap) / 2;
-  drawNumberMetric(renderer, Rect{kPad, y, metricW, 76}, tr(STR_STATS_READINGS),
-                   totalReadings, nullptr, true);
-  drawNumberMetric(renderer, Rect{kPad + metricW + gap, y, metricW, 76}, tr(STR_STATS_SESSIONS),
-                   totalSessions);
+  drawNumberMetric(renderer, Rect{kPad, y, metricW, 76}, tr(STR_STATS_READINGS), totalReadings, nullptr, true);
+  drawNumberMetric(renderer, Rect{kPad + metricW + gap, y, metricW, 76}, tr(STR_STATS_SESSIONS), totalSessions);
   y += 88;
 
   // Date range
@@ -277,8 +282,7 @@ void BookReadingStatsActivity::renderSummary(int contentTop, int W, int H) {
   }
 
   drawCard(renderer, Rect{kPad, y, CW, panelH});
-  renderer.drawText(SMALL_FONT_ID, kPad + kInner, y + 16, tr(STR_STATS_SESSIONS),
-                    true, EpdFontFamily::BOLD);
+  renderer.drawText(SMALL_FONT_ID, kPad + kInner, y + 16, tr(STR_STATS_SESSIONS), true, EpdFontFamily::BOLD);
   char totalLabel[32];
   snprintf(totalLabel, sizeof(totalLabel), "%d %s", totalSessions, tr(STR_STATS_SESSIONS));
   const int tw = renderer.getTextWidth(SMALL_FONT_ID, totalLabel);
@@ -286,8 +290,7 @@ void BookReadingStatsActivity::renderSummary(int contentTop, int W, int H) {
 
   const int maxRows = std::min(5, std::max(1, (panelH - 58) / 48));
   const int start = std::max(0, static_cast<int>(monthBuckets.size()) - maxRows);
-  drawMonthRows(renderer, Rect{kPad + kInner, y + 48, CW - kInner * 2, panelH - 64},
-                monthBuckets, start, maxRows);
+  drawMonthRows(renderer, Rect{kPad + kInner, y + 48, CW - kInner * 2, panelH - 64}, monthBuckets, start, maxRows);
 }
 
 void BookReadingStatsActivity::renderTimeline(int contentTop, int W, int H) {
@@ -297,8 +300,8 @@ void BookReadingStatsActivity::renderTimeline(int contentTop, int W, int H) {
 
   {
     char summary[64];
-    snprintf(summary, sizeof(summary), "%d %s · %d %s", totalReadings, tr(STR_STATS_READINGS),
-             totalSessions, tr(STR_STATS_SESSIONS));
+    snprintf(summary, sizeof(summary), "%d %s · %d %s", totalReadings, tr(STR_STATS_READINGS), totalSessions,
+             tr(STR_STATS_SESSIONS));
     const Rect heroRect{kPad, y, CW, BooksActivityUI::HERO_H};
     BooksActivityUI::hero(renderer, heroRect, tr(STR_STATS_SESSIONS), summary, nullptr, 46);
     drawPillRight(renderer, Rect{kPad + kInner, y + 9, CW - kInner * 2, 22}, "02");
@@ -313,8 +316,7 @@ void BookReadingStatsActivity::renderTimeline(int contentTop, int W, int H) {
   }
 
   drawCard(renderer, Rect{kPad, y, CW, panelH});
-  renderer.drawText(SMALL_FONT_ID, kPad + kInner, y + 16, tr(STR_LOG_DATE), true,
-                    EpdFontFamily::BOLD);
+  renderer.drawText(SMALL_FONT_ID, kPad + kInner, y + 16, tr(STR_LOG_DATE), true, EpdFontFamily::BOLD);
 
   char range[44] = "-";
   if (firstDate[0] != '\0') {
@@ -327,8 +329,7 @@ void BookReadingStatsActivity::renderTimeline(int contentTop, int W, int H) {
   const int rowsH = panelH - 78;
   const int maxRows = std::min(8, std::max(1, rowsH / 50));
   const int start = std::max(0, static_cast<int>(monthBuckets.size()) - maxRows);
-  drawMonthRows(renderer, Rect{kPad + kInner, rowsTop, CW - kInner * 2, rowsH},
-                monthBuckets, start, maxRows);
+  drawMonthRows(renderer, Rect{kPad + kInner, rowsTop, CW - kInner * 2, rowsH}, monthBuckets, start, maxRows);
 }
 
 void BookReadingStatsActivity::render(RenderLock&&) {
@@ -347,8 +348,7 @@ void BookReadingStatsActivity::render(RenderLock&&) {
     renderTimeline(contentTop, W, H);
   }
 
-  const auto btnLabels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_STATS_CHANGE_VIEW),
-                                               tr(STR_PREV), tr(STR_NEXT));
+  const auto btnLabels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_STATS_CHANGE_VIEW), tr(STR_PREV), tr(STR_NEXT));
   GUI.drawButtonHints(renderer, btnLabels.btn1, btnLabels.btn2, btnLabels.btn3, btnLabels.btn4);
 
   renderer.displayBuffer();

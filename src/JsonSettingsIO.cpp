@@ -184,9 +184,8 @@ bool JsonSettingsIO::loadSettings(MyneSettings& s, const char* json, bool* needs
       const uint8_t fieldDefault = s.*(info.valuePtr);  // struct-initializer default, read before we overwrite it
       uint8_t v = doc[info.key] | fieldDefault;
       if (info.type == SettingType::ENUM) {
-        const uint8_t enumCount = !info.enumStringValues.empty()
-            ? static_cast<uint8_t>(info.enumStringValues.size())
-            : static_cast<uint8_t>(info.enumValues.size());
+        const uint8_t enumCount = !info.enumStringValues.empty() ? static_cast<uint8_t>(info.enumStringValues.size())
+                                                                 : static_cast<uint8_t>(info.enumValues.size());
         v = clamp(v, enumCount, fieldDefault);
       } else if (info.type == SettingType::TOGGLE) {
         v = clamp(v, (uint8_t)2, fieldDefault);

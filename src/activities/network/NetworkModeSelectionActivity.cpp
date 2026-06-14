@@ -63,25 +63,22 @@ void NetworkModeSelectionActivity::render(RenderLock&&) {
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight});
 
   const int heroY = metrics.topPadding + metrics.headerHeight + 8;
-  NetworkActivityUI::hero(renderer, Rect{NetworkActivityUI::PAD, heroY,
-                                         pageWidth - NetworkActivityUI::PAD * 2, 104},
+  NetworkActivityUI::hero(renderer, Rect{NetworkActivityUI::PAD, heroY, pageWidth - NetworkActivityUI::PAD * 2, 104},
                           tr(STR_NETWORK), tr(STR_NETWORK), tr(STR_SELECT));
 
   const int contentY = heroY + 124;
   const int cardW = pageWidth - NetworkActivityUI::PAD * 2;
   const int cardH = 116;
-  NetworkActivityUI::choice(renderer, Rect{NetworkActivityUI::PAD, contentY, cardW, cardH},
-                            tr(STR_JOIN_NETWORK), tr(STR_JOIN_DESC), selectedIndex == 0);
+  NetworkActivityUI::choice(renderer, Rect{NetworkActivityUI::PAD, contentY, cardW, cardH}, tr(STR_JOIN_NETWORK),
+                            tr(STR_JOIN_DESC), selectedIndex == 0);
   NetworkActivityUI::choice(renderer,
-                            Rect{NetworkActivityUI::PAD, contentY + cardH + NetworkActivityUI::GAP,
-                                 cardW, cardH},
+                            Rect{NetworkActivityUI::PAD, contentY + cardH + NetworkActivityUI::GAP, cardW, cardH},
                             tr(STR_CREATE_HOTSPOT), tr(STR_HOTSPOT_DESC), selectedIndex == 1);
 
   const int footerY = pageHeight - metrics.buttonHintsHeight - 84;
   if (footerY > contentY + cardH * 2 + NetworkActivityUI::GAP) {
     NetworkActivityUI::stateCard(renderer,
-                                 Rect{NetworkActivityUI::PAD, footerY,
-                                      pageWidth - NetworkActivityUI::PAD * 2, 64},
+                                 Rect{NetworkActivityUI::PAD, footerY, pageWidth - NetworkActivityUI::PAD * 2, 64},
                                  selectedIndex == 0 ? tr(STR_WIFI_NETWORKS) : tr(STR_HOTSPOT_MODE));
   }
 

@@ -5,9 +5,9 @@
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <I18n.h>
+#include <I18nKeys.h>
 #include <ReadingLog.h>
 
-#include <I18nKeys.h>
 #include <cstring>
 
 #include "MappedInputManager.h"
@@ -18,7 +18,7 @@ static constexpr int kMenuCount = 5;
 
 namespace {
 constexpr int kHomePad = 20;
-constexpr int kCardR   = 8;
+constexpr int kCardR = 8;
 
 void drawSelectionFrame(const GfxRenderer& renderer, Rect rect, bool selected) {
   if (selected) {
@@ -30,9 +30,8 @@ void drawSelectionFrame(const GfxRenderer& renderer, Rect rect, bool selected) {
   }
 }
 
-void drawLastReadTile(GfxRenderer& renderer, Rect rect, bool selected, const char* label,
-                      const char* emptyDescription, bool hasBook, const char* title,
-                      const char* author, const char* progress, const char* date,
+void drawLastReadTile(GfxRenderer& renderer, Rect rect, bool selected, const char* label, const char* emptyDescription,
+                      bool hasBook, const char* title, const char* author, const char* progress, const char* date,
                       const char* status) {
   drawSelectionFrame(renderer, rect, selected);
 
@@ -95,8 +94,8 @@ void drawLastReadTile(GfxRenderer& renderer, Rect rect, bool selected, const cha
   }
 }
 
-void drawActionTile(GfxRenderer& renderer, Rect rect, bool selected, UIIcon icon,
-                    const char* label, const char* description) {
+void drawActionTile(GfxRenderer& renderer, Rect rect, bool selected, UIIcon icon, const char* label,
+                    const char* description) {
   drawSelectionFrame(renderer, rect, selected);
 
   constexpr int iconSize = 64;
@@ -119,8 +118,7 @@ void drawActionTile(GfxRenderer& renderer, Rect rect, bool selected, UIIcon icon
     renderer.drawIcon(bmp, iconX, iconY, iconSize, iconSize);
   }
 
-  renderer.drawLine(textX, rect.y + rect.height - 18, rect.x + rect.width - 18,
-                    rect.y + rect.height - 18);
+  renderer.drawLine(textX, rect.y + rect.height - 18, rect.x + rect.width - 18, rect.y + rect.height - 18);
 }
 }  // namespace
 
@@ -129,12 +127,12 @@ void drawActionTile(GfxRenderer& renderer, Rect rect, bool selected, UIIcon icon
 // ---------------------------------------------------------------------------
 
 void HomeActivity::loadLastRead() {
-  hasLastRead         = false;
-  lastReadTitle[0]    = '\0';
-  lastReadAuthor[0]   = '\0';
+  hasLastRead = false;
+  lastReadTitle[0] = '\0';
+  lastReadAuthor[0] = '\0';
   lastReadProgress[0] = '\0';
-  lastReadDate[0]     = '\0';
-  lastReadStatus[0]   = '\0';
+  lastReadDate[0] = '\0';
+  lastReadStatus[0] = '\0';
 
   if (!Storage.exists(ReadingLog::DIR_PATH)) return;
 
@@ -142,10 +140,10 @@ void HomeActivity::loadLastRead() {
   if (!dir || !dir.isDirectory()) return;
 
   char bestBookId[32] = {};
-  char bestDate[11]   = {};
-  char bestTime[6]    = {};  // "HH:MM"
-  int  bestPos        = 0;
-  int  bestType       = 0;   // 0=Page, 1=Chapter
+  char bestDate[11] = {};
+  char bestTime[6] = {};  // "HH:MM"
+  int bestPos = 0;
+  int bestType = 0;          // 0=Page, 1=Chapter
   char bestStatus[12] = {};  // "reading", "finished", etc.
 
   static constexpr size_t BUF_SIZE = 4096;
@@ -185,7 +183,7 @@ void HomeActivity::loadLastRead() {
         if (d[0] != '\0' && (bestDate[0] == '\0' || strcmp(d, bestDate) > 0)) {
           strncpy(bestDate, d, sizeof(bestDate) - 1);
           strncpy(bestBookId, bookId, sizeof(bestBookId) - 1);
-          bestPos  = s["p"] | 0;
+          bestPos = s["p"] | 0;
           bestType = r["rt"] | 0;
           const char* st = r["s"] | "reading";
           strncpy(bestStatus, st, sizeof(bestStatus) - 1);
@@ -216,11 +214,11 @@ void HomeActivity::loadLastRead() {
   free(bbuf);
   if (!ok) return;
 
-  const char* title  = doc["t"] | "";
+  const char* title = doc["t"] | "";
   const char* author = doc["a"] | "";
   if (title[0] == '\0') return;
 
-  strncpy(lastReadTitle,  title,  sizeof(lastReadTitle)  - 1);
+  strncpy(lastReadTitle, title, sizeof(lastReadTitle) - 1);
   strncpy(lastReadAuthor, author, sizeof(lastReadAuthor) - 1);
 
   // Format progress: "p. 42" or "ch. 3"
@@ -230,10 +228,14 @@ void HomeActivity::loadLastRead() {
   // Map raw status to i18n string
   {
     StrId sid = StrId::STR_STATUS_READING;
-    if      (strcmp(bestStatus, "want")     == 0) sid = StrId::STR_STATUS_WANT_TO_READ;
-    else if (strcmp(bestStatus, "paused")   == 0) sid = StrId::STR_STATUS_PAUSED;
-    else if (strcmp(bestStatus, "finished") == 0) sid = StrId::STR_STATUS_FINISHED;
-    else if (strcmp(bestStatus, "dropped")  == 0) sid = StrId::STR_STATUS_DROPPED;
+    if (strcmp(bestStatus, "want") == 0)
+      sid = StrId::STR_STATUS_WANT_TO_READ;
+    else if (strcmp(bestStatus, "paused") == 0)
+      sid = StrId::STR_STATUS_PAUSED;
+    else if (strcmp(bestStatus, "finished") == 0)
+      sid = StrId::STR_STATUS_FINISHED;
+    else if (strcmp(bestStatus, "dropped") == 0)
+      sid = StrId::STR_STATUS_DROPPED;
     strncpy(lastReadStatus, trId(sid), sizeof(lastReadStatus) - 1);
   }
 
@@ -241,29 +243,41 @@ void HomeActivity::loadLastRead() {
   if (bestDate[0] != '\0' && strlen(bestDate) >= 7) {
     auto shortMonth = [](int m) -> const char* {
       switch (m) {
-        case  0: return tr(STR_MONTH_SHORT_JAN);
-        case  1: return tr(STR_MONTH_SHORT_FEB);
-        case  2: return tr(STR_MONTH_SHORT_MAR);
-        case  3: return tr(STR_MONTH_SHORT_APR);
-        case  4: return tr(STR_MONTH_SHORT_MAY);
-        case  5: return tr(STR_MONTH_SHORT_JUN);
-        case  6: return tr(STR_MONTH_SHORT_JUL);
-        case  7: return tr(STR_MONTH_SHORT_AUG);
-        case  8: return tr(STR_MONTH_SHORT_SEP);
-        case  9: return tr(STR_MONTH_SHORT_OCT);
-        case 10: return tr(STR_MONTH_SHORT_NOV);
-        case 11: return tr(STR_MONTH_SHORT_DEC);
-        default: return "";
+        case 0:
+          return tr(STR_MONTH_SHORT_JAN);
+        case 1:
+          return tr(STR_MONTH_SHORT_FEB);
+        case 2:
+          return tr(STR_MONTH_SHORT_MAR);
+        case 3:
+          return tr(STR_MONTH_SHORT_APR);
+        case 4:
+          return tr(STR_MONTH_SHORT_MAY);
+        case 5:
+          return tr(STR_MONTH_SHORT_JUN);
+        case 6:
+          return tr(STR_MONTH_SHORT_JUL);
+        case 7:
+          return tr(STR_MONTH_SHORT_AUG);
+        case 8:
+          return tr(STR_MONTH_SHORT_SEP);
+        case 9:
+          return tr(STR_MONTH_SHORT_OCT);
+        case 10:
+          return tr(STR_MONTH_SHORT_NOV);
+        case 11:
+          return tr(STR_MONTH_SHORT_DEC);
+        default:
+          return "";
       }
     };
     const int month = (bestDate[5] - '0') * 10 + (bestDate[6] - '0') - 1;
     if (month >= 0 && month < 12) {
       if (bestTime[0] != '\0') {
-        snprintf(lastReadDate, sizeof(lastReadDate), "%s '%c%c %s",
-                 shortMonth(month), bestDate[2], bestDate[3], bestTime);
+        snprintf(lastReadDate, sizeof(lastReadDate), "%s '%c%c %s", shortMonth(month), bestDate[2], bestDate[3],
+                 bestTime);
       } else {
-        snprintf(lastReadDate, sizeof(lastReadDate), "%s '%c%c",
-                 shortMonth(month), bestDate[2], bestDate[3]);
+        snprintf(lastReadDate, sizeof(lastReadDate), "%s '%c%c", shortMonth(month), bestDate[2], bestDate[3]);
       }
     }
   }
@@ -297,12 +311,23 @@ void HomeActivity::loop() {
   }
   if (mappedInput.wasReleasedGroup(MappedInputManager::ButtonGroup::BottomLeft)) {
     switch (selectorIndex) {
-      case 0: onLastReadOpen(); break;
-      case 1: onPhysicalBooksOpen(); break;
-      case 2: onReadingStatsOpen(); break;
-      case 3: onFileTransferOpen(); break;
-      case 4: onSettingsOpen(); break;
-      default: break;
+      case 0:
+        onLastReadOpen();
+        break;
+      case 1:
+        onPhysicalBooksOpen();
+        break;
+      case 2:
+        onReadingStatsOpen();
+        break;
+      case 3:
+        onFileTransferOpen();
+        break;
+      case 4:
+        onSettingsOpen();
+        break;
+      default:
+        break;
     }
   }
 }
@@ -315,25 +340,17 @@ void HomeActivity::render(RenderLock&&) {
   renderer.clearScreen();
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageW, metrics.headerHeight});
 
-  const char* labels[] = {
-    tr(STR_LAST_READ), tr(STR_PHYSICAL_BOOKS), tr(STR_READING_STATS),
-    tr(STR_NETWORK), tr(STR_SETTINGS_TITLE)
-  };
-  const char* descriptions[] = {
-    tr(STR_DESC_LAST_READ), tr(STR_DESC_PHYSICAL_BOOKS), tr(STR_DESC_READING_STATS),
-    tr(STR_DESC_NETWORK), tr(STR_DESC_SETTINGS)
-  };
-  const UIIcon icons[] = {
-    UIIcon::BookHeartIcon, UIIcon::LibraryBigIcon, UIIcon::ChartIcon,
-    UIIcon::NetworkIcon, UIIcon::SettingsIcon
-  };
+  const char* labels[] = {tr(STR_LAST_READ), tr(STR_PHYSICAL_BOOKS), tr(STR_READING_STATS), tr(STR_NETWORK),
+                          tr(STR_SETTINGS_TITLE)};
+  const char* descriptions[] = {tr(STR_DESC_LAST_READ), tr(STR_DESC_PHYSICAL_BOOKS), tr(STR_DESC_READING_STATS),
+                                tr(STR_DESC_NETWORK), tr(STR_DESC_SETTINGS)};
+  const UIIcon icons[] = {UIIcon::BookHeartIcon, UIIcon::LibraryBigIcon, UIIcon::ChartIcon, UIIcon::NetworkIcon,
+                          UIIcon::SettingsIcon};
 
   const int top = metrics.topPadding + metrics.headerHeight + 8;
   const int heroH = 190;
-  drawLastReadTile(renderer,
-                   Rect{kHomePad, top, pageW - kHomePad * 2, heroH},
-                   selectorIndex == 0, labels[0], descriptions[0], hasLastRead,
-                   lastReadTitle, lastReadAuthor, lastReadProgress, lastReadDate,
+  drawLastReadTile(renderer, Rect{kHomePad, top, pageW - kHomePad * 2, heroH}, selectorIndex == 0, labels[0],
+                   descriptions[0], hasLastRead, lastReadTitle, lastReadAuthor, lastReadProgress, lastReadDate,
                    lastReadStatus);
 
   constexpr int cols = 2;
@@ -349,8 +366,7 @@ void HomeActivity::render(RenderLock&&) {
     const int row = zero / cols;
     const int x = kHomePad + col * (tileW + gap);
     const int y = gridTop + row * (tileH + gap);
-    drawActionTile(renderer, Rect{x, y, tileW, tileH}, selectorIndex == i,
-                   icons[i], labels[i], descriptions[i]);
+    drawActionTile(renderer, Rect{x, y, tileW, tileH}, selectorIndex == i, icons[i], labels[i], descriptions[i]);
   }
 
   const auto btnLabels = mappedInput.mapLabels("", tr(STR_SELECT), tr(STR_PREV), tr(STR_NEXT));
@@ -359,8 +375,8 @@ void HomeActivity::render(RenderLock&&) {
   renderer.displayBuffer();
 }
 
-void HomeActivity::onSettingsOpen()     { activityManager.goToSettings(); }
+void HomeActivity::onSettingsOpen() { activityManager.goToSettings(); }
 void HomeActivity::onFileTransferOpen() { activityManager.goToFileTransfer(); }
-void HomeActivity::onPhysicalBooksOpen(){ activityManager.goToPhysicalBooks(); }
+void HomeActivity::onPhysicalBooksOpen() { activityManager.goToPhysicalBooks(); }
 void HomeActivity::onReadingStatsOpen() { activityManager.goToReadingStats(); }
-void HomeActivity::onLastReadOpen()     { activityManager.goToLastRead(); }
+void HomeActivity::onLastReadOpen() { activityManager.goToLastRead(); }

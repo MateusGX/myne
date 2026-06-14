@@ -1,11 +1,12 @@
 #pragma once
 
+#include <BookStore.h>
+#include <ReadingLog.h>
+
 #include <cstdint>
 #include <vector>
 
 #include "../Activity.h"
-#include <BookStore.h>
-#include <ReadingLog.h>
 
 class BookReadingStatsActivity final : public Activity {
   enum class View : uint8_t { Summary, Timeline };
@@ -19,13 +20,13 @@ class BookReadingStatsActivity final : public Activity {
 
  private:
   PhysicalBook book;
-  ReadingLog   readingLog;
-  View         currentView = View::Summary;
+  ReadingLog readingLog;
+  View currentView = View::Summary;
 
-  int  totalReadings = 0;
-  int  totalSessions = 0;
+  int totalReadings = 0;
+  int totalSessions = 0;
   char firstDate[11] = {};
-  char lastDate[11]  = {};
+  char lastDate[11] = {};
   std::vector<MonthBucket> monthBuckets;
 
   void loadData();
@@ -34,8 +35,7 @@ class BookReadingStatsActivity final : public Activity {
   void renderTimeline(int contentTop, int pageWidth, int pageHeight);
 
  public:
-  explicit BookReadingStatsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                                    PhysicalBook book)
+  explicit BookReadingStatsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, PhysicalBook book)
       : Activity("BookReadingStats", renderer, mappedInput), book(std::move(book)) {}
   void onEnter() override;
   void loop() override;

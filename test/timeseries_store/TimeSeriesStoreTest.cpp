@@ -1,8 +1,8 @@
+#include <HalStorage.h>
+
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-
-#include <HalStorage.h>
 
 #include "../datastore_common/TestHarness.h"
 #include "TimeSeriesStore.h"

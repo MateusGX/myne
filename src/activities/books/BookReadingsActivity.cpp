@@ -18,19 +18,17 @@ static const char* statusLabel(ReadingStatus s);
 
 namespace {
 constexpr int kReadRowH = 108;
-constexpr int kCardR    = 8;
-constexpr int kPad      = BooksActivityUI::PAD;
+constexpr int kCardR = 8;
+constexpr int kPad = BooksActivityUI::PAD;
 
 void drawEmptyState(const GfxRenderer& renderer, Rect rect) {
   renderer.drawRoundedRect(rect.x, rect.y, rect.width, rect.height, 1, kCardR, true);
   const int cx = rect.x + rect.width / 2;
   const int titleY = rect.y + std::max(28, rect.height / 2 - 28);
-  renderer.drawCenteredText(UI_10_FONT_ID, titleY, tr(STR_NO_READINGS), true,
-                            EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_10_FONT_ID, titleY, tr(STR_NO_READINGS), true, EpdFontFamily::BOLD);
 }
 
-void drawReadingRow(const GfxRenderer& renderer, Rect row, const Reading& r, int itemNumber,
-                    bool selected) {
+void drawReadingRow(const GfxRenderer& renderer, Rect row, const Reading& r, int itemNumber, bool selected) {
   const int lh10 = renderer.getLineHeight(UI_10_FONT_ID);
   const int lhSm = renderer.getLineHeight(SMALL_FONT_ID);
 
@@ -43,16 +41,13 @@ void drawReadingRow(const GfxRenderer& renderer, Rect row, const Reading& r, int
   char num[4];
   snprintf(num, sizeof(num), "%02d", itemNumber);
   const int numW = renderer.getTextWidth(UI_10_FONT_ID, num, EpdFontFamily::BOLD);
-  renderer.drawText(UI_10_FONT_ID, row.x + 26 - numW / 2, row.y + 20, num, true,
-                    EpdFontFamily::BOLD);
+  renderer.drawText(UI_10_FONT_ID, row.x + 26 - numW / 2, row.y + 20, num, true, EpdFontFamily::BOLD);
   renderer.drawLine(row.x + 54, row.y + 16, row.x + 54, row.y + row.height - 16);
 
   const int textX = row.x + 72;
   const int textW = row.width - (textX - row.x) - 16;
-  auto title = renderer.truncatedText(UI_10_FONT_ID, statusLabel(r.status), textW,
-                                      EpdFontFamily::BOLD);
-  renderer.drawText(UI_10_FONT_ID, textX, row.y + 16, title.c_str(), true,
-                    EpdFontFamily::BOLD);
+  auto title = renderer.truncatedText(UI_10_FONT_ID, statusLabel(r.status), textW, EpdFontFamily::BOLD);
+  renderer.drawText(UI_10_FONT_ID, textX, row.y + 16, title.c_str(), true, EpdFontFamily::BOLD);
 
   char sub[32];
   if (r.sessions.empty()) {
@@ -63,12 +58,9 @@ void drawReadingRow(const GfxRenderer& renderer, Rect row, const Reading& r, int
   }
   renderer.drawText(SMALL_FONT_ID, textX, row.y + 16 + lh10 + 8, sub, true);
 
-  const auto date = renderer.truncatedText(SMALL_FONT_ID,
-                                           r.lastDate().empty() ? "-" : r.lastDate().c_str(),
-                                           textW / 2);
+  const auto date = renderer.truncatedText(SMALL_FONT_ID, r.lastDate().empty() ? "-" : r.lastDate().c_str(), textW / 2);
   const int dw = renderer.getTextWidth(SMALL_FONT_ID, date.c_str());
-  renderer.drawText(SMALL_FONT_ID, row.x + row.width - 16 - dw,
-                    row.y + row.height - lhSm - 16, date.c_str(), true);
+  renderer.drawText(SMALL_FONT_ID, row.x + row.width - 16 - dw, row.y + row.height - lhSm - 16, date.c_str(), true);
 }
 }  // namespace
 
@@ -76,7 +68,7 @@ static void renderStatsProgress(void* raw, int done, int total) {
   if (total > 0 && done > 0 && done < total) {
     if ((done * 10 / total) == ((done - 1) * 10 / total)) return;
   }
-  auto& r     = *static_cast<GfxRenderer*>(raw);
+  auto& r = *static_cast<GfxRenderer*>(raw);
   const int W = r.getScreenWidth();
   const int H = r.getScreenHeight();
 
@@ -105,47 +97,48 @@ static void renderStatsProgress(void* raw, int done, int total) {
 
 static const char* statusLabel(ReadingStatus s) {
   switch (s) {
-    case ReadingStatus::WantToRead: return tr(STR_STATUS_WANT_TO_READ);
-    case ReadingStatus::Reading:    return tr(STR_STATUS_READING);
-    case ReadingStatus::Paused:     return tr(STR_STATUS_PAUSED);
-    case ReadingStatus::Finished:   return tr(STR_STATUS_FINISHED);
-    case ReadingStatus::Dropped:    return tr(STR_STATUS_DROPPED);
+    case ReadingStatus::WantToRead:
+      return tr(STR_STATUS_WANT_TO_READ);
+    case ReadingStatus::Reading:
+      return tr(STR_STATUS_READING);
+    case ReadingStatus::Paused:
+      return tr(STR_STATUS_PAUSED);
+    case ReadingStatus::Finished:
+      return tr(STR_STATUS_FINISHED);
+    case ReadingStatus::Dropped:
+      return tr(STR_STATUS_DROPPED);
   }
   return "";
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
-void BookReadingsActivity::loadReadings() {
-  readings = readingLog.loadForBook(book.id);
-}
+void BookReadingsActivity::loadReadings() { readings = readingLog.loadForBook(book.id); }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 
 void BookReadingsActivity::openSelected() {
   if (readings.empty()) return;
   const Reading& r = readings[static_cast<size_t>(selectorIndex)];
-  startActivityForResult(
-      std::make_unique<ReadingEditActivity>(renderer, mappedInput, book, r),
-      [this](const ActivityResult&) {
-        loadReadings();
-        requestUpdate();
-      });
+  startActivityForResult(std::make_unique<ReadingEditActivity>(renderer, mappedInput, book, r),
+                         [this](const ActivityResult&) {
+                           loadReadings();
+                           requestUpdate();
+                         });
 }
 
 void BookReadingsActivity::createNew() {
   Reading r;
   r.id = ReadingLog::newId();
   r.status = ReadingStatus::Reading;
-  startActivityForResult(
-      std::make_unique<ReadingEditActivity>(renderer, mappedInput, book, std::move(r)),
-      [this](const ActivityResult&) {
-        loadReadings();
-        if (selectorIndex >= static_cast<int>(readings.size()) && selectorIndex > 0) {
-          selectorIndex = static_cast<int>(readings.size()) - 1;
-        }
-        requestUpdate();
-      });
+  startActivityForResult(std::make_unique<ReadingEditActivity>(renderer, mappedInput, book, std::move(r)),
+                         [this](const ActivityResult&) {
+                           loadReadings();
+                           if (selectorIndex >= static_cast<int>(readings.size()) && selectorIndex > 0) {
+                             selectorIndex = static_cast<int>(readings.size()) - 1;
+                           }
+                           requestUpdate();
+                         });
 }
 
 void BookReadingsActivity::deleteSelected() {
@@ -208,7 +201,7 @@ void BookReadingsActivity::loop() {
     requestUpdate();
     return;
   }
-   if (mappedInput.wasReleased(MappedInputManager::Button::Right) && readings.empty()) {
+  if (mappedInput.wasReleased(MappedInputManager::Button::Right) && readings.empty()) {
     createNew();
     return;
   }
@@ -243,21 +236,19 @@ void BookReadingsActivity::render(RenderLock&&) {
   const auto pageHeight = renderer.getScreenHeight();
   const auto& metrics = UITheme::getInstance().getMetrics();
 
-  const std::string titleStr = book.volume.empty()
-      ? book.title
-      : book.title + " " + tr(STR_BOOK_VOLUME_SHORT) + " " + book.volume;
+  const std::string titleStr =
+      book.volume.empty() ? book.title : book.title + " " + tr(STR_BOOK_VOLUME_SHORT) + " " + book.volume;
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight});
 
   const int heroY = metrics.topPadding + metrics.headerHeight + 8;
   char detail[40];
   snprintf(detail, sizeof(detail), "%d %s", static_cast<int>(readings.size()), tr(STR_READINGS));
-  BooksActivityUI::hero(renderer,
-                        Rect{BooksActivityUI::PAD, heroY,
-                             pageWidth - BooksActivityUI::PAD * 2, BooksActivityUI::HERO_H},
-                        tr(STR_READINGS), titleStr.c_str(), detail);
+  BooksActivityUI::hero(
+      renderer, Rect{BooksActivityUI::PAD, heroY, pageWidth - BooksActivityUI::PAD * 2, BooksActivityUI::HERO_H},
+      tr(STR_READINGS), titleStr.c_str(), detail);
 
   const int contentTop = heroY + BooksActivityUI::HERO_H + 16;
-  const int contentH   = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing;
+  const int contentH = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing;
 
   if (readings.empty()) {
     const int emptyH = std::min(188, std::max(150, contentH - 20));
@@ -268,9 +259,8 @@ void BookReadingsActivity::render(RenderLock&&) {
     const int pageStart = (selectorIndex / pageItems) * pageItems;
     for (int i = pageStart; i < total && i < pageStart + pageItems; ++i) {
       const int ry = contentTop + (i - pageStart) * kReadRowH;
-      drawReadingRow(renderer,
-                     Rect{kPad, ry, pageWidth - kPad * 2, kReadRowH - 4},
-                     readings[static_cast<size_t>(i)], i + 1, i == selectorIndex);
+      drawReadingRow(renderer, Rect{kPad, ry, pageWidth - kPad * 2, kReadRowH - 4}, readings[static_cast<size_t>(i)],
+                     i + 1, i == selectorIndex);
     }
   }
 
@@ -281,11 +271,8 @@ void BookReadingsActivity::render(RenderLock&&) {
     GUI.drawButtonHints(renderer, btnLabels.btn1, btnLabels.btn2, btnLabels.btn3, btnLabels.btn4);
   } else {
     const bool hasItem = !readings.empty();
-    const auto btnLabels = mappedInput.mapLabels(
-        tr(STR_BACK),
-        hasItem ? tr(STR_SELECT) : "",
-        tr(STR_NEW_READING),
-        hasItem ? tr(STR_DELETE) : "");
+    const auto btnLabels = mappedInput.mapLabels(tr(STR_BACK), hasItem ? tr(STR_SELECT) : "", tr(STR_NEW_READING),
+                                                 hasItem ? tr(STR_DELETE) : "");
     GUI.drawButtonHints(renderer, btnLabels.btn1, btnLabels.btn2, btnLabels.btn3, btnLabels.btn4);
   }
 

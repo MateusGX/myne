@@ -1,10 +1,10 @@
 #include <HalStorage.h>
+#include <unistd.h>
 
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <string>
-#include <unistd.h>
 #include <vector>
 
 #include "../datastore_common/TestHarness.h"
@@ -25,18 +25,18 @@ void collectCollection(const char* id, const char* name, void* ctx) {
 PhysicalBook makeBook(BookStore& store, const std::string& title, const std::string& author,
                       const std::string& collection = "", const std::string& location = "") {
   PhysicalBook b;
-  b.title      = title;
-  b.author     = author;
+  b.title = title;
+  b.author = author;
   b.collection = collection;
-  b.location   = location;
+  b.location = location;
   store.create(b);
   usleep(2000);  // BookStore::create() ids are millis()-based; avoid collisions
   return b;
 }
 
 BookCatalog::BookChangeInfo toChangeInfo(const PhysicalBook& b) {
-  return BookCatalog::BookChangeInfo{b.id.c_str(),       b.title.c_str(), b.author.c_str(),
-                                      b.location.c_str(), b.volume.c_str(), b.collection.c_str()};
+  return BookCatalog::BookChangeInfo{b.id.c_str(),       b.title.c_str(),  b.author.c_str(),
+                                     b.location.c_str(), b.volume.c_str(), b.collection.c_str()};
 }
 
 // Six books used by most tests:
@@ -48,12 +48,12 @@ struct SampleBooks {
 
 SampleBooks createSampleBooks(BookStore& books) {
   SampleBooks s;
-  s.alpha  = makeBook(books, "Alpha Book", "Author A", "", "Shelf 1");
+  s.alpha = makeBook(books, "Alpha Book", "Author A", "", "Shelf 1");
   s.banana = makeBook(books, "Banana Book", "Author B", "", "Shelf 2");
-  s.n1984  = makeBook(books, "1984", "George Orwell");
-  s.saga1  = makeBook(books, "Saga Vol 1", "Author C", "Saga Collection");
-  s.saga2  = makeBook(books, "Saga Vol 2", "Author C", "Saga Collection");
-  s.solo   = makeBook(books, "Solo Book", "Author D");
+  s.n1984 = makeBook(books, "1984", "George Orwell");
+  s.saga1 = makeBook(books, "Saga Vol 1", "Author C", "Saga Collection");
+  s.saga2 = makeBook(books, "Saga Vol 2", "Author C", "Saga Collection");
+  s.solo = makeBook(books, "Solo Book", "Author D");
   return s;
 }
 
@@ -258,7 +258,7 @@ void testApplyBookChangeUpdateStandalone() {
   ASSERT_TRUE(BookCatalog::rebuild(BookStore::DIR_PATH));
 
   PhysicalBook updated = s.banana;
-  updated.title        = "Cactus Book";
+  updated.title = "Cactus Book";
   ASSERT_TRUE(books.update(updated));
 
   BookCatalog::BookChangeInfo oldInfo = toChangeInfo(s.banana);

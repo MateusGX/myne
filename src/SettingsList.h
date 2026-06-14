@@ -15,9 +15,12 @@ inline std::vector<std::string> buildTimezoneLabels() {
   labels.reserve(27);
   for (int h = -12; h <= 14; ++h) {
     char buf[10];
-    if (h > 0) snprintf(buf, sizeof(buf), "UTC+%d", h);
-    else if (h < 0) snprintf(buf, sizeof(buf), "UTC%d", h);
-    else snprintf(buf, sizeof(buf), "UTC+0");
+    if (h > 0)
+      snprintf(buf, sizeof(buf), "UTC+%d", h);
+    else if (h < 0)
+      snprintf(buf, sizeof(buf), "UTC%d", h);
+    else
+      snprintf(buf, sizeof(buf), "UTC+0");
     labels.push_back(buf);
   }
   return labels;
@@ -54,8 +57,8 @@ inline std::vector<SettingInfo> getSettingsList() {
                           "sleepTimeout", StrId::STR_CAT_SYSTEM),
         SettingInfo::Toggle(StrId::STR_SHOW_HIDDEN_FILES, &MyneSettings::showHiddenFiles, "showHiddenFiles",
                             StrId::STR_CAT_SYSTEM),
-        SettingInfo::EnumStrings(StrId::STR_TIMEZONE_OFFSET, &MyneSettings::timezoneOffset,
-                                 buildTimezoneLabels(), "timezoneOffset", StrId::STR_CAT_SYSTEM),
+        SettingInfo::EnumStrings(StrId::STR_TIMEZONE_OFFSET, &MyneSettings::timezoneOffset, buildTimezoneLabels(),
+                                 "timezoneOffset", StrId::STR_CAT_SYSTEM),
     };
     return v;
   }();

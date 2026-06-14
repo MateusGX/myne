@@ -1,8 +1,9 @@
 #pragma once
 
-#include "../Activity.h"
 #include <BookCatalog.h>
 #include <BookStore.h>
+
+#include "../Activity.h"
 #include "util/ButtonNavigator.h"
 
 // Shows the books within one collection.
@@ -15,10 +16,10 @@ class CollectionBooksActivity final : public Activity {
 
   // Pagination state
   int totalCount_ = 0;  // total books in this collection
-  int selIdx_     = 0;  // absolute selected book index
-  int pageItems_  = 0;  // entries per screen page (from UITheme, cached in onEnter)
-  int bufStart_   = -1; // index of first entry currently in buf_
-  int bufCount_   = 0;  // number of valid entries in buf_
+  int selIdx_ = 0;      // absolute selected book index
+  int pageItems_ = 0;   // entries per screen page (from UITheme, cached in onEnter)
+  int bufStart_ = -1;   // index of first entry currently in buf_
+  int bufCount_ = 0;    // number of valid entries in buf_
 
   BookCatalog::Entry* buf_ = nullptr;  // heap-allocated [pageItems_] entries
 
@@ -28,12 +29,14 @@ class CollectionBooksActivity final : public Activity {
   void openSelected();
 
  public:
-  CollectionBooksActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                           const char* collHash, int count, const char* collName = nullptr)
+  CollectionBooksActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const char* collHash, int count,
+                          const char* collName = nullptr)
       : Activity("CollectionBooks", renderer, mappedInput), totalCount_(count) {
-    strncpy(collHash_, collHash, 8); collHash_[8] = '\0';
+    strncpy(collHash_, collHash, 8);
+    collHash_[8] = '\0';
     if (collName && collName[0]) {
-      strncpy(collName_, collName, 32); collName_[32] = '\0';
+      strncpy(collName_, collName, 32);
+      collName_[32] = '\0';
     } else {
       collName_[0] = '\0';
     }

@@ -146,7 +146,6 @@ class MyneSettings {
     LONG_PRESS_BUTTON_BEHAVIOR_COUNT
   };
 
-
   // Image rendering in EPUB reader
   enum IMAGE_RENDERING { IMAGES_DISPLAY = 0, IMAGES_PLACEHOLDER = 1, IMAGES_SUPPRESS = 2, IMAGE_RENDERING_COUNT };
 
@@ -218,9 +217,7 @@ class MyneSettings {
   // Get singleton instance
   static MyneSettings& getInstance() { return instance; }
 
-  uint16_t getPowerButtonDuration() const {
-    return 300;
-  }
+  uint16_t getPowerButtonDuration() const { return 300; }
   int getReaderFontId() const;
 
   // If count_only is true, returns the number of settings items that would be written.

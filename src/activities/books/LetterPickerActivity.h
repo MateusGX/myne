@@ -1,7 +1,8 @@
 #pragma once
 
-#include "../Activity.h"
 #include <BookCatalog.h>
+
+#include "../Activity.h"
 #include "util/ButtonNavigator.h"
 
 // Entry point for physical book browsing.
@@ -10,13 +11,13 @@
 class LetterPickerActivity final : public Activity {
   struct LetterEntry {
     char letter;
-    int  count;   // total entries for this letter (collections + standalone books)
+    int count;  // total entries for this letter (collections + standalone books)
   };
 
   static constexpr int MAX_LETTERS = 27;  // A-Z + '#' for digits/symbols
   LetterEntry letters[MAX_LETTERS];
-  int         letterCount   = 0;
-  int         selectorIndex = 0;
+  int letterCount = 0;
+  int selectorIndex = 0;
 
   ButtonNavigator buttonNavigator;
 

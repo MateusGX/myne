@@ -22,8 +22,7 @@ static void writeJson(const char* path, const JsonDocument& doc) {
   file.write(reinterpret_cast<const uint8_t*>(buf), len);
 }
 
-static void seedBook(const char* id, const char* title, const char* author,
-                     const char* collection, const char* volume,
+static void seedBook(const char* id, const char* title, const char* author, const char* collection, const char* volume,
                      const char* location, const char* notes = "") {
   char path[80];
   snprintf(path, sizeof(path), "%s/%s.json", BookStore::DIR_PATH, id);
@@ -32,12 +31,12 @@ static void seedBook(const char* id, const char* title, const char* author,
   Storage.mkdir(BookStore::DIR_PATH);
   JsonDocument doc;
   doc["id"] = id;
-  doc["t"]  = title;
-  doc["a"]  = author;
-  doc["c"]  = collection;
-  doc["v"]  = volume;
-  doc["l"]  = location;
-  doc["n"]  = notes;
+  doc["t"] = title;
+  doc["a"] = author;
+  doc["c"] = collection;
+  doc["v"] = volume;
+  doc["l"] = location;
+  doc["n"] = notes;
   writeJson(path, doc);
 }
 
@@ -47,8 +46,7 @@ static void seedCollectionNote(const char* collection, const char* note) {
   BookCatalog::setCollectionNote(id, note);
 }
 
-static void seedReadings(const char* bookId, const char* status,
-                         int type,
+static void seedReadings(const char* bookId, const char* status, int type,
                          std::initializer_list<std::tuple<const char*, const char*, int>> sessions) {
   char path[80];
   snprintf(path, sizeof(path), "%s/%s.json", ReadingLog::DIR_PATH, bookId);
@@ -59,55 +57,35 @@ static void seedReadings(const char* bookId, const char* status,
   JsonArray arr = doc.to<JsonArray>();
   JsonObject obj = arr.add<JsonObject>();
   obj["id"] = bookId;
-  obj["s"]  = status;
+  obj["s"] = status;
   if (type == 1) obj["rt"] = 1;
   JsonArray sv = obj["sessions"].to<JsonArray>();
   for (const auto& [date, time, pos] : sessions) {
     JsonObject se = sv.add<JsonObject>();
-    se["d"]  = date;
+    se["d"] = date;
     se["tm"] = time;
-    se["p"]  = pos;
+    se["p"] = pos;
   }
 
   writeJson(path, doc);
 }
 
 void seedSimulatorData() {
-  seedBook(BOOK1_ID,
-           "O Senhor dos Aneis - A Sociedade do Anel",
-           "J.R.R. Tolkien",
-           LOTR_COLLECTION,
-           "Vol. 1",
-           "Estante A",
-           "notas aqui");
+  seedBook(BOOK1_ID, "O Senhor dos Aneis - A Sociedade do Anel", "J.R.R. Tolkien", LOTR_COLLECTION, "Vol. 1",
+           "Estante A", "notas aqui");
 
-  seedBook(BOOK3_ID,
-           "O Senhor dos Aneis - As Duas Torres",
-           "J.R.R. Tolkien",
-           LOTR_COLLECTION,
-           "Vol. 2",
-           "Estante A",
+  seedBook(BOOK3_ID, "O Senhor dos Aneis - As Duas Torres", "J.R.R. Tolkien", LOTR_COLLECTION, "Vol. 2", "Estante A",
            "Segundo volume da saga.");
 
-  seedBook(BOOK2_ID,
-           "Fundacao",
-           "Isaac Asimov",
-           "",
-           "",
-           "Estante B");
+  seedBook(BOOK2_ID, "Fundacao", "Isaac Asimov", "", "", "Estante B");
 
   seedReadings(BOOK1_ID, "reading", 0,
-               {{"2026-05-10", "21:00", 80},
-                {"2026-05-15", "20:30", 195},
-                {"2026-05-22", "22:00", 287}});
+               {{"2026-05-10", "21:00", 80}, {"2026-05-15", "20:30", 195}, {"2026-05-22", "22:00", 287}});
 
   seedReadings(BOOK2_ID, "finished", 0,
-               {{"2026-04-01", "19:00", 120},
-                {"2026-04-08", "21:30", 255},
-                {"2026-04-14", "20:00", 380}});
+               {{"2026-04-01", "19:00", 120}, {"2026-04-08", "21:30", 255}, {"2026-04-14", "20:00", 380}});
 
-  seedCollectionNote(LOTR_COLLECTION,
-                     "Colecao principal de Tolkien; conferir volumes e ordem de leitura.");
+  seedCollectionNote(LOTR_COLLECTION, "Colecao principal de Tolkien; conferir volumes e ordem de leitura.");
 
   BookCatalog::rebuild(BookStore::DIR_PATH);
   LOG_INF("SEED", "Simulator sample data ready");

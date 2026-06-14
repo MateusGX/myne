@@ -1,8 +1,8 @@
 #include <HalStorage.h>
+#include <unistd.h>
 
 #include <cstdio>
 #include <string>
-#include <unistd.h>
 #include <vector>
 
 #include "../datastore_common/TestHarness.h"
@@ -26,16 +26,16 @@ void testSaveLoadRoundTrip() {
   std::vector<Reading> readings;
 
   Reading r1;
-  r1.id          = "r1";
-  r1.status      = ReadingStatus::Finished;
+  r1.id = "r1";
+  r1.status = ReadingStatus::Finished;
   r1.readingType = ReadingType::Chapter;
   r1.sessions.push_back({"2024-01-01", "09:00", 10});
   r1.sessions.push_back({"2024-01-05", "20:15", 50});
   readings.push_back(r1);
 
   Reading r2;
-  r2.id          = "r2";
-  r2.status      = ReadingStatus::Reading;
+  r2.id = "r2";
+  r2.status = ReadingStatus::Reading;
   r2.readingType = ReadingType::Page;
   r2.sessions.push_back({"2024-02-01", "", 5});
   readings.push_back(r2);
@@ -68,14 +68,13 @@ void testStatusRoundTripForAllValues() {
   TempStorageDir tmp;
   ReadingLog log;
 
-  ReadingStatus all[] = {ReadingStatus::WantToRead, ReadingStatus::Reading,
-                          ReadingStatus::Paused, ReadingStatus::Finished,
-                          ReadingStatus::Dropped};
+  ReadingStatus all[] = {ReadingStatus::WantToRead, ReadingStatus::Reading, ReadingStatus::Paused,
+                         ReadingStatus::Finished, ReadingStatus::Dropped};
 
   std::vector<Reading> readings;
   for (size_t i = 0; i < 5; ++i) {
     Reading r;
-    r.id     = "r" + std::to_string(i);
+    r.id = "r" + std::to_string(i);
     r.status = all[i];
     readings.push_back(r);
   }
@@ -97,8 +96,8 @@ void testLoadSummaryForBookLazyMigration() {
 
   std::vector<Reading> readings;
   Reading r;
-  r.id          = "r1";
-  r.status      = ReadingStatus::Reading;
+  r.id = "r1";
+  r.status = ReadingStatus::Reading;
   r.readingType = ReadingType::Page;
   r.sessions.push_back({"2024-01-15", "10:30", 42});
   readings.push_back(r);
@@ -137,7 +136,7 @@ void testLoadSummaryForBookDateRoundTrip() {
 
   std::vector<Reading> readings;
   Reading r;
-  r.id     = "r1";
+  r.id = "r1";
   r.status = ReadingStatus::Reading;
   r.sessions.push_back({"2024-01-15", "", 42});
   readings.push_back(r);
@@ -191,8 +190,8 @@ void testRebuildStatsAndLoadSummary() {
 
   std::vector<Reading> r1list;
   Reading r1;
-  r1.id          = "r1";
-  r1.status      = ReadingStatus::Finished;
+  r1.id = "r1";
+  r1.status = ReadingStatus::Finished;
   r1.readingType = ReadingType::Page;
   r1.sessions.push_back({"2024-01-10", "", 1});
   r1.sessions.push_back({"2024-02-05", "", 2});
@@ -201,8 +200,8 @@ void testRebuildStatsAndLoadSummary() {
 
   std::vector<Reading> r2list;
   Reading r2;
-  r2.id          = "r2";
-  r2.status      = ReadingStatus::Reading;
+  r2.id = "r2";
+  r2.status = ReadingStatus::Reading;
   r2.readingType = ReadingType::Chapter;
   r2.sessions.push_back({"2024-01-20", "", 3});
   r2list.push_back(r2);

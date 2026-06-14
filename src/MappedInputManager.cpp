@@ -66,15 +66,21 @@ bool MappedInputManager::mapButtonGroup(const ButtonGroup buttonGroup, bool (Hal
 
 bool MappedInputManager::wasPressed(const Button button) const { return mapButton(button, &HalGPIO::wasPressed); }
 
-bool MappedInputManager::wasPressedGroup(const ButtonGroup buttonGroup) const { return mapButtonGroup(buttonGroup, &HalGPIO::wasPressed); }
+bool MappedInputManager::wasPressedGroup(const ButtonGroup buttonGroup) const {
+  return mapButtonGroup(buttonGroup, &HalGPIO::wasPressed);
+}
 
 bool MappedInputManager::wasReleased(const Button button) const { return mapButton(button, &HalGPIO::wasReleased); }
 
-bool MappedInputManager::wasReleasedGroup(const ButtonGroup buttonGroup) const { return mapButtonGroup(buttonGroup, &HalGPIO::wasReleased); }
+bool MappedInputManager::wasReleasedGroup(const ButtonGroup buttonGroup) const {
+  return mapButtonGroup(buttonGroup, &HalGPIO::wasReleased);
+}
 
 bool MappedInputManager::isPressed(const Button button) const { return mapButton(button, &HalGPIO::isPressed); }
 
-bool MappedInputManager::isPressedGroup(const ButtonGroup buttonGroup) const { return mapButtonGroup(buttonGroup, &HalGPIO::isPressed); }
+bool MappedInputManager::isPressedGroup(const ButtonGroup buttonGroup) const {
+  return mapButtonGroup(buttonGroup, &HalGPIO::isPressed);
+}
 
 bool MappedInputManager::wasAnyPressed() const { return gpio.wasAnyPressed(); }
 

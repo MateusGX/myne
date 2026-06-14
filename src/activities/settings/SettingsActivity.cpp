@@ -6,15 +6,15 @@
 #include <algorithm>
 
 #include "ButtonRemapActivity.h"
-#include "MyneSettings.h"
 #include "LanguageSelectActivity.h"
 #include "MappedInputManager.h"
+#include "MyneSettings.h"
 #ifndef SIMULATOR
 #include "OtaUpdateActivity.h"
 #include "SdFirmwareUpdateActivity.h"
 #endif
-#include "SettingsList.h"
 #include "SettingsActivityUI.h"
+#include "SettingsList.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
@@ -156,9 +156,8 @@ void SettingsActivity::toggleCurrentSetting() {
     SETTINGS.*(setting.valuePtr) = !currentValue;
   } else if (setting.type == SettingType::ENUM && setting.valuePtr != nullptr) {
     const uint8_t currentValue = SETTINGS.*(setting.valuePtr);
-    const uint8_t total = !setting.enumStringValues.empty()
-        ? static_cast<uint8_t>(setting.enumStringValues.size())
-        : static_cast<uint8_t>(setting.enumValues.size());
+    const uint8_t total = !setting.enumStringValues.empty() ? static_cast<uint8_t>(setting.enumStringValues.size())
+                                                            : static_cast<uint8_t>(setting.enumValues.size());
     SETTINGS.*(setting.valuePtr) = (currentValue + 1) % total;
   } else if (setting.type == SettingType::ENUM && setting.valueGetter && setting.valueSetter) {
     const uint8_t totalValues = setting.enumStringValues.empty()
@@ -218,18 +217,14 @@ void SettingsActivity::render(RenderLock&&) {
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight});
 
   const int heroY = metrics.topPadding + metrics.headerHeight + 8;
-  SettingsActivityUI::hero(renderer,
-                           Rect{SettingsActivityUI::PAD, heroY,
-                                pageWidth - SettingsActivityUI::PAD * 2, 104},
-                           tr(STR_SETTINGS_TITLE), I18N.get(categoryNames[selectedCategoryIndex]),
-                           MYNE_VERSION);
+  SettingsActivityUI::hero(renderer, Rect{SettingsActivityUI::PAD, heroY, pageWidth - SettingsActivityUI::PAD * 2, 104},
+                           tr(STR_SETTINGS_TITLE), I18N.get(categoryNames[selectedCategoryIndex]), MYNE_VERSION);
 
   const int catY = heroY + 124;
   const int catW = (pageWidth - SettingsActivityUI::PAD * 2 - SettingsActivityUI::GAP * 2) / categoryCount;
   for (int i = 0; i < categoryCount; ++i) {
     SettingsActivityUI::choice(renderer,
-                               Rect{SettingsActivityUI::PAD + i * (catW + SettingsActivityUI::GAP),
-                                    catY, catW, 68},
+                               Rect{SettingsActivityUI::PAD + i * (catW + SettingsActivityUI::GAP), catY, catW, 68},
                                I18N.get(categoryNames[i]), "", selectedCategoryIndex == i && selectedSettingIndex == 0);
   }
 
@@ -276,8 +271,7 @@ void SettingsActivity::render(RenderLock&&) {
     const int rowY = listTop + (i - start) * (rowH + rowGap);
     const std::string value = valueForSetting(i);
     SettingsActivityUI::option(renderer,
-                               Rect{SettingsActivityUI::PAD, rowY,
-                                    pageWidth - SettingsActivityUI::PAD * 2, rowH},
+                               Rect{SettingsActivityUI::PAD, rowY, pageWidth - SettingsActivityUI::PAD * 2, rowH},
                                I18N.get(settings[i].nameId), value.c_str(), selected);
   }
 

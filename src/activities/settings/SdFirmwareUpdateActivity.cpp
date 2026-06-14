@@ -217,22 +217,18 @@ void SdFirmwareUpdateActivity::render(RenderLock&&) {
   const char* headerText = recoveryMode ? tr(STR_RECOVERY_MODE) : tr(STR_SD_FIRMWARE_UPDATE);
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight});
   const int heroY = metrics.topPadding + metrics.headerHeight + 8;
-  SettingsActivityUI::hero(renderer,
-                           Rect{SettingsActivityUI::PAD, heroY,
-                                pageWidth - SettingsActivityUI::PAD * 2, 104},
+  SettingsActivityUI::hero(renderer, Rect{SettingsActivityUI::PAD, heroY, pageWidth - SettingsActivityUI::PAD * 2, 104},
                            tr(STR_SETTINGS_TITLE), headerText,
                            recoveryMode ? tr(STR_RECOVERY_MODE_HINT) : tr(STR_SELECT_FIRMWARE_FILE));
 
-  const Rect card{SettingsActivityUI::PAD, heroY + 132,
-                  pageWidth - SettingsActivityUI::PAD * 2, 190};
+  const Rect card{SettingsActivityUI::PAD, heroY + 132, pageWidth - SettingsActivityUI::PAD * 2, 190};
 
   if (state == State::VALIDATING) {
     SettingsActivityUI::stateCard(renderer, card, tr(STR_VALIDATING_FIRMWARE));
   } else if (state == State::UPDATING) {
     SettingsActivityUI::panel(renderer, card, true);
     SettingsActivityUI::text(renderer, UI_10_FONT_ID, card.x + SettingsActivityUI::INNER + 8, card.y + 30,
-                             tr(STR_UPDATING), card.width - SettingsActivityUI::INNER * 2 - 8,
-                             EpdFontFamily::BOLD);
+                             tr(STR_UPDATING), card.width - SettingsActivityUI::INNER * 2 - 8, EpdFontFamily::BOLD);
     GUI.drawProgressBar(renderer,
                         Rect{card.x + SettingsActivityUI::INNER + 8, card.y + 86,
                              card.width - SettingsActivityUI::INNER * 2 - 8, metrics.progressBarHeight},

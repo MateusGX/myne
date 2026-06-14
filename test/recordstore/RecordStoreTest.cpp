@@ -20,13 +20,13 @@ struct TestRecord {
 
 void serializeTestRecord(JsonDocument& doc, const void* data) {
   const auto& r = *static_cast<const TestRecord*>(data);
-  doc["name"]  = r.name;
+  doc["name"] = r.name;
   doc["value"] = r.value;
 }
 
 bool deserializeTestRecord(JsonDocument& doc, void* data) {
   auto& r = *static_cast<TestRecord*>(data);
-  r.name  = doc["name"] | "";
+  r.name = doc["name"] | "";
   r.value = doc["value"] | 0;
   return true;
 }
@@ -35,7 +35,7 @@ bool deserializeTestRecord(JsonDocument& doc, void* data) {
 
 static constexpr const char* RECORDS_DIR = "/.myne/test-records";
 static constexpr const char* SUMMARY_DIR = "/.myne/test-records-sum";
-static constexpr size_t SUM_SIZE         = 8;
+static constexpr size_t SUM_SIZE = 8;
 
 void testInitCreatesDirs() {
   TempStorageDir tmp;
@@ -222,7 +222,7 @@ void testForEachFile() {
   ASSERT_TRUE(store.save("b", serializeTestRecord, &rec));
 
   struct Ctx {
-    int count        = 0;
+    int count = 0;
     int unexpectedId = 0;
     size_t totalSize = 0;
   } ctx;

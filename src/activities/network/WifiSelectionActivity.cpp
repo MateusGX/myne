@@ -468,8 +468,7 @@ void WifiSelectionActivity::render(RenderLock&&) {
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight});
   const int heroY = metrics.topPadding + metrics.headerHeight + 8;
   const char* detail = state == WifiSelectionState::NETWORK_LIST ? countStr : cachedMacAddress.c_str();
-  NetworkActivityUI::hero(renderer, Rect{NetworkActivityUI::PAD, heroY,
-                                         pageWidth - NetworkActivityUI::PAD * 2, 104},
+  NetworkActivityUI::hero(renderer, Rect{NetworkActivityUI::PAD, heroY, pageWidth - NetworkActivityUI::PAD * 2, 104},
                           tr(STR_NETWORK), tr(STR_WIFI_NETWORKS), detail);
 
   switch (state) {
@@ -514,8 +513,7 @@ void WifiSelectionActivity::renderNetworkList() const {
 
   if (networks.empty()) {
     NetworkActivityUI::stateCard(renderer,
-                                 Rect{NetworkActivityUI::PAD, contentTop,
-                                      pageWidth - NetworkActivityUI::PAD * 2, 180},
+                                 Rect{NetworkActivityUI::PAD, contentTop, pageWidth - NetworkActivityUI::PAD * 2, 180},
                                  tr(STR_NO_NETWORKS), tr(STR_PRESS_OK_SCAN));
   } else {
     constexpr int rowH = 72;
@@ -534,14 +532,11 @@ void WifiSelectionActivity::renderNetworkList() const {
       NetworkActivityUI::panel(renderer, row, selected);
       const int textX = row.x + NetworkActivityUI::INNER + (selected ? 8 : 0);
       constexpr int rightW = 92;
-      NetworkActivityUI::text(renderer, UI_10_FONT_ID, textX, row.y + 14,
-                              network.ssid.c_str(), row.width - NetworkActivityUI::INNER * 2 - rightW,
-                              EpdFontFamily::BOLD);
+      NetworkActivityUI::text(renderer, UI_10_FONT_ID, textX, row.y + 14, network.ssid.c_str(),
+                              row.width - NetworkActivityUI::INNER * 2 - rightW, EpdFontFamily::BOLD);
       char meta[48];
-      snprintf(meta, sizeof(meta), "%s%s%d dBm",
-               network.hasSavedPassword ? "Saved - " : "",
-               network.isEncrypted ? "Locked - " : "Open - ",
-               static_cast<int>(network.rssi));
+      snprintf(meta, sizeof(meta), "%s%s%d dBm", network.hasSavedPassword ? "Saved - " : "",
+               network.isEncrypted ? "Locked - " : "Open - ", static_cast<int>(network.rssi));
       NetworkActivityUI::text(renderer, SMALL_FONT_ID, textX, row.y + 44, meta,
                               row.width - NetworkActivityUI::INNER * 2 - rightW);
       NetworkActivityUI::signalBars(renderer, row.x + row.width - 52, row.y + 28, network.rssi);
@@ -562,15 +557,11 @@ void WifiSelectionActivity::renderConnecting() const {
   const int y = heroY + 140;
 
   if (state == WifiSelectionState::SCANNING) {
-    NetworkActivityUI::stateCard(renderer,
-                                 Rect{NetworkActivityUI::PAD, y,
-                                      pageWidth - NetworkActivityUI::PAD * 2, 180},
+    NetworkActivityUI::stateCard(renderer, Rect{NetworkActivityUI::PAD, y, pageWidth - NetworkActivityUI::PAD * 2, 180},
                                  tr(STR_SCANNING), cachedMacAddress.c_str());
   } else {
     std::string ssidInfo = std::string(tr(STR_TO_PREFIX)) + selectedSSID;
-    NetworkActivityUI::stateCard(renderer,
-                                 Rect{NetworkActivityUI::PAD, y,
-                                      pageWidth - NetworkActivityUI::PAD * 2, 180},
+    NetworkActivityUI::stateCard(renderer, Rect{NetworkActivityUI::PAD, y, pageWidth - NetworkActivityUI::PAD * 2, 180},
                                  tr(STR_CONNECTING), ssidInfo.c_str());
   }
 }
@@ -583,9 +574,7 @@ void WifiSelectionActivity::renderConnected() const {
 
   std::string ssidInfo = std::string(tr(STR_NETWORK_PREFIX)) + selectedSSID;
   const std::string ipInfo = std::string(tr(STR_IP_ADDRESS_PREFIX)) + connectedIP;
-  NetworkActivityUI::stateCard(renderer,
-                               Rect{NetworkActivityUI::PAD, y,
-                                    pageWidth - NetworkActivityUI::PAD * 2, 196},
+  NetworkActivityUI::stateCard(renderer, Rect{NetworkActivityUI::PAD, y, pageWidth - NetworkActivityUI::PAD * 2, 196},
                                tr(STR_CONNECTED), ssidInfo.c_str());
   renderer.drawCenteredText(SMALL_FONT_ID, y + 132, ipInfo.c_str(), true, EpdFontFamily::BOLD);
 
@@ -600,17 +589,14 @@ void WifiSelectionActivity::renderSavePrompt() const {
   const int y = heroY + 130;
 
   std::string ssidInfo = std::string(tr(STR_NETWORK_PREFIX)) + selectedSSID;
-  NetworkActivityUI::stateCard(renderer,
-                               Rect{NetworkActivityUI::PAD, y,
-                                    pageWidth - NetworkActivityUI::PAD * 2, 132},
+  NetworkActivityUI::stateCard(renderer, Rect{NetworkActivityUI::PAD, y, pageWidth - NetworkActivityUI::PAD * 2, 132},
                                tr(STR_SAVE_PASSWORD), ssidInfo.c_str());
   const int choiceY = y + 154;
   const int choiceW = (pageWidth - NetworkActivityUI::PAD * 2 - NetworkActivityUI::GAP) / 2;
-  NetworkActivityUI::choice(renderer, Rect{NetworkActivityUI::PAD, choiceY, choiceW, 78},
-                            tr(STR_YES), tr(STR_CONNECTED), savePromptSelection == 0);
+  NetworkActivityUI::choice(renderer, Rect{NetworkActivityUI::PAD, choiceY, choiceW, 78}, tr(STR_YES),
+                            tr(STR_CONNECTED), savePromptSelection == 0);
   NetworkActivityUI::choice(renderer,
-                            Rect{NetworkActivityUI::PAD + choiceW + NetworkActivityUI::GAP,
-                                 choiceY, choiceW, 78},
+                            Rect{NetworkActivityUI::PAD + choiceW + NetworkActivityUI::GAP, choiceY, choiceW, 78},
                             tr(STR_NO), tr(STR_CANCEL), savePromptSelection == 1);
 
   const auto labels = mappedInput.mapLabels(tr(STR_CANCEL), tr(STR_SELECT), tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT));
@@ -622,9 +608,7 @@ void WifiSelectionActivity::renderConnectionFailed() const {
   const int pageWidth = renderer.getScreenWidth();
   const int heroY = metrics.topPadding + metrics.headerHeight + 8;
   const int y = heroY + 136;
-  NetworkActivityUI::stateCard(renderer,
-                               Rect{NetworkActivityUI::PAD, y,
-                                    pageWidth - NetworkActivityUI::PAD * 2, 180},
+  NetworkActivityUI::stateCard(renderer, Rect{NetworkActivityUI::PAD, y, pageWidth - NetworkActivityUI::PAD * 2, 180},
                                tr(STR_CONNECTION_FAILED), connectionError.c_str());
 
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_DONE), "", "");
@@ -638,17 +622,14 @@ void WifiSelectionActivity::renderForgetPrompt() const {
   const int y = heroY + 130;
 
   std::string ssidInfo = std::string(tr(STR_NETWORK_PREFIX)) + selectedSSID;
-  NetworkActivityUI::stateCard(renderer,
-                               Rect{NetworkActivityUI::PAD, y,
-                                    pageWidth - NetworkActivityUI::PAD * 2, 132},
+  NetworkActivityUI::stateCard(renderer, Rect{NetworkActivityUI::PAD, y, pageWidth - NetworkActivityUI::PAD * 2, 132},
                                tr(STR_FORGET_NETWORK), ssidInfo.c_str());
   const int choiceY = y + 154;
   const int choiceW = (pageWidth - NetworkActivityUI::PAD * 2 - NetworkActivityUI::GAP) / 2;
-  NetworkActivityUI::choice(renderer, Rect{NetworkActivityUI::PAD, choiceY, choiceW, 82},
-                            tr(STR_CANCEL), tr(STR_BACK), forgetPromptSelection == 0);
+  NetworkActivityUI::choice(renderer, Rect{NetworkActivityUI::PAD, choiceY, choiceW, 82}, tr(STR_CANCEL), tr(STR_BACK),
+                            forgetPromptSelection == 0);
   NetworkActivityUI::choice(renderer,
-                            Rect{NetworkActivityUI::PAD + choiceW + NetworkActivityUI::GAP,
-                                 choiceY, choiceW, 82},
+                            Rect{NetworkActivityUI::PAD + choiceW + NetworkActivityUI::GAP, choiceY, choiceW, 82},
                             tr(STR_FORGET_BUTTON), tr(STR_FORGET_AND_REMOVE), forgetPromptSelection == 1);
 
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT));

@@ -7,12 +7,12 @@
 
 #include <algorithm>
 
-#include "boot_sleep/BootActivity.h"
-#include "boot_sleep/SleepActivity.h"
 #include "books/BookReadingsActivity.h"
 #include "books/LetterPickerActivity.h"
 #include "books/PhysicalBookDetailActivity.h"
 #include "books/ReadingStatsActivity.h"
+#include "boot_sleep/BootActivity.h"
+#include "boot_sleep/SleepActivity.h"
 #include "browser/FileBrowserActivity.h"
 #include "home/HomeActivity.h"
 #include "util/CrashActivity.h"
@@ -192,7 +192,8 @@ void ActivityManager::goToSleep() {
 void ActivityManager::goToBoot() { replaceActivity(std::make_unique<BootActivity>(renderer, mappedInput)); }
 
 void ActivityManager::goToFullScreenMessage(std::string message, EpdFontFamily::Style style, bool showBack) {
-  replaceActivity(std::make_unique<FullScreenMessageActivity>(renderer, mappedInput, std::move(message), style, HalDisplay::FAST_REFRESH, showBack));
+  replaceActivity(std::make_unique<FullScreenMessageActivity>(renderer, mappedInput, std::move(message), style,
+                                                              HalDisplay::FAST_REFRESH, showBack));
 }
 
 void ActivityManager::goToCrashReport() { replaceActivity(std::make_unique<CrashActivity>(renderer, mappedInput)); }
@@ -254,7 +255,7 @@ void ActivityManager::goToLastRead() {
             for (JsonObject s : sessions) {
               const char* d = s["d"] | "";
               if (d[0] != '\0' && (bestDate.empty() || strcmp(d, bestDate.c_str()) > 0)) {
-                bestDate   = d;
+                bestDate = d;
                 bestBookId = bookId;
               }
             }
@@ -284,13 +285,13 @@ void ActivityManager::goToLastRead() {
       buf[n] = '\0';
       JsonDocument doc;
       if (deserializeJson(doc, buf) == DeserializationError::Ok) {
-        book.id         = doc["id"] | "";
-        book.title      = doc["t"]  | "";
-        book.author     = doc["a"]  | "";
-        book.collection = doc["c"]  | "";
-        book.volume     = doc["v"]  | "";
-        book.location   = doc["l"]  | "";
-        book.notes      = doc["n"]  | "";
+        book.id = doc["id"] | "";
+        book.title = doc["t"] | "";
+        book.author = doc["a"] | "";
+        book.collection = doc["c"] | "";
+        book.volume = doc["v"] | "";
+        book.location = doc["l"] | "";
+        book.notes = doc["n"] | "";
         found = !book.id.empty() && !book.title.empty();
       }
       free(buf);

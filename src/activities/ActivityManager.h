@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BookStore.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
@@ -11,7 +12,6 @@
 
 #include "GfxRenderer.h"
 #include "MappedInputManager.h"
-#include <BookStore.h>
 #include "util/ScreenshotInfo.h"
 
 class Activity;    // forward declaration
@@ -89,7 +89,8 @@ class ActivityManager {
   void goToLastRead();
   void goToSleep();
   void goToBoot();
-  void goToFullScreenMessage(std::string message, EpdFontFamily::Style style = EpdFontFamily::REGULAR, bool showBack = false);
+  void goToFullScreenMessage(std::string message, EpdFontFamily::Style style = EpdFontFamily::REGULAR,
+                             bool showBack = false);
   void goToCrashReport();
   void goHome();
 

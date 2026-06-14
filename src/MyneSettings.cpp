@@ -188,7 +188,10 @@ bool MyneSettings::loadFromBinaryFile() {
     if (++settingsRead >= fileSettingsCount) break;
     readAndValidate(inputFile, sleepScreenCoverFilter, SLEEP_SCREEN_COVER_FILTER_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
-    { uint8_t ignored; serialization::readPod(inputFile, ignored); }  // legacy uiTheme
+    {
+      uint8_t ignored;
+      serialization::readPod(inputFile, ignored);
+    }  // legacy uiTheme
     if (++settingsRead >= fileSettingsCount) break;
     readAndValidate(inputFile, frontButtonBack, FRONT_BUTTON_HARDWARE_COUNT);
     if (++settingsRead >= fileSettingsCount) break;

@@ -5,6 +5,7 @@
 #include <I18n.h>
 #ifndef SIMULATOR
 #include <WiFi.h>
+
 #include "activities/network/WifiSelectionActivity.h"
 #endif
 
@@ -13,8 +14,8 @@
 #include <ctime>
 
 #include "BooksActivityUI.h"
-#include "MyneSettings.h"
 #include "MappedInputManager.h"
+#include "MyneSettings.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
@@ -24,7 +25,7 @@ static void renderStatsProgress(void* raw, int done, int total) {
   if (total > 0 && done > 0 && done < total) {
     if ((done * 10 / total) == ((done - 1) * 10 / total)) return;
   }
-  auto& r     = *static_cast<GfxRenderer*>(raw);
+  auto& r = *static_cast<GfxRenderer*>(raw);
   const int W = r.getScreenWidth();
   const int H = r.getScreenHeight();
 
@@ -55,11 +56,16 @@ static int daysInMonth(int year, int month) {
 
 static const char* statusLabel(ReadingStatus s) {
   switch (s) {
-    case ReadingStatus::WantToRead: return tr(STR_STATUS_WANT_TO_READ);
-    case ReadingStatus::Reading:    return tr(STR_STATUS_READING);
-    case ReadingStatus::Paused:     return tr(STR_STATUS_PAUSED);
-    case ReadingStatus::Finished:   return tr(STR_STATUS_FINISHED);
-    case ReadingStatus::Dropped:    return tr(STR_STATUS_DROPPED);
+    case ReadingStatus::WantToRead:
+      return tr(STR_STATUS_WANT_TO_READ);
+    case ReadingStatus::Reading:
+      return tr(STR_STATUS_READING);
+    case ReadingStatus::Paused:
+      return tr(STR_STATUS_PAUSED);
+    case ReadingStatus::Finished:
+      return tr(STR_STATUS_FINISHED);
+    case ReadingStatus::Dropped:
+      return tr(STR_STATUS_DROPPED);
   }
   return "";
 }
@@ -72,12 +78,12 @@ void ReadingEditActivity::initDate() {
     const time_t localNow = now + static_cast<time_t>(SETTINGS.getTimezoneOffsetHours()) * 3600;
     struct tm t;
     gmtime_r(&localNow, &t);
-    logYear   = t.tm_year + 1900;
-    logMonth  = t.tm_mon + 1;
-    logDay    = t.tm_mday;
-    logHour   = t.tm_hour;
+    logYear = t.tm_year + 1900;
+    logMonth = t.tm_mon + 1;
+    logDay = t.tm_mday;
+    logHour = t.tm_hour;
     logMinute = t.tm_min;
-    hasTime   = true;
+    hasTime = true;
     return;
   }
   if (!reading.sessions.empty()) {
@@ -91,7 +97,9 @@ void ReadingEditActivity::initDate() {
     }
     return;
   }
-  logYear = 2025; logMonth = 1; logDay = 1;
+  logYear = 2025;
+  logMonth = 1;
+  logDay = 1;
 }
 
 void ReadingEditActivity::adjustDate(int dir) {
@@ -103,19 +111,25 @@ void ReadingEditActivity::adjustDate(int dir) {
     if (logDay > max) logDay = max;
   } else if (dateSubField == 1) {
     logMonth += dir;
-    if (logMonth < 1)  { logMonth = 12; --logYear; }
-    if (logMonth > 12) { logMonth = 1;  ++logYear; }
+    if (logMonth < 1) {
+      logMonth = 12;
+      --logYear;
+    }
+    if (logMonth > 12) {
+      logMonth = 1;
+      ++logYear;
+    }
     const int max = daysInMonth(logYear, logMonth);
     if (logDay > max) logDay = max;
   } else if (dateSubField == 2) {
     struct tm t = {};
     t.tm_year = logYear - 1900;
-    t.tm_mon  = logMonth - 1;
+    t.tm_mon = logMonth - 1;
     t.tm_mday = logDay + dir;
     mktime(&t);
-    logYear  = t.tm_year + 1900;
+    logYear = t.tm_year + 1900;
     logMonth = t.tm_mon + 1;
-    logDay   = t.tm_mday;
+    logDay = t.tm_mday;
   } else if (dateSubField == 3) {
     logHour = (logHour + dir + 24) % 24;
     hasTime = true;
@@ -152,8 +166,7 @@ void ReadingEditActivity::adjustField(int dir) {
     case Field::SyncTime:
       break;
     case Field::Type:
-      reading.readingType = (reading.readingType == ReadingType::Page)
-                                 ? ReadingType::Chapter : ReadingType::Page;
+      reading.readingType = (reading.readingType == ReadingType::Page) ? ReadingType::Chapter : ReadingType::Page;
       dirty = true;
       break;
   }
@@ -168,12 +181,11 @@ void ReadingEditActivity::logSession() {
   if (hasTime) snprintf(timeBuf, sizeof(timeBuf), "%02d:%02d", logHour, logMinute);
 
   ReadingSession session;
-  session.date     = dateBuf;
-  session.time     = timeBuf;
+  session.date = dateBuf;
+  session.time = timeBuf;
   session.position = logPosition;
   reading.sessions.push_back(std::move(session));
-  if (reading.sessions.size() > ReadingLog::MAX_SESSIONS)
-    reading.sessions.erase(reading.sessions.begin());
+  if (reading.sessions.size() > ReadingLog::MAX_SESSIONS) reading.sessions.erase(reading.sessions.begin());
 
   dirty = true;
   requestUpdate();
@@ -188,9 +200,8 @@ void ReadingEditActivity::startWifiSync() {
   LOG_DBG("REDIT", "Starting WiFi sync for NTP");
   wifiTurnedOn = true;
   WiFi.mode(WIFI_STA);
-  startActivityForResult(
-      std::make_unique<WifiSelectionActivity>(renderer, mappedInput),
-      [this](const ActivityResult& r) { onWifiConnected(!r.isCancelled); });
+  startActivityForResult(std::make_unique<WifiSelectionActivity>(renderer, mappedInput),
+                         [this](const ActivityResult& r) { onWifiConnected(!r.isCancelled); });
 #else
   onWifiConnected(true);
 #endif
@@ -199,7 +210,7 @@ void ReadingEditActivity::startWifiSync() {
 void ReadingEditActivity::onWifiConnected(bool success) {
   if (!success) {
     LOG_DBG("REDIT", "WiFi cancelled or failed");
-    syncState    = SyncState::Failed;
+    syncState = SyncState::Failed;
     wifiTurnedOn = false;
 #ifndef SIMULATOR
     WiFi.mode(WIFI_OFF);
@@ -209,7 +220,7 @@ void ReadingEditActivity::onWifiConnected(bool success) {
   }
 
   struct tm timeinfo = {};
-  int retries        = 0;
+  int retries = 0;
 
 #ifndef SIMULATOR
   LOG_DBG("REDIT", "WiFi connected, syncing NTP (tz offset: %d h)", SETTINGS.getTimezoneOffsetHours());
@@ -221,19 +232,18 @@ void ReadingEditActivity::onWifiConnected(bool success) {
 #else
   LOG_DBG("REDIT", "Simulator: using host system time");
   time_t now = time(nullptr);
-  timeinfo   = *localtime(&now);
+  timeinfo = *localtime(&now);
 #endif
 
   if (timeinfo.tm_year > 0) {
-    logYear   = timeinfo.tm_year + 1900;
-    logMonth  = timeinfo.tm_mon + 1;
-    logDay    = timeinfo.tm_mday;
-    logHour   = timeinfo.tm_hour;
+    logYear = timeinfo.tm_year + 1900;
+    logMonth = timeinfo.tm_mon + 1;
+    logDay = timeinfo.tm_mday;
+    logHour = timeinfo.tm_hour;
     logMinute = timeinfo.tm_min;
-    hasTime   = true;
+    hasTime = true;
     syncState = SyncState::Success;
-    LOG_INF("REDIT", "Time sync ok: %04d-%02d-%02d %02d:%02d",
-            logYear, logMonth, logDay, logHour, logMinute);
+    LOG_INF("REDIT", "Time sync ok: %04d-%02d-%02d %02d:%02d", logYear, logMonth, logDay, logHour, logMinute);
   } else {
     LOG_ERR("REDIT", "Time sync failed after %d retries", retries);
     syncState = SyncState::Failed;
@@ -253,16 +263,16 @@ void ReadingEditActivity::onWifiConnected(bool success) {
 
 void ReadingEditActivity::onEnter() {
   Activity::onEnter();
-  selectedField  = Field::Status;
+  selectedField = Field::Status;
   originalStatus = reading.status;
-  logPosition    = reading.lastPosition();
-  dateSubField   = 2;  // default to day segment
-  dirty          = false;
-  wifiTurnedOn   = false;
-  syncState      = SyncState::None;
-  hasTime        = false;
-  logHour        = 0;
-  logMinute      = 0;
+  logPosition = reading.lastPosition();
+  dateSubField = 2;  // default to day segment
+  dirty = false;
+  wifiTurnedOn = false;
+  syncState = SyncState::None;
+  hasTime = false;
+  logHour = 0;
+  logMinute = 0;
   initDate();
   requestUpdate();
 }
@@ -281,7 +291,11 @@ void ReadingEditActivity::onExit() {
     auto readings = readingLog.loadForBook(book.id);
     bool found = false;
     for (auto& r : readings) {
-      if (r.id == reading.id) { r = reading; found = true; break; }
+      if (r.id == reading.id) {
+        r = reading;
+        found = true;
+        break;
+      }
     }
     if (!found) readings.push_back(reading);
     readingLog.saveForBook(book.id, readings);
@@ -303,15 +317,14 @@ void ReadingEditActivity::loop() {
     logSession();
     return;
   }
-  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
-      selectedField == Field::Date) {
+  if (mappedInput.wasReleased(MappedInputManager::Button::Power) && selectedField == Field::Date) {
     dateSubField = (dateSubField + 1) % 5;
     requestUpdate();
     return;
   }
   if (mappedInput.wasReleased(MappedInputManager::Button::Left)) {
-    if (selectedField != Field::Status && selectedField != Field::SyncTime &&
-        selectedField != Field::Type) adjustField(-1);
+    if (selectedField != Field::Status && selectedField != Field::SyncTime && selectedField != Field::Type)
+      adjustField(-1);
     return;
   }
   if (mappedInput.wasReleased(MappedInputManager::Button::Right)) {
@@ -323,14 +336,12 @@ void ReadingEditActivity::loop() {
     return;
   }
   if (mappedInput.wasReleased(MappedInputManager::Button::Up)) {
-    selectedField = static_cast<Field>(
-        (static_cast<int>(selectedField) + FIELD_COUNT - 1) % FIELD_COUNT);
+    selectedField = static_cast<Field>((static_cast<int>(selectedField) + FIELD_COUNT - 1) % FIELD_COUNT);
     requestUpdate();
     return;
   }
   if (mappedInput.wasReleased(MappedInputManager::Button::Down)) {
-    selectedField = static_cast<Field>(
-        (static_cast<int>(selectedField) + 1) % FIELD_COUNT);
+    selectedField = static_cast<Field>((static_cast<int>(selectedField) + 1) % FIELD_COUNT);
     requestUpdate();
     return;
   }
@@ -341,26 +352,25 @@ void ReadingEditActivity::loop() {
 void ReadingEditActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
-  const int W   = renderer.getScreenWidth();
-  const int H   = renderer.getScreenHeight();
+  const int W = renderer.getScreenWidth();
+  const int H = renderer.getScreenHeight();
   const auto& m = UITheme::getInstance().getMetrics();
   const int pad = 20;
-  const int CW  = W - 2 * pad;
+  const int CW = W - 2 * pad;
 
   const int lh10 = renderer.getLineHeight(UI_10_FONT_ID);
   const int lhSm = renderer.getLineHeight(SMALL_FONT_ID);
 
-  static constexpr int CARD_R  = 8;
+  static constexpr int CARD_R = 8;
   static constexpr int CARD_IP = 16;
-  static constexpr int TILE_H  = 74;
-  static constexpr int TILE_G  = 10;
+  static constexpr int TILE_H = 74;
+  static constexpr int TILE_G = 10;
 
   char titleBuf[80];
   if (book.volume.empty()) {
     snprintf(titleBuf, sizeof(titleBuf), "%s", book.title.c_str());
   } else {
-    snprintf(titleBuf, sizeof(titleBuf), "%s (%s)",
-             book.title.c_str(), book.volume.c_str());
+    snprintf(titleBuf, sizeof(titleBuf), "%s (%s)", book.title.c_str(), book.volume.c_str());
   }
   GUI.drawHeader(renderer, Rect{0, m.topPadding, W, m.headerHeight});
 
@@ -372,17 +382,16 @@ void ReadingEditActivity::render(RenderLock&&) {
   auto compactDate = [&]() {
     char dateBuf[28] = {};
     static constexpr StrId MONTH_STRS[] = {
-      StrId::STR_MONTH_SHORT_JAN, StrId::STR_MONTH_SHORT_FEB, StrId::STR_MONTH_SHORT_MAR,
-      StrId::STR_MONTH_SHORT_APR, StrId::STR_MONTH_SHORT_MAY, StrId::STR_MONTH_SHORT_JUN,
-      StrId::STR_MONTH_SHORT_JUL, StrId::STR_MONTH_SHORT_AUG, StrId::STR_MONTH_SHORT_SEP,
-      StrId::STR_MONTH_SHORT_OCT, StrId::STR_MONTH_SHORT_NOV, StrId::STR_MONTH_SHORT_DEC,
+        StrId::STR_MONTH_SHORT_JAN, StrId::STR_MONTH_SHORT_FEB, StrId::STR_MONTH_SHORT_MAR, StrId::STR_MONTH_SHORT_APR,
+        StrId::STR_MONTH_SHORT_MAY, StrId::STR_MONTH_SHORT_JUN, StrId::STR_MONTH_SHORT_JUL, StrId::STR_MONTH_SHORT_AUG,
+        StrId::STR_MONTH_SHORT_SEP, StrId::STR_MONTH_SHORT_OCT, StrId::STR_MONTH_SHORT_NOV, StrId::STR_MONTH_SHORT_DEC,
     };
     const int mo = logMonth - 1;
     if (mo >= 0 && mo < 12) {
       const char* monthStr = I18N.get(MONTH_STRS[mo]);
       if (hasTime) {
-        snprintf(dateBuf, sizeof(dateBuf), "%d %s '%02d \xc2\xb7 %02d:%02d",
-                 logDay, monthStr, logYear % 100, logHour, logMinute);
+        snprintf(dateBuf, sizeof(dateBuf), "%d %s '%02d \xc2\xb7 %02d:%02d", logDay, monthStr, logYear % 100, logHour,
+                 logMinute);
       } else {
         snprintf(dateBuf, sizeof(dateBuf), "%d %s '%02d", logDay, monthStr, logYear % 100);
       }
@@ -394,10 +403,8 @@ void ReadingEditActivity::render(RenderLock&&) {
 
   auto drawCountChip = [&](Rect r, const char* text, int y) {
     const int tw = renderer.getTextWidth(SMALL_FONT_ID, text, EpdFontFamily::BOLD);
-    renderer.fillRoundedRect(r.x + r.width - CARD_IP - tw - 18, y - 5,
-                             tw + 18, lhSm + 10, 5, Color::Black);
-    renderer.drawText(SMALL_FONT_ID, r.x + r.width - CARD_IP - tw - 9, y,
-                      text, false, EpdFontFamily::BOLD);
+    renderer.fillRoundedRect(r.x + r.width - CARD_IP - tw - 18, y - 5, tw + 18, lhSm + 10, 5, Color::Black);
+    renderer.drawText(SMALL_FONT_ID, r.x + r.width - CARD_IP - tw - 9, y, text, false, EpdFontFamily::BOLD);
   };
 
   auto drawFieldTile = [&](Rect r, const char* label, const char* val, bool selected) {
@@ -406,26 +413,19 @@ void ReadingEditActivity::render(RenderLock&&) {
     if (selected) {
       renderer.fillRoundedRect(r.x, r.y, 8, r.height, CARD_R, true, false, true, false, Color::Black);
     }
-    const auto safeLabel = renderer.truncatedText(SMALL_FONT_ID, label, r.width - CARD_IP * 2,
-                                                  EpdFontFamily::BOLD);
-    renderer.drawText(SMALL_FONT_ID, r.x + CARD_IP, r.y + 13, safeLabel.c_str(), true,
-                      EpdFontFamily::BOLD);
-    const auto safe = renderer.truncatedText(UI_10_FONT_ID, val, r.width - CARD_IP * 2,
-                                             EpdFontFamily::BOLD);
-    renderer.drawText(UI_10_FONT_ID, r.x + CARD_IP, r.y + 13 + lhSm + 8,
-                      safe.c_str(), true, EpdFontFamily::BOLD);
+    const auto safeLabel = renderer.truncatedText(SMALL_FONT_ID, label, r.width - CARD_IP * 2, EpdFontFamily::BOLD);
+    renderer.drawText(SMALL_FONT_ID, r.x + CARD_IP, r.y + 13, safeLabel.c_str(), true, EpdFontFamily::BOLD);
+    const auto safe = renderer.truncatedText(UI_10_FONT_ID, val, r.width - CARD_IP * 2, EpdFontFamily::BOLD);
+    renderer.drawText(UI_10_FONT_ID, r.x + CARD_IP, r.y + 13 + lhSm + 8, safe.c_str(), true, EpdFontFamily::BOLD);
   };
 
-  const char* typeStr = (reading.readingType == ReadingType::Chapter)
-                            ? tr(STR_READ_BY_CHAPTER) : tr(STR_READ_BY_PAGE);
+  const char* typeStr = (reading.readingType == ReadingType::Chapter) ? tr(STR_READ_BY_CHAPTER) : tr(STR_READ_BY_PAGE);
 
   int y = m.topPadding + m.headerHeight + 8;
 
   // Book context
   {
-    BooksActivityUI::hero(renderer,
-                          Rect{pad, y, CW, BooksActivityUI::HERO_H},
-                          tr(STR_READINGS), titleBuf, typeStr);
+    BooksActivityUI::hero(renderer, Rect{pad, y, CW, BooksActivityUI::HERO_H}, tr(STR_READINGS), titleBuf, typeStr);
     y += BooksActivityUI::HERO_H + 12;
   }
 
@@ -435,10 +435,10 @@ void ReadingEditActivity::render(RenderLock&&) {
     const int row1 = y;
     const int row2 = y + TILE_H + TILE_G;
 
-    drawFieldTile(Rect{pad, row1, tileW, TILE_H}, tr(STR_READ_STATUS),
-                  statusLabel(reading.status), selectedField == Field::Status);
-    drawFieldTile(Rect{pad + tileW + TILE_G, row1, tileW, TILE_H}, tr(STR_LOG_DATE),
-                  compactDate().c_str(), selectedField == Field::Date);
+    drawFieldTile(Rect{pad, row1, tileW, TILE_H}, tr(STR_READ_STATUS), statusLabel(reading.status),
+                  selectedField == Field::Status);
+    drawFieldTile(Rect{pad + tileW + TILE_G, row1, tileW, TILE_H}, tr(STR_LOG_DATE), compactDate().c_str(),
+                  selectedField == Field::Date);
     if (selectedField == Field::Date) {
       char seg[5][6];
       snprintf(seg[0], sizeof(seg[0]), "%04d", logYear);
@@ -447,32 +447,31 @@ void ReadingEditActivity::render(RenderLock&&) {
       snprintf(seg[3], sizeof(seg[3]), "%02d", logHour);
       snprintf(seg[4], sizeof(seg[4]), "%02d", logMinute);
       static constexpr StrId DATE_FIELD_LABELS[] = {
-        StrId::STR_DATE_FIELD_YEAR, StrId::STR_DATE_FIELD_MONTH, StrId::STR_DATE_FIELD_DAY,
-        StrId::STR_DATE_FIELD_HOUR, StrId::STR_DATE_FIELD_MINUTE,
+          StrId::STR_DATE_FIELD_YEAR, StrId::STR_DATE_FIELD_MONTH,  StrId::STR_DATE_FIELD_DAY,
+          StrId::STR_DATE_FIELD_HOUR, StrId::STR_DATE_FIELD_MINUTE,
       };
       char chipBuf[24];
-      snprintf(chipBuf, sizeof(chipBuf), "%s %s", trId(DATE_FIELD_LABELS[dateSubField]),
-               seg[dateSubField]);
-      drawCountChip(Rect{pad + tileW + TILE_G, row1, tileW, TILE_H}, chipBuf,
-                    row1 + 13);
+      snprintf(chipBuf, sizeof(chipBuf), "%s %s", trId(DATE_FIELD_LABELS[dateSubField]), seg[dateSubField]);
+      drawCountChip(Rect{pad + tileW + TILE_G, row1, tileW, TILE_H}, chipBuf, row1 + 13);
     }
 
     const char* unit = (reading.readingType == ReadingType::Chapter) ? "ch." : "p.";
     char posBuf[16];
     snprintf(posBuf, sizeof(posBuf), "%s %d", unit, logPosition);
-    drawFieldTile(Rect{pad, row2, tileW, TILE_H}, tr(STR_LOG_POSITION), posBuf,
-                  selectedField == Field::Position);
+    drawFieldTile(Rect{pad, row2, tileW, TILE_H}, tr(STR_LOG_POSITION), posBuf, selectedField == Field::Position);
 
     const char* syncVal = "WiFi";
-    if      (syncState == SyncState::Syncing) syncVal = tr(STR_FETCHING_TIME);
-    else if (syncState == SyncState::Success) syncVal = tr(STR_SYNC_TIME_OK);
-    else if (syncState == SyncState::Failed)  syncVal = tr(STR_SYNC_TIME_FAILED);
-    drawFieldTile(Rect{pad + tileW + TILE_G, row2, tileW, TILE_H}, tr(STR_SYNC_TIME_WIFI),
-                  syncVal, selectedField == Field::SyncTime);
+    if (syncState == SyncState::Syncing)
+      syncVal = tr(STR_FETCHING_TIME);
+    else if (syncState == SyncState::Success)
+      syncVal = tr(STR_SYNC_TIME_OK);
+    else if (syncState == SyncState::Failed)
+      syncVal = tr(STR_SYNC_TIME_FAILED);
+    drawFieldTile(Rect{pad + tileW + TILE_G, row2, tileW, TILE_H}, tr(STR_SYNC_TIME_WIFI), syncVal,
+                  selectedField == Field::SyncTime);
 
     const int row3 = y + (TILE_H + TILE_G) * 2;
-    drawFieldTile(Rect{pad, row3, CW, TILE_H}, tr(STR_READ_TRACKING), typeStr,
-                  selectedField == Field::Type);
+    drawFieldTile(Rect{pad, row3, CW, TILE_H}, tr(STR_READ_TRACKING), typeStr, selectedField == Field::Type);
 
     y += TILE_H * 3 + TILE_G * 2 + 14;
   }
@@ -485,8 +484,7 @@ void ReadingEditActivity::render(RenderLock&&) {
     if (bh >= 90) {
       renderer.drawRoundedRect(bx, y, bw, bh, 1, CARD_R, true);
 
-      renderer.drawText(SMALL_FONT_ID, bx + CARD_IP, y + 16, tr(STR_LOG_SESSIONS),
-                        true, EpdFontFamily::BOLD);
+      renderer.drawText(SMALL_FONT_ID, bx + CARD_IP, y + 16, tr(STR_LOG_SESSIONS), true, EpdFontFamily::BOLD);
 
       const int sessionCount = static_cast<int>(reading.sessions.size());
       char cntBuf[8];
@@ -497,10 +495,10 @@ void ReadingEditActivity::render(RenderLock&&) {
       renderer.drawText(SMALL_FONT_ID, bx + CARD_IP, typeY, typeStr, true);
       renderer.drawLine(bx + CARD_IP, typeY + lhSm + 8, bx + bw - CARD_IP, typeY + lhSm + 8);
 
-      const int listTop  = typeY + lhSm + 18;
-      const int listH    = bh - (listTop - y);
+      const int listTop = typeY + lhSm + 18;
+      const int listH = bh - (listTop - y);
       const int sessRowH = 48;
-      const int maxShow  = listH / sessRowH;
+      const int maxShow = listH / sessRowH;
 
       if (sessionCount == 0) {
         const int iconX = bx + bw / 2 - 24;
@@ -508,30 +506,42 @@ void ReadingEditActivity::render(RenderLock&&) {
         renderer.drawRoundedRect(iconX, iconY, 48, 56, 1, 5, true);
         renderer.drawLine(iconX + 12, iconY + 12, iconX + 36, iconY + 12, 2, true);
         renderer.drawLine(iconX + 12, iconY + 26, iconX + 32, iconY + 26, 2, true);
-        renderer.drawCenteredText(UI_10_FONT_ID, iconY + 76, tr(STR_NO_SESSIONS), true,
-                                  EpdFontFamily::BOLD);
+        renderer.drawCenteredText(UI_10_FONT_ID, iconY + 76, tr(STR_NO_SESSIONS), true, EpdFontFamily::BOLD);
       } else {
-        const char* unit      = (reading.readingType == ReadingType::Chapter) ? "ch." : "p.";
-        const int   showCount = sessionCount < maxShow ? sessionCount : maxShow;
-        const int   startIdx  = sessionCount - showCount;
+        const char* unit = (reading.readingType == ReadingType::Chapter) ? "ch." : "p.";
+        const int showCount = sessionCount < maxShow ? sessionCount : maxShow;
+        const int startIdx = sessionCount - showCount;
 
         auto fmtDateTime = [](const std::string& d, const std::string& tm, char* out, size_t n) {
           if (d.size() >= 7) {
             auto shortMonth = [](int m) -> const char* {
               switch (m) {
-                case  0: return tr(STR_MONTH_SHORT_JAN);
-                case  1: return tr(STR_MONTH_SHORT_FEB);
-                case  2: return tr(STR_MONTH_SHORT_MAR);
-                case  3: return tr(STR_MONTH_SHORT_APR);
-                case  4: return tr(STR_MONTH_SHORT_MAY);
-                case  5: return tr(STR_MONTH_SHORT_JUN);
-                case  6: return tr(STR_MONTH_SHORT_JUL);
-                case  7: return tr(STR_MONTH_SHORT_AUG);
-                case  8: return tr(STR_MONTH_SHORT_SEP);
-                case  9: return tr(STR_MONTH_SHORT_OCT);
-                case 10: return tr(STR_MONTH_SHORT_NOV);
-                case 11: return tr(STR_MONTH_SHORT_DEC);
-                default: return "";
+                case 0:
+                  return tr(STR_MONTH_SHORT_JAN);
+                case 1:
+                  return tr(STR_MONTH_SHORT_FEB);
+                case 2:
+                  return tr(STR_MONTH_SHORT_MAR);
+                case 3:
+                  return tr(STR_MONTH_SHORT_APR);
+                case 4:
+                  return tr(STR_MONTH_SHORT_MAY);
+                case 5:
+                  return tr(STR_MONTH_SHORT_JUN);
+                case 6:
+                  return tr(STR_MONTH_SHORT_JUL);
+                case 7:
+                  return tr(STR_MONTH_SHORT_AUG);
+                case 8:
+                  return tr(STR_MONTH_SHORT_SEP);
+                case 9:
+                  return tr(STR_MONTH_SHORT_OCT);
+                case 10:
+                  return tr(STR_MONTH_SHORT_NOV);
+                case 11:
+                  return tr(STR_MONTH_SHORT_DEC);
+                default:
+                  return "";
               }
             };
             const int mo = (d[5] - '0') * 10 + (d[6] - '0') - 1;
@@ -548,39 +558,34 @@ void ReadingEditActivity::render(RenderLock&&) {
         };
 
         for (int i = sessionCount - 1; i >= startIdx; --i) {
-          const auto& s  = reading.sessions[static_cast<size_t>(i)];
+          const auto& s = reading.sessions[static_cast<size_t>(i)];
           const int rowI = sessionCount - 1 - i;
-          const int ry   = listTop + rowI * sessRowH;
-          const int ty   = ry + (sessRowH - lh10) / 2;
+          const int ry = listTop + rowI * sessRowH;
+          const int ty = ry + (sessRowH - lh10) / 2;
 
           char dateFmt[24];
           fmtDateTime(s.date, s.time, dateFmt, sizeof(dateFmt));
-          renderer.drawText(UI_10_FONT_ID, bx + CARD_IP, ty, dateFmt, true,
-                            EpdFontFamily::BOLD);
+          renderer.drawText(UI_10_FONT_ID, bx + CARD_IP, ty, dateFmt, true, EpdFontFamily::BOLD);
 
           char valBuf[20];
           snprintf(valBuf, sizeof(valBuf), "%s %d", unit, s.position);
           const int vw = renderer.getTextWidth(UI_10_FONT_ID, valBuf);
           renderer.drawText(UI_10_FONT_ID, bx + bw - CARD_IP - vw, ty, valBuf, true);
 
-          if (rowI + 1 < showCount)
-            renderer.drawLine(bx + 1, ry + sessRowH, bx + bw - 1, ry + sessRowH, true);
+          if (rowI + 1 < showCount) renderer.drawLine(bx + 1, ry + sessRowH, bx + bw - 1, ry + sessRowH, true);
         }
       }
     }
   }
 
   const bool isCountField = selectedField == Field::Date || selectedField == Field::Position;
-  const bool isSyncField  = selectedField == Field::SyncTime;
-  const bool isTypeField  = selectedField == Field::Type;
-  const auto lbls = mappedInput.mapLabels(
-      tr(STR_BACK),
-      tr(STR_LOG_ACTION),
-      isCountField ? tr(STR_READ_UNIT_MINUS) : "",
-      isCountField ? tr(STR_READ_UNIT_PLUS)
-                   : isSyncField ? tr(STR_SYNC)
-                   : isTypeField ? tr(STR_READ_TRACKING)
-                                 : tr(STR_READ_STATUS));
+  const bool isSyncField = selectedField == Field::SyncTime;
+  const bool isTypeField = selectedField == Field::Type;
+  const auto lbls = mappedInput.mapLabels(tr(STR_BACK), tr(STR_LOG_ACTION), isCountField ? tr(STR_READ_UNIT_MINUS) : "",
+                                          isCountField  ? tr(STR_READ_UNIT_PLUS)
+                                          : isSyncField ? tr(STR_SYNC)
+                                          : isTypeField ? tr(STR_READ_TRACKING)
+                                                        : tr(STR_READ_STATUS));
   GUI.drawButtonHints(renderer, lbls.btn1, lbls.btn2, lbls.btn3, lbls.btn4);
 
   renderer.displayBuffer();

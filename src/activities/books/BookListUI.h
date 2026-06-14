@@ -15,9 +15,8 @@ int pageItemsForSections(const GfxRenderer& renderer);
 int pageItemsForLetter(const GfxRenderer& renderer);
 int pageItemsForCollection(const GfxRenderer& renderer);
 
-void drawSectionRow(const GfxRenderer& renderer, Rect row, char letter, int count,
-                    int itemNumber, bool selected);
-void drawEntryRow(const GfxRenderer& renderer, Rect row, const BookCatalog::Entry& entry,
-                  int itemNumber, bool selected);
+void drawSectionRow(const GfxRenderer& renderer, Rect row, char letter, int count, int itemNumber, bool selected);
+void drawEntryRow(const GfxRenderer& renderer, Rect row, const BookCatalog::Entry& entry, int itemNumber,
+                  bool selected);
 
 }  // namespace BookListUI

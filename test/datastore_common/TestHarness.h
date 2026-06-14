@@ -22,19 +22,19 @@
 inline int testsPassed = 0;
 inline int testsFailed = 0;
 
-#define ASSERT_EQ(a, b)                                                                     \
-  do {                                                                                      \
-    auto _va = (a);                                                                         \
-    auto _vb = (b);                                                                         \
-    if (!(_va == _vb)) {                                                                    \
-      std::ostringstream _oa, _ob;                                                          \
-      _oa << _va;                                                                           \
-      _ob << _vb;                                                                           \
-      fprintf(stderr, "  FAIL: %s:%d: %s == %s, expected %s\n", __FILE__, __LINE__, #a,     \
-              _oa.str().c_str(), _ob.str().c_str());                                        \
-      testsFailed++;                                                                        \
-      return;                                                                               \
-    }                                                                                       \
+#define ASSERT_EQ(a, b)                                                                                    \
+  do {                                                                                                     \
+    auto _va = (a);                                                                                        \
+    auto _vb = (b);                                                                                        \
+    if (!(_va == _vb)) {                                                                                   \
+      std::ostringstream _oa, _ob;                                                                         \
+      _oa << _va;                                                                                          \
+      _ob << _vb;                                                                                          \
+      fprintf(stderr, "  FAIL: %s:%d: %s == %s, expected %s\n", __FILE__, __LINE__, #a, _oa.str().c_str(), \
+              _ob.str().c_str());                                                                          \
+      testsFailed++;                                                                                       \
+      return;                                                                                              \
+    }                                                                                                      \
   } while (0)
 
 #define ASSERT_TRUE(cond)                                                \
@@ -78,8 +78,8 @@ class TempStorageDir {
  public:
   TempStorageDir() {
     char tmpl[] = "/tmp/myne_datastore_test_XXXXXX";
-    char* dir   = mkdtemp(tmpl);
-    path_       = dir ? dir : "";
+    char* dir = mkdtemp(tmpl);
+    path_ = dir ? dir : "";
     setenv("CROSSPOINT_SIM_SD", path_.c_str(), 1);
     setenv("CROSSPOINT_EMU_SD", path_.c_str(), 1);
   }
@@ -90,7 +90,7 @@ class TempStorageDir {
     unsetenv("CROSSPOINT_EMU_SD");
   }
 
-  TempStorageDir(const TempStorageDir&)            = delete;
+  TempStorageDir(const TempStorageDir&) = delete;
   TempStorageDir& operator=(const TempStorageDir&) = delete;
 
   const std::string& path() const { return path_; }

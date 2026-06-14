@@ -1,20 +1,19 @@
 #include "MyneWebServer.h"
 
 #include <ArduinoJson.h>
+#include <BookCatalog.h>
+#include <BookStore.h>
 #include <FsHelpers.h>
 #include <HalStorage.h>
 #include <Logging.h>
+#include <ReadingLog.h>
 #include <WiFi.h>
 #include <esp_task_wdt.h>
 
 #include <algorithm>
 
-#include <BookCatalog.h>
-#include <BookStore.h>
-#include <ReadingLog.h>
-
-#include "MyneSettings.h"
 #include "FirmwareFlasher.h"
+#include "MyneSettings.h"
 #include "SettingsList.h"
 #include "WebDAVHandler.h"
 #include "WifiCredentialStore.h"
@@ -59,7 +58,7 @@ static void streamCollectionCb(const char* id, const char* name, void* ctxPtr) {
   ctx->first = false;
 
   JsonDocument doc;
-  doc["id"]   = id;
+  doc["id"] = id;
   doc["name"] = name;
   String item;
   serializeJson(doc, item);
@@ -485,7 +484,6 @@ void MyneWebServer::scanFiles(const char* path, const std::function<void(FileInf
   }
   root.close();
 }
-
 
 void MyneWebServer::handleFileListData() const {
   // Get current path from query string (default to root)
@@ -1142,7 +1140,6 @@ void MyneWebServer::handleDelete() const {
   }
 }
 
-
 void MyneWebServer::handleGetSettings() const {
   // Pass the SD font registry so the fontFamily setting's enumStringValues
   // includes SD-resident families — otherwise the web API only exposes the
@@ -1458,7 +1455,11 @@ void MyneWebServer::handleGetBooks() const {
   server->sendContent("[");
 
   auto* buf = static_cast<char*>(malloc(512));
-  if (!buf) { server->sendContent("]"); server->sendContent(""); return; }
+  if (!buf) {
+    server->sendContent("]");
+    server->sendContent("");
+    return;
+  }
 
   bool first = true;
   if (Storage.exists(BookStore::DIR_PATH)) {
@@ -1485,13 +1486,13 @@ void MyneWebServer::handleGetBooks() const {
         first = false;
 
         JsonDocument outDoc;
-        outDoc["id"]         = inDoc["id"];
-        outDoc["title"]      = inDoc["t"];
-        outDoc["author"]     = inDoc["a"];
+        outDoc["id"] = inDoc["id"];
+        outDoc["title"] = inDoc["t"];
+        outDoc["author"] = inDoc["a"];
         outDoc["collection"] = inDoc["c"];
-        outDoc["volume"]     = inDoc["v"];
-        outDoc["location"]   = inDoc["l"];
-        outDoc["notes"]      = inDoc["n"];
+        outDoc["volume"] = inDoc["v"];
+        outDoc["location"] = inDoc["l"];
+        outDoc["notes"] = inDoc["n"];
         String item;
         serializeJson(outDoc, item);
         server->sendContent(item);
@@ -1586,7 +1587,7 @@ void MyneWebServer::handleUpdateBook() {
   book.notes = doc["notes"] | "";
 
   PhysicalBook oldBook;
-  const bool   hadOldBook = bookStore->get(book.id, oldBook);
+  const bool hadOldBook = bookStore->get(book.id, oldBook);
 
   if (!bookStore->update(book)) {
     server->send(404, "text/plain", "Book not found");
@@ -1630,7 +1631,7 @@ void MyneWebServer::handleDeleteBook() {
   const std::string id = doc["id"] | "";
 
   PhysicalBook oldBook;
-  const bool   hadOldBook = bookStore->get(id, oldBook);
+  const bool hadOldBook = bookStore->get(id, oldBook);
 
   if (!bookStore->remove(id)) {
     server->send(404, "text/plain", "Book not found");
@@ -2033,14 +2034,14 @@ void MyneWebServer::handleGetReadings() const {
   JsonArray outArr = out.to<JsonArray>();
   for (const auto& r : readings) {
     JsonObject outR = outArr.add<JsonObject>();
-    outR["id"]          = r.id;
-    outR["status"]      = ReadingLog::statusToStr(r.status);
+    outR["id"] = r.id;
+    outR["status"] = ReadingLog::statusToStr(r.status);
     outR["readingType"] = r.readingType == ReadingType::Chapter ? 1 : 0;
 
     JsonArray outSessions = outR["sessions"].to<JsonArray>();
     for (const auto& sv : r.sessions) {
-      JsonObject outSv  = outSessions.add<JsonObject>();
-      outSv["date"]     = sv.date;
+      JsonObject outSv = outSessions.add<JsonObject>();
+      outSv["date"] = sv.date;
       outSv["position"] = sv.position;
     }
   }
@@ -2051,11 +2052,11 @@ void MyneWebServer::handleGetReadings() const {
 }
 
 static ReadingStatus webStrToStatus(const char* s) {
-  if (!s)                       return ReadingStatus::Reading;
-  if (strcmp(s, "want")     == 0) return ReadingStatus::WantToRead;
-  if (strcmp(s, "paused")   == 0) return ReadingStatus::Paused;
+  if (!s) return ReadingStatus::Reading;
+  if (strcmp(s, "want") == 0) return ReadingStatus::WantToRead;
+  if (strcmp(s, "paused") == 0) return ReadingStatus::Paused;
   if (strcmp(s, "finished") == 0) return ReadingStatus::Finished;
-  if (strcmp(s, "dropped")  == 0) return ReadingStatus::Dropped;
+  if (strcmp(s, "dropped") == 0) return ReadingStatus::Dropped;
   return ReadingStatus::Reading;
 }
 
@@ -2087,9 +2088,9 @@ void MyneWebServer::handleSaveReadings() {
   readings.reserve(arr.size());
   for (JsonObject r : arr) {
     Reading reading;
-    reading.id         = r["id"] | "";
+    reading.id = r["id"] | "";
     if (reading.id.empty()) reading.id = ReadingLog::newId();
-    reading.status     = webStrToStatus(r["status"] | "reading");
+    reading.status = webStrToStatus(r["status"] | "reading");
     reading.readingType = (r["readingType"] | 0) == 1 ? ReadingType::Chapter : ReadingType::Page;
 
     JsonArray sessions = r["sessions"].as<JsonArray>();
@@ -2098,7 +2099,7 @@ void MyneWebServer::handleSaveReadings() {
       for (JsonObject sv : sessions) {
         if (reading.sessions.size() >= ReadingLog::MAX_SESSIONS) break;
         ReadingSession s;
-        s.date     = sv["date"] | "";
+        s.date = sv["date"] | "";
         s.position = sv["position"] | 0;
         reading.sessions.push_back(std::move(s));
       }

@@ -14,9 +14,7 @@
 // no std::function. Each domain provides its own serialize/deserialize fns.
 class RecordStore {
  public:
-  constexpr RecordStore(const char* dir,
-                        const char* sumDir = nullptr,
-                        size_t sumSize     = 0)
+  constexpr RecordStore(const char* dir, const char* sumDir = nullptr, size_t sumSize = 0)
       : dir_(dir), sumDir_(sumDir), sumSize_(sumSize) {}
 
   // Ensure dir (and optional sumDir) exist on the SD card.
@@ -27,15 +25,11 @@ class RecordStore {
 
   // Serialize data into a JsonDocument via serializeFn, then write to
   // {dir}/{id}.json.
-  bool save(const char* id,
-            void (*serializeFn)(JsonDocument&, const void*),
-            const void* data) const;
+  bool save(const char* id, void (*serializeFn)(JsonDocument&, const void*), const void* data) const;
 
   // Read {dir}/{id}.json, parse JSON, call deserializeFn to populate data.
   // Returns false on missing file or parse error.
-  bool load(const char* id,
-            bool (*deserializeFn)(JsonDocument&, void*),
-            void* data) const;
+  bool load(const char* id, bool (*deserializeFn)(JsonDocument&, void*), void* data) const;
 
   // Remove {dir}/{id}.json (and {sumDir}/{id}.bin if configured).
   bool remove(const char* id) const;
@@ -57,8 +51,7 @@ class RecordStore {
   // Open each {dir}/{id}.json file in turn and call fn with the live HalFile
   // and the id. Lets the caller reuse its own JsonDocument across iterations
   // to avoid repeated ArduinoJson arena alloc/free on large passes.
-  void forEachFile(void* ctx,
-                   bool (*fn)(void* ctx, HalFile& file, const char* id)) const;
+  void forEachFile(void* ctx, bool (*fn)(void* ctx, HalFile& file, const char* id)) const;
 
   void jsonPath(char* out, size_t size, const char* id) const;
   void sumPath(char* out, size_t size, const char* id) const;
@@ -67,5 +60,5 @@ class RecordStore {
  private:
   const char* dir_;
   const char* sumDir_;
-  size_t      sumSize_;
+  size_t sumSize_;
 };

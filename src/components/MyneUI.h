@@ -138,9 +138,8 @@ class MyneUI {
                 const std::function<UIIcon(int index)>& rowIcon = nullptr,
                 const std::function<std::string(int index)>& rowValue = nullptr, bool highlightValue = false,
                 const std::function<bool(int index)>& rowDimmed = nullptr) const;  // Lyra version
-  void drawHeader(const GfxRenderer& renderer, Rect rect) const;  // battery-only strip
-  void drawPageTitle(const GfxRenderer& renderer, Rect rect, const char* title,
-                     const char* subtitle = nullptr) const;
+  void drawHeader(const GfxRenderer& renderer, Rect rect) const;                   // battery-only strip
+  void drawPageTitle(const GfxRenderer& renderer, Rect rect, const char* title, const char* subtitle = nullptr) const;
   void drawSubHeader(const GfxRenderer& renderer, Rect rect, const char* label,
                      const char* rightLabel = nullptr) const;  // Lyra version
   void drawTabBar(const GfxRenderer& renderer, Rect rect, const std::vector<TabInfo>& tabs,

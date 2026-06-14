@@ -14,16 +14,15 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 
-static constexpr StrId MONTH_STRIDS[12] = {
-    StrId::STR_MONTH_JAN, StrId::STR_MONTH_FEB, StrId::STR_MONTH_MAR, StrId::STR_MONTH_APR,
-    StrId::STR_MONTH_MAY, StrId::STR_MONTH_JUN, StrId::STR_MONTH_JUL, StrId::STR_MONTH_AUG,
-    StrId::STR_MONTH_SEP, StrId::STR_MONTH_OCT, StrId::STR_MONTH_NOV, StrId::STR_MONTH_DEC};
+static constexpr StrId MONTH_STRIDS[12] = {StrId::STR_MONTH_JAN, StrId::STR_MONTH_FEB, StrId::STR_MONTH_MAR,
+                                           StrId::STR_MONTH_APR, StrId::STR_MONTH_MAY, StrId::STR_MONTH_JUN,
+                                           StrId::STR_MONTH_JUL, StrId::STR_MONTH_AUG, StrId::STR_MONTH_SEP,
+                                           StrId::STR_MONTH_OCT, StrId::STR_MONTH_NOV, StrId::STR_MONTH_DEC};
 
 static constexpr StrId MONTH_SHORT_STRIDS[12] = {
-    StrId::STR_MONTH_SHORT_JAN, StrId::STR_MONTH_SHORT_FEB, StrId::STR_MONTH_SHORT_MAR,
-    StrId::STR_MONTH_SHORT_APR, StrId::STR_MONTH_SHORT_MAY, StrId::STR_MONTH_SHORT_JUN,
-    StrId::STR_MONTH_SHORT_JUL, StrId::STR_MONTH_SHORT_AUG, StrId::STR_MONTH_SHORT_SEP,
-    StrId::STR_MONTH_SHORT_OCT, StrId::STR_MONTH_SHORT_NOV, StrId::STR_MONTH_SHORT_DEC};
+    StrId::STR_MONTH_SHORT_JAN, StrId::STR_MONTH_SHORT_FEB, StrId::STR_MONTH_SHORT_MAR, StrId::STR_MONTH_SHORT_APR,
+    StrId::STR_MONTH_SHORT_MAY, StrId::STR_MONTH_SHORT_JUN, StrId::STR_MONTH_SHORT_JUL, StrId::STR_MONTH_SHORT_AUG,
+    StrId::STR_MONTH_SHORT_SEP, StrId::STR_MONTH_SHORT_OCT, StrId::STR_MONTH_SHORT_NOV, StrId::STR_MONTH_SHORT_DEC};
 
 static int daysInMonth(int year, int month) {
   static const int days[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
@@ -33,11 +32,16 @@ static int daysInMonth(int year, int month) {
 
 static const char* statusLabel(int s) {
   switch (s) {
-    case 0: return tr(STR_STATUS_WANT_TO_READ);
-    case 1: return tr(STR_STATUS_READING);
-    case 2: return tr(STR_STATUS_PAUSED);
-    case 3: return tr(STR_STATUS_FINISHED);
-    case 4: return tr(STR_STATUS_DROPPED);
+    case 0:
+      return tr(STR_STATUS_WANT_TO_READ);
+    case 1:
+      return tr(STR_STATUS_READING);
+    case 2:
+      return tr(STR_STATUS_PAUSED);
+    case 3:
+      return tr(STR_STATUS_FINISHED);
+    case 4:
+      return tr(STR_STATUS_DROPPED);
   }
   return "";
 }
@@ -48,7 +52,6 @@ constexpr int kInner = 16;
 constexpr int kGap = 12;
 constexpr int kHeroH = 110;
 constexpr int kViewCount = 3;
-
 
 void drawPageDots(const GfxRenderer& r, int x, int y, int active) {
   for (int i = 0; i < kViewCount; ++i) {
@@ -73,58 +76,48 @@ void drawViewBadge(const GfxRenderer& r, Rect bounds, int index) {
   r.drawText(SMALL_FONT_ID, x + (w - tw) / 2, y + 5, text, false, EpdFontFamily::BOLD);
 }
 
-void drawHero(const GfxRenderer& r, Rect bounds, const char* title, const char* subtitle,
-              int activeView) {
+void drawHero(const GfxRenderer& r, Rect bounds, const char* title, const char* subtitle, int activeView) {
   BooksActivityUI::hero(r, bounds, tr(STR_READING_STATS), title, subtitle, 86);
   drawViewBadge(r, bounds, activeView);
   drawPageDots(r, bounds.x + kInner, bounds.y + bounds.height - 16, activeView);
 }
 
-void drawKpi(const GfxRenderer& r, Rect rect, const char* label, int value,
-             const char* detail = nullptr, bool selected = false) {
+void drawKpi(const GfxRenderer& r, Rect rect, const char* label, int value, const char* detail = nullptr,
+             bool selected = false) {
   BooksActivityUI::panel(r, rect, selected);
   const int textX = rect.x + kInner;
   char valueText[16];
   snprintf(valueText, sizeof(valueText), "%d", value);
   r.drawText(UI_12_FONT_ID, textX, rect.y + 18, valueText, true, EpdFontFamily::BOLD);
-  BooksActivityUI::text(r, SMALL_FONT_ID, textX, rect.y + 58, label, rect.width - kInner * 2,
-               EpdFontFamily::BOLD);
+  BooksActivityUI::text(r, SMALL_FONT_ID, textX, rect.y + 58, label, rect.width - kInner * 2, EpdFontFamily::BOLD);
   if (detail && detail[0] != '\0') {
-    BooksActivityUI::text(r, SMALL_FONT_ID, textX, rect.y + rect.height - 36, detail,
-                 rect.width - kInner * 2);
+    BooksActivityUI::text(r, SMALL_FONT_ID, textX, rect.y + rect.height - 36, detail, rect.width - kInner * 2);
   }
 }
 
-void drawCompactStat(const GfxRenderer& r, Rect rect, const char* label, int value,
-                     bool selected = false) {
+void drawCompactStat(const GfxRenderer& r, Rect rect, const char* label, int value, bool selected = false) {
   BooksActivityUI::panel(r, rect, selected);
-  BooksActivityUI::text(r, SMALL_FONT_ID, rect.x + 12, rect.y + 11, label, rect.width - 58,
-               EpdFontFamily::BOLD);
+  BooksActivityUI::text(r, SMALL_FONT_ID, rect.x + 12, rect.y + 11, label, rect.width - 58, EpdFontFamily::BOLD);
   char valueText[12];
   snprintf(valueText, sizeof(valueText), "%d", value);
   const int tw = r.getTextWidth(UI_10_FONT_ID, valueText, EpdFontFamily::BOLD);
-  r.drawText(UI_10_FONT_ID, rect.x + rect.width - 12 - tw, rect.y + 24,
-             valueText, true, EpdFontFamily::BOLD);
+  r.drawText(UI_10_FONT_ID, rect.x + rect.width - 12 - tw, rect.y + 24, valueText, true, EpdFontFamily::BOLD);
 }
 
 void drawInlineStat(const GfxRenderer& r, Rect rect, const char* label, int value) {
-  BooksActivityUI::text(r, SMALL_FONT_ID, rect.x, rect.y + 6, label, rect.width - 54,
-               EpdFontFamily::BOLD);
+  BooksActivityUI::text(r, SMALL_FONT_ID, rect.x, rect.y + 6, label, rect.width - 54, EpdFontFamily::BOLD);
   char valueText[12];
   snprintf(valueText, sizeof(valueText), "%d", value);
   const int tw = r.getTextWidth(UI_10_FONT_ID, valueText, EpdFontFamily::BOLD);
-  r.drawText(UI_10_FONT_ID, rect.x + rect.width - tw, rect.y + 13,
-             valueText, true, EpdFontFamily::BOLD);
+  r.drawText(UI_10_FONT_ID, rect.x + rect.width - tw, rect.y + 13, valueText, true, EpdFontFamily::BOLD);
 }
 
-void drawSectionTitle(const GfxRenderer& r, int x, int y, const char* title,
-                      const char* right = nullptr) {
+void drawSectionTitle(const GfxRenderer& r, int x, int y, const char* title, const char* right = nullptr) {
   int titleW = r.getScreenWidth() - kPad - kInner - x;
   if (right && right[0] != '\0') {
     const int rw = r.getTextWidth(SMALL_FONT_ID, right, EpdFontFamily::BOLD);
     titleW -= rw + 16;
-    r.drawText(SMALL_FONT_ID, r.getScreenWidth() - kPad - kInner - rw, y,
-               right, true, EpdFontFamily::BOLD);
+    r.drawText(SMALL_FONT_ID, r.getScreenWidth() - kPad - kInner - rw, y, right, true, EpdFontFamily::BOLD);
   }
   BooksActivityUI::text(r, SMALL_FONT_ID, x, y, title, titleW, EpdFontFamily::BOLD);
 }
@@ -135,8 +128,7 @@ void drawStatusRow(const GfxRenderer& r, Rect rect, const char* label, int value
   const int barX = rect.x + labelW;
   const int barW = rect.width - labelW - valueW - 10;
   const int barY = rect.y + 11;
-  BooksActivityUI::text(r, SMALL_FONT_ID, rect.x, rect.y + 5, label, labelW - 8,
-               EpdFontFamily::BOLD);
+  BooksActivityUI::text(r, SMALL_FONT_ID, rect.x, rect.y + 5, label, labelW - 8, EpdFontFamily::BOLD);
   r.drawRoundedRect(barX, barY, barW, 10, 1, 5, true);
   if (value > 0) {
     const int fillW = std::max(6, (barW - 4) * value / std::max(1, maxValue));
@@ -145,8 +137,7 @@ void drawStatusRow(const GfxRenderer& r, Rect rect, const char* label, int value
   char count[8];
   snprintf(count, sizeof(count), "%d", value);
   const int cw = r.getTextWidth(SMALL_FONT_ID, count, EpdFontFamily::BOLD);
-  r.drawText(SMALL_FONT_ID, rect.x + rect.width - cw, rect.y + 5,
-             count, true, EpdFontFamily::BOLD);
+  r.drawText(SMALL_FONT_ID, rect.x + rect.width - cw, rect.y + 5, count, true, EpdFontFamily::BOLD);
 }
 
 void drawMonthCell(const GfxRenderer& r, Rect rect, const char* month, int value, int maxValue) {
@@ -154,12 +145,11 @@ void drawMonthCell(const GfxRenderer& r, Rect rect, const char* month, int value
   const int leftPad = selected ? 22 : 10;
   BooksActivityUI::panel(r, rect, selected);
   BooksActivityUI::text(r, SMALL_FONT_ID, rect.x + leftPad, rect.y + 9, month, rect.width - leftPad - 10,
-               EpdFontFamily::BOLD);
+                        EpdFontFamily::BOLD);
   char count[8];
   snprintf(count, sizeof(count), "%d", value);
   const int cw = r.getTextWidth(UI_10_FONT_ID, count, EpdFontFamily::BOLD);
-  r.drawText(UI_10_FONT_ID, rect.x + rect.width - 10 - cw, rect.y + 24,
-             count, true, EpdFontFamily::BOLD);
+  r.drawText(UI_10_FONT_ID, rect.x + rect.width - 10 - cw, rect.y + 24, count, true, EpdFontFamily::BOLD);
   if (value > 0) {
     const int trackW = rect.width - leftPad - 10;
     const int fillW = std::max(7, trackW * value / std::max(1, maxValue));
@@ -177,8 +167,7 @@ void drawActivityStrip(const GfxRenderer& r, Rect rect, const int* values, int c
     r.drawRoundedRect(x, rect.y, cellW, rect.height, 1, 2, true);
     if (v > 0) {
       const int fillH = std::max(4, (rect.height - 4) * v / std::max(1, maxValue));
-      r.fillRoundedRect(x + 2, rect.y + rect.height - fillH - 2,
-                        std::max(1, cellW - 4), fillH, 2, Color::Black);
+      r.fillRoundedRect(x + 2, rect.y + rect.height - fillH - 2, std::max(1, cellW - 4), fillH, 2, Color::Black);
     }
   }
 }
@@ -192,15 +181,13 @@ void drawDayChip(const GfxRenderer& r, Rect rect, int day, int value, bool selec
   char valueText[8];
   snprintf(valueText, sizeof(valueText), "%d", value);
   const int tw = r.getTextWidth(UI_10_FONT_ID, valueText, EpdFontFamily::BOLD);
-  r.drawText(UI_10_FONT_ID, rect.x + rect.width - 10 - tw, rect.y + 24,
-             valueText, true, EpdFontFamily::BOLD);
+  r.drawText(UI_10_FONT_ID, rect.x + rect.width - 10 - tw, rect.y + 24, valueText, true, EpdFontFamily::BOLD);
 }
 
 void drawEmpty(const GfxRenderer& r, Rect rect) {
   BooksActivityUI::panel(r, rect);
   const int lh = r.getLineHeight(UI_10_FONT_ID);
-  r.drawCenteredText(UI_10_FONT_ID, rect.y + (rect.height - lh) / 2,
-                     tr(STR_NO_SESSIONS), true, EpdFontFamily::BOLD);
+  r.drawCenteredText(UI_10_FONT_ID, rect.y + (rect.height - lh) / 2, tr(STR_NO_SESSIONS), true, EpdFontFamily::BOLD);
 }
 }  // namespace
 
@@ -301,33 +288,28 @@ void ReadingStatsActivity::renderOverview(int y, int pageWidth, int pageHeight) 
 
   const int heroCardH = 126;
   BooksActivityUI::panel(renderer, Rect{kPad, y, contentW, heroCardH}, true);
-  BooksActivityUI::text(renderer, SMALL_FONT_ID, kPad + kInner, y + 18, "Library",
-               contentW - kInner * 2, EpdFontFamily::BOLD);
+  BooksActivityUI::text(renderer, SMALL_FONT_ID, kPad + kInner, y + 18, "Library", contentW - kInner * 2,
+                        EpdFontFamily::BOLD);
   char sessions[16];
   snprintf(sessions, sizeof(sessions), "%d", stats.totalSessions);
   renderer.drawText(UI_12_FONT_ID, kPad + kInner, y + 45, sessions, true, EpdFontFamily::BOLD);
-  BooksActivityUI::text(renderer, SMALL_FONT_ID, kPad + kInner, y + 88, tr(STR_STATS_SESSIONS),
-               contentW / 2, EpdFontFamily::BOLD);
+  BooksActivityUI::text(renderer, SMALL_FONT_ID, kPad + kInner, y + 88, tr(STR_STATS_SESSIONS), contentW / 2,
+                        EpdFontFamily::BOLD);
 
   const int splitX = kPad + contentW / 2 + 8;
   const int rightX = splitX + kInner;
   const int rightW = kPad + contentW - kInner - rightX;
   renderer.drawLine(splitX, y + 18, splitX, y + heroCardH - 18);
   renderer.drawLine(rightX, y + heroCardH / 2, rightX + rightW, y + heroCardH / 2);
-  drawInlineStat(renderer, Rect{rightX, y + 22, rightW, 42}, tr(STR_STATS_BOOKS),
-                 stats.totalBooks);
-  drawInlineStat(renderer, Rect{rightX, y + 78, rightW, 42}, tr(STR_STATS_READINGS),
-                 stats.totalReadings);
+  drawInlineStat(renderer, Rect{rightX, y + 22, rightW, 42}, tr(STR_STATS_BOOKS), stats.totalBooks);
+  drawInlineStat(renderer, Rect{rightX, y + 78, rightW, 42}, tr(STR_STATS_READINGS), stats.totalReadings);
   y += heroCardH + kGap;
 
   const int statW = (contentW - kGap * 2) / 3;
-  drawCompactStat(renderer, Rect{kPad, y, statW, 62}, tr(STR_READ_BY_PAGE),
-                  stats.byTracking[0], true);
-  drawCompactStat(renderer, Rect{kPad + statW + kGap, y, statW, 62},
-                  tr(STR_READ_BY_CHAPTER), stats.byTracking[1]);
+  drawCompactStat(renderer, Rect{kPad, y, statW, 62}, tr(STR_READ_BY_PAGE), stats.byTracking[0], true);
+  drawCompactStat(renderer, Rect{kPad + statW + kGap, y, statW, 62}, tr(STR_READ_BY_CHAPTER), stats.byTracking[1]);
   const int finished = stats.byStatus[3];
-  drawCompactStat(renderer, Rect{kPad + (statW + kGap) * 2, y, statW, 62},
-                  tr(STR_STATUS_FINISHED), finished);
+  drawCompactStat(renderer, Rect{kPad + (statW + kGap) * 2, y, statW, 62}, tr(STR_STATUS_FINISHED), finished);
   y += 62 + kGap;
 
   const int panelH = pageHeight - y - metrics.buttonHintsHeight - 14;
@@ -339,8 +321,8 @@ void ReadingStatsActivity::renderOverview(int y, int pageWidth, int pageHeight) 
 
   int rowY = y + 54;
   for (int i = 0; i < 5 && rowY + 32 < y + panelH; ++i) {
-    drawStatusRow(renderer, Rect{kPad + kInner, rowY, contentW - kInner * 2, 32},
-                  statusLabel(i), stats.byStatus[i], maxStatus);
+    drawStatusRow(renderer, Rect{kPad + kInner, rowY, contentW - kInner * 2, 32}, statusLabel(i), stats.byStatus[i],
+                  maxStatus);
     rowY += 42;
   }
 }
@@ -381,19 +363,15 @@ void ReadingStatsActivity::renderMonth(int y, int pageWidth, int pageHeight) {
   const int gridY = y + 58;
   const int bigW = (innerW * 2 - kGap) / 3;
   const int sideW = innerW - bigW - kGap;
-  drawKpi(renderer, Rect{gridX, gridY, bigW, 124}, tr(STR_STATS_SESSIONS),
-          total, period, true);
-  drawCompactStat(renderer, Rect{gridX + bigW + kGap, gridY, sideW, 56},
-                  "Active", activeDays);
+  drawKpi(renderer, Rect{gridX, gridY, bigW, 124}, tr(STR_STATS_SESSIONS), total, period, true);
+  drawCompactStat(renderer, Rect{gridX + bigW + kGap, gridY, sideW, 56}, "Active", activeDays);
   char peakDetail[16];
   snprintf(peakDetail, sizeof(peakDetail), "%02d/%02d", peakDay, viewMonth);
-  drawCompactStat(renderer, Rect{gridX + bigW + kGap, gridY + 68, sideW, 56},
-                  peakDetail, peakValue);
+  drawCompactStat(renderer, Rect{gridX + bigW + kGap, gridY + 68, sideW, 56}, peakDetail, peakValue);
 
   const int stripY = gridY + 124 + 18;
   drawSectionTitle(renderer, gridX, stripY, "Month activity");
-  drawActivityStrip(renderer, Rect{gridX, stripY + 30, innerW, 46},
-                    periodData, numDays, std::max(1, peakValue));
+  drawActivityStrip(renderer, Rect{gridX, stripY + 30, innerW, 46}, periodData, numDays, std::max(1, peakValue));
 
   const int chipsY = stripY + 96;
   drawSectionTitle(renderer, gridX, chipsY, "Active days");
@@ -404,10 +382,8 @@ void ReadingStatsActivity::renderMonth(int y, int pageWidth, int pageHeight) {
     if (periodData[day - 1] == 0) continue;
     const int col = drawn % 3;
     const int row = drawn / 3;
-    drawDayChip(renderer,
-                Rect{gridX + col * (chipW + kGap), chipsY + 30 + row * (chipH + kGap),
-                     chipW, chipH},
-                day, periodData[day - 1], periodData[day - 1] == peakValue);
+    drawDayChip(renderer, Rect{gridX + col * (chipW + kGap), chipsY + 30 + row * (chipH + kGap), chipW, chipH}, day,
+                periodData[day - 1], periodData[day - 1] == peakValue);
     ++drawn;
   }
 }
@@ -450,10 +426,9 @@ void ReadingStatsActivity::renderYear(int y, int pageWidth, int pageHeight) {
 
   char totalValue[16];
   snprintf(totalValue, sizeof(totalValue), "%d", total);
-  renderer.drawText(UI_12_FONT_ID, gridX + kInner, topY + 22, totalValue,
-                    true, EpdFontFamily::BOLD);
-  BooksActivityUI::text(renderer, SMALL_FONT_ID, gridX + kInner, topY + 66,
-               tr(STR_STATS_SESSIONS), innerW / 2 - kInner * 2, EpdFontFamily::BOLD);
+  renderer.drawText(UI_12_FONT_ID, gridX + kInner, topY + 22, totalValue, true, EpdFontFamily::BOLD);
+  BooksActivityUI::text(renderer, SMALL_FONT_ID, gridX + kInner, topY + 66, tr(STR_STATS_SESSIONS),
+                        innerW / 2 - kInner * 2, EpdFontFamily::BOLD);
 
   const int splitX = gridX + innerW / 2 + 8;
   const int rightX = splitX + kInner;
@@ -461,8 +436,7 @@ void ReadingStatsActivity::renderYear(int y, int pageWidth, int pageHeight) {
   renderer.drawLine(splitX, topY + 18, splitX, topY + summaryH - 18);
   renderer.drawLine(rightX, topY + summaryH / 2, rightX + rightW, topY + summaryH / 2);
   drawInlineStat(renderer, Rect{rightX, topY + 14, rightW, 42}, "Months", activeMonths);
-  drawInlineStat(renderer, Rect{rightX, topY + 70, rightW, 42},
-                 I18N.get(MONTH_SHORT_STRIDS[peakMonth]), peakValue);
+  drawInlineStat(renderer, Rect{rightX, topY + 70, rightW, 42}, I18N.get(MONTH_SHORT_STRIDS[peakMonth]), peakValue);
 
   const int monthsY = topY + summaryH + 18;
   drawSectionTitle(renderer, gridX, monthsY, "Year map");
@@ -471,11 +445,8 @@ void ReadingStatsActivity::renderYear(int y, int pageWidth, int pageHeight) {
   for (int i = 0; i < 12; ++i) {
     const int col = i % 3;
     const int row = i / 3;
-    drawMonthCell(renderer,
-                  Rect{gridX + col * (tileW + kGap), monthsY + 30 + row * (tileH + kGap),
-                       tileW, tileH},
-                  I18N.get(MONTH_SHORT_STRIDS[i]), yearMonthData[i],
-                  std::max(1, peakValue));
+    drawMonthCell(renderer, Rect{gridX + col * (tileW + kGap), monthsY + 30 + row * (tileH + kGap), tileW, tileH},
+                  I18N.get(MONTH_SHORT_STRIDS[i]), yearMonthData[i], std::max(1, peakValue));
   }
 }
 
@@ -492,8 +463,7 @@ void ReadingStatsActivity::render(RenderLock&&) {
   char subtitle[48] = "";
   if (currentView == View::Overview) {
     snprintf(title, sizeof(title), "Overview");
-    snprintf(subtitle, sizeof(subtitle), "%d books - %d readings",
-             stats.totalBooks, stats.totalReadings);
+    snprintf(subtitle, sizeof(subtitle), "%d books - %d readings", stats.totalBooks, stats.totalReadings);
   } else if (currentView == View::Month) {
     snprintf(title, sizeof(title), "%s %d", I18N.get(MONTH_STRIDS[viewMonth - 1]), viewYear);
     snprintf(subtitle, sizeof(subtitle), "Daily reading activity");
@@ -503,19 +473,23 @@ void ReadingStatsActivity::render(RenderLock&&) {
   }
 
   const int heroY = metrics.topPadding + metrics.headerHeight + 8;
-  drawHero(renderer, Rect{kPad, heroY, pageWidth - kPad * 2, kHeroH},
-           title, subtitle, static_cast<int>(currentView));
+  drawHero(renderer, Rect{kPad, heroY, pageWidth - kPad * 2, kHeroH}, title, subtitle, static_cast<int>(currentView));
 
   const int contentY = heroY + kHeroH + 14;
   switch (currentView) {
-    case View::Overview: renderOverview(contentY, pageWidth, pageHeight); break;
-    case View::Month: renderMonth(contentY, pageWidth, pageHeight); break;
-    case View::Year: renderYear(contentY, pageWidth, pageHeight); break;
+    case View::Overview:
+      renderOverview(contentY, pageWidth, pageHeight);
+      break;
+    case View::Month:
+      renderMonth(contentY, pageWidth, pageHeight);
+      break;
+    case View::Year:
+      renderYear(contentY, pageWidth, pageHeight);
+      break;
   }
 
   const bool hasPeriod = currentView != View::Overview;
-  const auto btnLabels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_STATS_CHANGE_VIEW),
-                                               hasPeriod ? tr(STR_PREV) : "",
+  const auto btnLabels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_STATS_CHANGE_VIEW), hasPeriod ? tr(STR_PREV) : "",
                                                hasPeriod ? tr(STR_NEXT) : "");
   GUI.drawButtonHints(renderer, btnLabels.btn1, btnLabels.btn2, btnLabels.btn3, btnLabels.btn4);
   renderer.displayBuffer();

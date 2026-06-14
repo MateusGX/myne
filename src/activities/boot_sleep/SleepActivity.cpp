@@ -166,8 +166,8 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
 
   renderer.clearScreen();
 
-  const bool hasGreyscale = bitmap.hasGreyscale() &&
-                            SETTINGS.sleepScreenCoverFilter == MyneSettings::SLEEP_SCREEN_COVER_FILTER::NO_FILTER;
+  const bool hasGreyscale =
+      bitmap.hasGreyscale() && SETTINGS.sleepScreenCoverFilter == MyneSettings::SLEEP_SCREEN_COVER_FILTER::NO_FILTER;
 
   renderer.drawBitmap(bitmap, x, y, W, H, cropX, cropY);
 

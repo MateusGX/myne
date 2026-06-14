@@ -11,11 +11,11 @@
 
 #include <cstddef>
 
+#include "../books/CatalogSyncActivity.h"
 #include "MappedInputManager.h"
 #include "NetworkActivityUI.h"
 #include "NetworkModeSelectionActivity.h"
 #include "WifiSelectionActivity.h"
-#include "../books/CatalogSyncActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/QrUtils.h"
@@ -28,7 +28,7 @@ void goHomeOrSync(GfxRenderer& r, MappedInputManager& m) {
     activityManager.goHome();
   }
 }
-}  // anonymous namespace (extended)
+}  // namespace
 
 namespace {
 // AP Mode configuration
@@ -389,8 +389,7 @@ void MyneWebServerActivity::loop() {
 
 // ── Web firmware flash ────────────────────────────────────────────────────────
 
-void MyneWebServerActivity::firmwareFlashCallback(
-    const MyneWebServer::FirmwareFlashEvent& evt, void* ctx) {
+void MyneWebServerActivity::firmwareFlashCallback(const MyneWebServer::FirmwareFlashEvent& evt, void* ctx) {
   auto* self = static_cast<MyneWebServerActivity*>(ctx);
   using Phase = MyneWebServer::FirmwareFlashEvent::Phase;
 
@@ -414,46 +413,39 @@ void MyneWebServerActivity::renderWebFirmwareFlash() const {
   renderer.clearScreen();
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, W, metrics.headerHeight});
   const int heroY = metrics.topPadding + metrics.headerHeight + 8;
-  NetworkActivityUI::hero(renderer, Rect{NetworkActivityUI::PAD, heroY,
-                                         W - NetworkActivityUI::PAD * 2, 104},
+  NetworkActivityUI::hero(renderer, Rect{NetworkActivityUI::PAD, heroY, W - NetworkActivityUI::PAD * 2, 104},
                           tr(STR_NETWORK), tr(STR_WEB_FIRMWARE_UPDATE));
   const int cardY = heroY + 136;
   const int cardW = W - NetworkActivityUI::PAD * 2;
 
   switch (lastFlashEvent.phase) {
     case Phase::VALIDATING:
-      NetworkActivityUI::stateCard(renderer,
-                                   Rect{NetworkActivityUI::PAD, cardY, cardW, 180},
+      NetworkActivityUI::stateCard(renderer, Rect{NetworkActivityUI::PAD, cardY, cardW, 180},
                                    tr(STR_VALIDATING_FIRMWARE));
       break;
 
     case Phase::FLASHING: {
-      const int pct = lastFlashEvent.total > 0
-                          ? static_cast<int>((lastFlashEvent.written * 100) / lastFlashEvent.total)
-                          : 0;
+      const int pct =
+          lastFlashEvent.total > 0 ? static_cast<int>((lastFlashEvent.written * 100) / lastFlashEvent.total) : 0;
       NetworkActivityUI::panel(renderer, Rect{NetworkActivityUI::PAD, cardY, cardW, 210}, true);
-      renderer.drawCenteredText(UI_10_FONT_ID, cardY + 40, tr(STR_UPDATING), true,
-                                EpdFontFamily::BOLD);
+      renderer.drawCenteredText(UI_10_FONT_ID, cardY + 40, tr(STR_UPDATING), true, EpdFontFamily::BOLD);
       GUI.drawProgressBar(renderer,
                           Rect{NetworkActivityUI::PAD + NetworkActivityUI::INNER, cardY + 92,
                                cardW - NetworkActivityUI::INNER * 2, metrics.progressBarHeight},
                           pct, 100);
-      renderer.drawCenteredText(SMALL_FONT_ID, cardY + 154,
-                                tr(STR_FIRMWARE_UPDATE_DO_NOT_POWER_OFF), true,
+      renderer.drawCenteredText(SMALL_FONT_ID, cardY + 154, tr(STR_FIRMWARE_UPDATE_DO_NOT_POWER_OFF), true,
                                 EpdFontFamily::BOLD);
       break;
     }
 
     case Phase::DONE:
-      NetworkActivityUI::stateCard(renderer,
-                                   Rect{NetworkActivityUI::PAD, cardY, cardW, 180},
-                                   tr(STR_UPDATE_COMPLETE), tr(STR_RESTARTING_HINT));
+      NetworkActivityUI::stateCard(renderer, Rect{NetworkActivityUI::PAD, cardY, cardW, 180}, tr(STR_UPDATE_COMPLETE),
+                                   tr(STR_RESTARTING_HINT));
       break;
 
     case Phase::FAILED:
-      NetworkActivityUI::stateCard(renderer,
-                                   Rect{NetworkActivityUI::PAD, cardY, cardW, 180},
-                                   tr(STR_UPDATE_FAILED), lastFlashEvent.error);
+      NetworkActivityUI::stateCard(renderer, Rect{NetworkActivityUI::PAD, cardY, cardW, 180}, tr(STR_UPDATE_FAILED),
+                                   lastFlashEvent.error);
       break;
   }
 
@@ -471,22 +463,19 @@ void MyneWebServerActivity::render(RenderLock&&) {
     GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight});
     const int heroY = metrics.topPadding + metrics.headerHeight + 8;
     const bool showWifiIndicator = !isApMode && state == WebServerActivityState::SERVER_RUNNING;
-    NetworkActivityUI::hero(renderer, Rect{NetworkActivityUI::PAD, heroY,
-                                           pageWidth - NetworkActivityUI::PAD * 2, 104},
+    NetworkActivityUI::hero(renderer, Rect{NetworkActivityUI::PAD, heroY, pageWidth - NetworkActivityUI::PAD * 2, 104},
                             isApMode ? tr(STR_HOTSPOT_MODE) : tr(STR_NETWORK),
-                            state == WebServerActivityState::SERVER_RUNNING ? tr(STR_OPEN_URL_HINT)
-                                                                            : (isApMode ? tr(STR_STARTING_HOTSPOT)
-                                                                                        : tr(STR_STARTING_SERVER)),
-                            connectedSSID.c_str(),
-                            showWifiIndicator ? WIFI_ICON_RIGHT_RESERVE : 0);
+                            state == WebServerActivityState::SERVER_RUNNING
+                                ? tr(STR_OPEN_URL_HINT)
+                                : (isApMode ? tr(STR_STARTING_HOTSPOT) : tr(STR_STARTING_SERVER)),
+                            connectedSSID.c_str(), showWifiIndicator ? WIFI_ICON_RIGHT_RESERVE : 0);
 
     if (state == WebServerActivityState::SERVER_RUNNING) {
       renderServerRunning();
     } else {
-      NetworkActivityUI::stateCard(renderer,
-                                   Rect{NetworkActivityUI::PAD, heroY + 140,
-                                        pageWidth - NetworkActivityUI::PAD * 2, 180},
-                                   isApMode ? tr(STR_STARTING_HOTSPOT) : tr(STR_STARTING_SERVER));
+      NetworkActivityUI::stateCard(
+          renderer, Rect{NetworkActivityUI::PAD, heroY + 140, pageWidth - NetworkActivityUI::PAD * 2, 180},
+          isApMode ? tr(STR_STARTING_HOTSPOT) : tr(STR_STARTING_SERVER));
     }
     renderer.displayBuffer();
   }
@@ -508,49 +497,40 @@ void MyneWebServerActivity::renderServerRunning() const {
 
     const int cardH = qrSize + 52;
     NetworkActivityUI::panel(renderer, Rect{NetworkActivityUI::PAD, contentY, contentW, cardH});
-    NetworkActivityUI::text(renderer, SMALL_FONT_ID, NetworkActivityUI::PAD + NetworkActivityUI::INNER,
-                            contentY + 16, tr(STR_CONNECT_WIFI_HINT), contentW - NetworkActivityUI::INNER * 2,
-                            EpdFontFamily::BOLD);
-    QrUtils::drawQrCode(renderer,
-                        Rect{NetworkActivityUI::PAD + NetworkActivityUI::INNER, contentY + 42,
-                             qrSize, qrSize},
-                        wifiConfig);
-    NetworkActivityUI::metric(renderer,
-                              Rect{NetworkActivityUI::PAD + NetworkActivityUI::INNER + qrSize + NetworkActivityUI::GAP,
-                                   contentY + 58, contentW - qrSize - NetworkActivityUI::INNER * 2 - NetworkActivityUI::GAP,
-                                   96},
-                              "SSID", connectedSSID.c_str());
+    NetworkActivityUI::text(renderer, SMALL_FONT_ID, NetworkActivityUI::PAD + NetworkActivityUI::INNER, contentY + 16,
+                            tr(STR_CONNECT_WIFI_HINT), contentW - NetworkActivityUI::INNER * 2, EpdFontFamily::BOLD);
+    QrUtils::drawQrCode(
+        renderer, Rect{NetworkActivityUI::PAD + NetworkActivityUI::INNER, contentY + 42, qrSize, qrSize}, wifiConfig);
+    NetworkActivityUI::metric(
+        renderer,
+        Rect{NetworkActivityUI::PAD + NetworkActivityUI::INNER + qrSize + NetworkActivityUI::GAP, contentY + 58,
+             contentW - qrSize - NetworkActivityUI::INNER * 2 - NetworkActivityUI::GAP, 96},
+        "SSID", connectedSSID.c_str());
 
     const int urlY = contentY + cardH + NetworkActivityUI::GAP;
     NetworkActivityUI::panel(renderer, Rect{NetworkActivityUI::PAD, urlY, contentW, 132});
-    NetworkActivityUI::text(renderer, SMALL_FONT_ID, NetworkActivityUI::PAD + NetworkActivityUI::INNER,
-                            urlY + 16, tr(STR_OPEN_URL_HINT), contentW - NetworkActivityUI::INNER * 2,
-                            EpdFontFamily::BOLD);
-    NetworkActivityUI::text(renderer, UI_10_FONT_ID, NetworkActivityUI::PAD + NetworkActivityUI::INNER,
-                            urlY + 48, hostnameUrl.c_str(), contentW - NetworkActivityUI::INNER * 2,
-                            EpdFontFamily::BOLD);
-    NetworkActivityUI::text(renderer, SMALL_FONT_ID, NetworkActivityUI::PAD + NetworkActivityUI::INNER,
-                            urlY + 86, ipUrl.c_str(), contentW - NetworkActivityUI::INNER * 2);
+    NetworkActivityUI::text(renderer, SMALL_FONT_ID, NetworkActivityUI::PAD + NetworkActivityUI::INNER, urlY + 16,
+                            tr(STR_OPEN_URL_HINT), contentW - NetworkActivityUI::INNER * 2, EpdFontFamily::BOLD);
+    NetworkActivityUI::text(renderer, UI_10_FONT_ID, NetworkActivityUI::PAD + NetworkActivityUI::INNER, urlY + 48,
+                            hostnameUrl.c_str(), contentW - NetworkActivityUI::INNER * 2, EpdFontFamily::BOLD);
+    NetworkActivityUI::text(renderer, SMALL_FONT_ID, NetworkActivityUI::PAD + NetworkActivityUI::INNER, urlY + 86,
+                            ipUrl.c_str(), contentW - NetworkActivityUI::INNER * 2);
   } else {
     std::string webInfo = "http://" + connectedIP + "/";
     std::string hostnameUrl = std::string(tr(STR_OR_HTTP_PREFIX)) + AP_HOSTNAME + ".local/";
 
     NetworkActivityUI::panel(renderer, Rect{NetworkActivityUI::PAD, contentY, contentW, 330}, true);
-    NetworkActivityUI::text(renderer, SMALL_FONT_ID, NetworkActivityUI::PAD + NetworkActivityUI::INNER,
-                            contentY + 18, tr(STR_SCAN_QR_HINT), contentW - NetworkActivityUI::INNER * 2,
-                            EpdFontFamily::BOLD);
+    NetworkActivityUI::text(renderer, SMALL_FONT_ID, NetworkActivityUI::PAD + NetworkActivityUI::INNER, contentY + 18,
+                            tr(STR_SCAN_QR_HINT), contentW - NetworkActivityUI::INNER * 2, EpdFontFamily::BOLD);
     const int qrX = (pageWidth - qrSize) / 2;
     QrUtils::drawQrCode(renderer, Rect{qrX, contentY + 58, qrSize, qrSize}, webInfo);
-    renderer.drawCenteredText(UI_10_FONT_ID, contentY + 236, webInfo.c_str(), true,
-                              EpdFontFamily::BOLD);
+    renderer.drawCenteredText(UI_10_FONT_ID, contentY + 236, webInfo.c_str(), true, EpdFontFamily::BOLD);
     renderer.drawCenteredText(SMALL_FONT_ID, contentY + 270, hostnameUrl.c_str(), true);
 
     const int statY = contentY + 346;
     const int statW = (contentW - NetworkActivityUI::GAP) / 2;
-    NetworkActivityUI::metric(renderer, Rect{NetworkActivityUI::PAD, statY, statW, 92},
-                              "SSID", connectedSSID.c_str());
-    NetworkActivityUI::metric(renderer,
-                              Rect{NetworkActivityUI::PAD + statW + NetworkActivityUI::GAP, statY, statW, 92},
+    NetworkActivityUI::metric(renderer, Rect{NetworkActivityUI::PAD, statY, statW, 92}, "SSID", connectedSSID.c_str());
+    NetworkActivityUI::metric(renderer, Rect{NetworkActivityUI::PAD + statW + NetworkActivityUI::GAP, statY, statW, 92},
                               tr(STR_IP_ADDRESS_PREFIX), connectedIP.c_str(), true);
     renderWifiIndicator(heroRect);
   }

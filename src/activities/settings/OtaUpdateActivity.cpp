@@ -82,8 +82,8 @@ void OtaUpdateActivity::render(RenderLock&&) {
   if (state == UPDATE_IN_PROGRESS) {
     LOG_DBG("OTA", "Update progress: %d / %d", updater.getProcessedSize(), updater.getTotalSize());
     updaterProgress = updater.getTotalSize() > 0
-        ? static_cast<float>(updater.getProcessedSize()) / static_cast<float>(updater.getTotalSize())
-        : 0;
+                          ? static_cast<float>(updater.getProcessedSize()) / static_cast<float>(updater.getTotalSize())
+                          : 0;
     // Only update every 2% at the most
     if (static_cast<int>(updaterProgress * 50) == lastUpdaterPercentage / 2) {
       return;
@@ -95,9 +95,7 @@ void OtaUpdateActivity::render(RenderLock&&) {
 
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight});
   const int heroY = metrics.topPadding + metrics.headerHeight + 8;
-  SettingsActivityUI::hero(renderer,
-                           Rect{SettingsActivityUI::PAD, heroY,
-                                pageWidth - SettingsActivityUI::PAD * 2, 104},
+  SettingsActivityUI::hero(renderer, Rect{SettingsActivityUI::PAD, heroY, pageWidth - SettingsActivityUI::PAD * 2, 104},
                            tr(STR_SETTINGS_TITLE), tr(STR_UPDATE), MYNE_VERSION);
 
   const int cardY = heroY + 132;
@@ -109,24 +107,22 @@ void OtaUpdateActivity::render(RenderLock&&) {
   } else if (state == WAITING_CONFIRMATION) {
     SettingsActivityUI::panel(renderer, card, true);
     SettingsActivityUI::text(renderer, UI_10_FONT_ID, card.x + SettingsActivityUI::INNER + 8, card.y + 24,
-                             tr(STR_NEW_UPDATE), card.width - SettingsActivityUI::INNER * 2 - 8,
-                             EpdFontFamily::BOLD);
-    SettingsActivityUI::option(renderer,
-                               Rect{card.x + SettingsActivityUI::INNER + 8, card.y + 74,
-                                    card.width - SettingsActivityUI::INNER * 2 - 8, 54},
-                               tr(STR_CURRENT_VERSION), MYNE_VERSION);
-    SettingsActivityUI::option(renderer,
-                               Rect{card.x + SettingsActivityUI::INNER + 8, card.y + 136,
-                                    card.width - SettingsActivityUI::INNER * 2 - 8, 54},
-                               tr(STR_NEW_VERSION), updater.getLatestVersion().c_str());
+                             tr(STR_NEW_UPDATE), card.width - SettingsActivityUI::INNER * 2 - 8, EpdFontFamily::BOLD);
+    SettingsActivityUI::option(
+        renderer,
+        Rect{card.x + SettingsActivityUI::INNER + 8, card.y + 74, card.width - SettingsActivityUI::INNER * 2 - 8, 54},
+        tr(STR_CURRENT_VERSION), MYNE_VERSION);
+    SettingsActivityUI::option(
+        renderer,
+        Rect{card.x + SettingsActivityUI::INNER + 8, card.y + 136, card.width - SettingsActivityUI::INNER * 2 - 8, 54},
+        tr(STR_NEW_VERSION), updater.getLatestVersion().c_str());
 
     const auto labels = mappedInput.mapLabels(tr(STR_CANCEL), tr(STR_UPDATE), "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == UPDATE_IN_PROGRESS) {
     SettingsActivityUI::panel(renderer, card, true);
     SettingsActivityUI::text(renderer, UI_10_FONT_ID, card.x + SettingsActivityUI::INNER + 8, card.y + 30,
-                             tr(STR_UPDATING), card.width - SettingsActivityUI::INNER * 2 - 8,
-                             EpdFontFamily::BOLD);
+                             tr(STR_UPDATING), card.width - SettingsActivityUI::INNER * 2 - 8, EpdFontFamily::BOLD);
     GUI.drawProgressBar(renderer,
                         Rect{card.x + SettingsActivityUI::INNER + 8, card.y + 86,
                              card.width - SettingsActivityUI::INNER * 2 - 8, metrics.progressBarHeight},
@@ -203,7 +199,7 @@ void OtaUpdateActivity::loop() {
     }
     return;
   }
-  
+
   if (state == SHUTTING_DOWN) {
     ESP.restart();
   }

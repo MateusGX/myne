@@ -152,8 +152,7 @@ auto readTotalBytesFromVolume(File& file, int)
   if (!volume) return 0;
 
   const uint64_t clusterCount = volume->clusterCount();
-  const uint64_t bytesPerCluster =
-      static_cast<uint64_t>(volume->sectorsPerCluster()) * static_cast<uint64_t>(512);
+  const uint64_t bytesPerCluster = static_cast<uint64_t>(volume->sectorsPerCluster()) * static_cast<uint64_t>(512);
   return clusterCount * bytesPerCluster;
 }
 
@@ -164,15 +163,14 @@ uint64_t readTotalBytesFromVolume(File&, long) {
 
 template <typename File>
 auto readStatsFromVolume(File& file, HalStorage::StorageStats& stats, int)
-    -> decltype(file.volume()->clusterCount(), file.volume()->freeClusterCount(),
-                file.volume()->sectorsPerCluster(), bool{}) {
+    -> decltype(file.volume()->clusterCount(), file.volume()->freeClusterCount(), file.volume()->sectorsPerCluster(),
+                bool{}) {
   auto* volume = file.volume();
   if (!volume) return false;
 
   const uint64_t clusterCount = volume->clusterCount();
   const uint64_t freeClusters = volume->freeClusterCount();
-  const uint64_t bytesPerCluster =
-      static_cast<uint64_t>(volume->sectorsPerCluster()) * static_cast<uint64_t>(512);
+  const uint64_t bytesPerCluster = static_cast<uint64_t>(volume->sectorsPerCluster()) * static_cast<uint64_t>(512);
   stats.totalBytes = clusterCount * bytesPerCluster;
   stats.usedBytes = clusterCount > freeClusters ? (clusterCount - freeClusters) * bytesPerCluster : 0;
   return stats.totalBytes > 0;

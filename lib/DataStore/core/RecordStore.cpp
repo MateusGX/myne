@@ -24,9 +24,7 @@ bool RecordStore::exists(const char* id) const {
   return Storage.exists(path);
 }
 
-bool RecordStore::save(const char* id,
-                       void (*serializeFn)(JsonDocument&, const void*),
-                       const void* data) const {
+bool RecordStore::save(const char* id, void (*serializeFn)(JsonDocument&, const void*), const void* data) const {
   char path[96];
   jsonPath(path, sizeof(path), id);
   HalFile file;
@@ -40,9 +38,7 @@ bool RecordStore::save(const char* id,
   return true;
 }
 
-bool RecordStore::load(const char* id,
-                       bool (*deserializeFn)(JsonDocument&, void*),
-                       void* data) const {
+bool RecordStore::load(const char* id, bool (*deserializeFn)(JsonDocument&, void*), void* data) const {
   char path[96];
   jsonPath(path, sizeof(path), id);
   if (!Storage.exists(path)) return false;
@@ -115,8 +111,7 @@ int RecordStore::count() const {
   return n;
 }
 
-void RecordStore::forEach(void* ctx,
-                           bool (*fn)(void* ctx, const char* id)) const {
+void RecordStore::forEach(void* ctx, bool (*fn)(void* ctx, const char* id)) const {
   if (!Storage.exists(dir_)) return;
   HalFile dir = Storage.open(dir_);
   if (!dir || !dir.isDirectory()) return;
@@ -134,8 +129,7 @@ void RecordStore::forEach(void* ctx,
   }
 }
 
-void RecordStore::forEachFile(
-    void* ctx, bool (*fn)(void* ctx, HalFile& file, const char* id)) const {
+void RecordStore::forEachFile(void* ctx, bool (*fn)(void* ctx, HalFile& file, const char* id)) const {
   if (!Storage.exists(dir_)) return;
   HalFile dir = Storage.open(dir_);
   if (!dir || !dir.isDirectory()) return;

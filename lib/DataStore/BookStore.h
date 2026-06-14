@@ -1,8 +1,8 @@
 #pragma once
+#include <string>
+
 #include "DataStoreUtils.h"
 #include "RecordStore.h"
-
-#include <string>
 
 struct PhysicalBook {
   std::string id;

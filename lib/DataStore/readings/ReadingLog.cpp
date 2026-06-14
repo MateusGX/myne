@@ -11,21 +11,26 @@
 
 const char* ReadingLog::statusToStr(ReadingStatus s) {
   switch (s) {
-    case ReadingStatus::WantToRead: return "want";
-    case ReadingStatus::Reading:    return "reading";
-    case ReadingStatus::Paused:     return "paused";
-    case ReadingStatus::Finished:   return "finished";
-    case ReadingStatus::Dropped:    return "dropped";
+    case ReadingStatus::WantToRead:
+      return "want";
+    case ReadingStatus::Reading:
+      return "reading";
+    case ReadingStatus::Paused:
+      return "paused";
+    case ReadingStatus::Finished:
+      return "finished";
+    case ReadingStatus::Dropped:
+      return "dropped";
   }
   return "reading";
 }
 
 ReadingStatus ReadingLog::strToStatus(const char* s) {
-  if (!s)                        return ReadingStatus::Reading;
-  if (strcmp(s, "want")     == 0) return ReadingStatus::WantToRead;
-  if (strcmp(s, "paused")   == 0) return ReadingStatus::Paused;
+  if (!s) return ReadingStatus::Reading;
+  if (strcmp(s, "want") == 0) return ReadingStatus::WantToRead;
+  if (strcmp(s, "paused") == 0) return ReadingStatus::Paused;
   if (strcmp(s, "finished") == 0) return ReadingStatus::Finished;
-  if (strcmp(s, "dropped")  == 0) return ReadingStatus::Dropped;
+  if (strcmp(s, "dropped") == 0) return ReadingStatus::Dropped;
   return ReadingStatus::Reading;
 }
 
@@ -64,10 +69,10 @@ std::vector<Reading> ReadingLog::loadForBook(const std::string& bookId) const {
       if (r.id.empty()) continue;
       r.status = [&]() -> ReadingStatus {
         const char* s = obj["s"] | "reading";
-        if (strcmp(s, "want")     == 0) return ReadingStatus::WantToRead;
-        if (strcmp(s, "paused")   == 0) return ReadingStatus::Paused;
+        if (strcmp(s, "want") == 0) return ReadingStatus::WantToRead;
+        if (strcmp(s, "paused") == 0) return ReadingStatus::Paused;
         if (strcmp(s, "finished") == 0) return ReadingStatus::Finished;
-        if (strcmp(s, "dropped")  == 0) return ReadingStatus::Dropped;
+        if (strcmp(s, "dropped") == 0) return ReadingStatus::Dropped;
         return ReadingStatus::Reading;
       }();
       r.readingType = (obj["rt"] | 0) == 1 ? ReadingType::Chapter : ReadingType::Page;
@@ -79,8 +84,8 @@ std::vector<Reading> ReadingLog::loadForBook(const std::string& bookId) const {
         for (JsonObject sv : sessions) {
           if (r.sessions.size() >= MAX_SESSIONS) break;
           ReadingSession s;
-          s.date     = sv["d"] | "";
-          s.time     = sv["tm"] | "";
+          s.date = sv["d"] | "";
+          s.time = sv["tm"] | "";
           s.position = sv["p"] | 0;
           r.sessions.push_back(std::move(s));
         }
@@ -96,8 +101,7 @@ std::vector<Reading> ReadingLog::loadForBook(const std::string& bookId) const {
 
 // ── Save ──────────────────────────────────────────────────────────────────────
 
-bool ReadingLog::saveForBook(const std::string& bookId,
-                              const std::vector<Reading>& readings) const {
+bool ReadingLog::saveForBook(const std::string& bookId, const std::vector<Reading>& readings) const {
   store_.init();
 
   auto serializeFn = [](JsonDocument& doc, const void* data) {
@@ -106,7 +110,7 @@ bool ReadingLog::saveForBook(const std::string& bookId,
     for (const auto& r : readings) {
       JsonObject obj = arr.add<JsonObject>();
       obj["id"] = r.id;
-      obj["s"]  = ReadingLog::statusToStr(r.status);
+      obj["s"] = ReadingLog::statusToStr(r.status);
       if (r.readingType == ReadingType::Chapter) obj["rt"] = 1;
       JsonArray sv = obj["sessions"].to<JsonArray>();
       for (const auto& s : r.sessions) {
@@ -139,8 +143,7 @@ static const Reading* chooseBestReading(const std::vector<Reading>& readings) {
   return chosen;
 }
 
-void ReadingLog::saveSummaryBinary(const std::string& bookId,
-                                    const std::vector<Reading>& readings) const {
+void ReadingLog::saveSummaryBinary(const std::string& bookId, const std::vector<Reading>& readings) const {
   uint8_t rec[SUM_REC_SIZE] = {};
   if (!readings.empty()) {
     const Reading* chosen = chooseBestReading(readings);
@@ -149,15 +152,14 @@ void ReadingLog::saveSummaryBinary(const std::string& bookId,
     rec[2] = static_cast<uint8_t>(chosen->readingType);
     const int32_t pos = chosen->lastPosition();
     memcpy(&rec[3], &pos, 4);
-    const auto& d   = chosen->lastDate();
+    const auto& d = chosen->lastDate();
     const size_t len = d.size() < 10u ? d.size() : 10u;
     memcpy(&rec[7], d.data(), len);
   }
   store_.saveSummary(bookId.c_str(), rec);
 }
 
-bool ReadingLog::loadSummaryForBook(const std::string& bookId,
-                                     ReadingSummary& out) const {
+bool ReadingLog::loadSummaryForBook(const std::string& bookId, ReadingSummary& out) const {
   uint8_t rec[SUM_REC_SIZE] = {};
   if (!store_.loadSummary(bookId.c_str(), rec)) {
     // Lazy migration: generate summary from JSON on first access.
@@ -165,19 +167,19 @@ bool ReadingLog::loadSummaryForBook(const std::string& bookId,
     if (readings.empty()) return false;
     saveSummaryBinary(bookId, readings);
     const Reading* chosen = chooseBestReading(readings);
-    out.hasReading   = true;
-    out.status       = chosen->status;
-    out.readingType  = chosen->readingType;
+    out.hasReading = true;
+    out.status = chosen->status;
+    out.readingType = chosen->readingType;
     out.lastPosition = chosen->lastPosition();
-    const auto& d    = chosen->lastDate();
+    const auto& d = chosen->lastDate();
     const size_t len = d.size() < 10u ? d.size() : 10u;
     memcpy(out.lastDate, d.data(), len);
     out.lastDate[10] = '\0';
     return true;
   }
-  out.hasReading   = rec[0] != 0;
-  out.status       = static_cast<ReadingStatus>(rec[1]);
-  out.readingType  = static_cast<ReadingType>(rec[2]);
+  out.hasReading = rec[0] != 0;
+  out.status = static_cast<ReadingStatus>(rec[1]);
+  out.readingType = static_cast<ReadingType>(rec[2]);
   int32_t pos;
   memcpy(&pos, &rec[3], 4);
   out.lastPosition = pos;
@@ -186,33 +188,38 @@ bool ReadingLog::loadSummaryForBook(const std::string& bookId,
   return true;
 }
 
-void ReadingLog::deleteForBook(const std::string& bookId) const {
-  store_.remove(bookId.c_str());
-}
+void ReadingLog::deleteForBook(const std::string& bookId) const { store_.remove(bookId.c_str()); }
 
 // ── Stats cache ───────────────────────────────────────────────────────────────
 
 namespace {
 
-struct YearEntry  { int16_t year; int16_t monthly[12]; };
-struct MonthEntry { int16_t year; uint8_t month; int16_t daily[31]; };
+struct YearEntry {
+  int16_t year;
+  int16_t monthly[12];
+};
+struct MonthEntry {
+  int16_t year;
+  uint8_t month;
+  int16_t daily[31];
+};
 
 struct RebuildCtx {
   JsonDocument doc;
 
-  int32_t totalReadings  = 0;
-  int32_t totalSessions  = 0;
-  int32_t byStatus[5]    = {};
-  int16_t byTracking[2]  = {};
-  char    latestDate[11] = {};
+  int32_t totalReadings = 0;
+  int32_t totalSessions = 0;
+  int32_t byStatus[5] = {};
+  int16_t byTracking[2] = {};
+  char latestDate[11] = {};
 
-  std::vector<YearEntry>  yearData;
+  std::vector<YearEntry> yearData;
   std::vector<MonthEntry> monthData;
 
   void (*onProgress)(void* ctx, int done, int total) = nullptr;
-  void*  progressCtx = nullptr;
-  int    processed   = 0;
-  int    total       = 0;
+  void* progressCtx = nullptr;
+  int processed = 0;
+  int total = 0;
 };
 
 static bool processReadingFile(void* vctx, HalFile& file, const char* /*id*/) {
@@ -234,10 +241,14 @@ static bool processReadingFile(void* vctx, HalFile& file, const char* /*id*/) {
     ++ctx.totalReadings;
     const char* s = r["s"] | "reading";
     int si = 1;
-    if      (strcmp(s, "want")     == 0) si = 0;
-    else if (strcmp(s, "paused")   == 0) si = 2;
-    else if (strcmp(s, "finished") == 0) si = 3;
-    else if (strcmp(s, "dropped")  == 0) si = 4;
+    if (strcmp(s, "want") == 0)
+      si = 0;
+    else if (strcmp(s, "paused") == 0)
+      si = 2;
+    else if (strcmp(s, "finished") == 0)
+      si = 3;
+    else if (strcmp(s, "dropped") == 0)
+      si = 4;
     ++ctx.byStatus[si];
     ++ctx.byTracking[(r["rt"] | 0) == 1 ? 1 : 0];
 
@@ -258,7 +269,10 @@ static bool processReadingFile(void* vctx, HalFile& file, const char* /*id*/) {
 
       YearEntry* ye = nullptr;
       for (auto& e : ctx.yearData) {
-        if (e.year == (int16_t)y) { ye = &e; break; }
+        if (e.year == (int16_t)y) {
+          ye = &e;
+          break;
+        }
       }
       if (!ye) {
         ctx.yearData.push_back({(int16_t)y, {}});
@@ -268,7 +282,10 @@ static bool processReadingFile(void* vctx, HalFile& file, const char* /*id*/) {
 
       MonthEntry* me = nullptr;
       for (auto& e : ctx.monthData) {
-        if (e.year == (int16_t)y && e.month == (uint8_t)m) { me = &e; break; }
+        if (e.year == (int16_t)y && e.month == (uint8_t)m) {
+          me = &e;
+          break;
+        }
       }
       if (!me) {
         ctx.monthData.push_back({(int16_t)y, (uint8_t)m, {}});
@@ -284,9 +301,8 @@ static bool processReadingFile(void* vctx, HalFile& file, const char* /*id*/) {
 
 }  // namespace
 
-void ReadingLog::rebuildStats(const char* booksDirPath,
-                               void (*onProgress)(void* ctx, int done, int total),
-                               void* ctx) const {
+void ReadingLog::rebuildStats(const char* booksDirPath, void (*onProgress)(void* ctx, int done, int total),
+                              void* ctx) const {
   statsStore_.init();
 
   const int totalBooks = RecordStore{booksDirPath}.count();
@@ -297,9 +313,9 @@ void ReadingLog::rebuildStats(const char* booksDirPath,
   RebuildCtx rctx;
   rctx.yearData.reserve(20);
   rctx.monthData.reserve(60);
-  rctx.onProgress  = onProgress;
+  rctx.onProgress = onProgress;
   rctx.progressCtx = ctx;
-  rctx.total       = totalFiles;
+  rctx.total = totalFiles;
 
   store_.forEachFile(&rctx, processReadingFile);
 
@@ -307,9 +323,9 @@ void ReadingLog::rebuildStats(const char* booksDirPath,
   {
     uint8_t rec[STATS_SUM_SIZE] = {};
     const int32_t books = (int32_t)totalBooks;
-    memcpy(&rec[0],  &books,             4);
-    memcpy(&rec[4],  &rctx.totalReadings, 4);
-    memcpy(&rec[8],  &rctx.totalSessions, 4);
+    memcpy(&rec[0], &books, 4);
+    memcpy(&rec[4], &rctx.totalReadings, 4);
+    memcpy(&rec[8], &rctx.totalSessions, 4);
     for (int i = 0; i < 5; ++i) memcpy(&rec[12 + i * 4], &rctx.byStatus[i], 4);
     memcpy(&rec[32], &rctx.byTracking[0], 2);
     memcpy(&rec[34], &rctx.byTracking[1], 2);
@@ -335,8 +351,7 @@ void ReadingLog::rebuildStats(const char* booksDirPath,
     statsStore_.writeMonth((int)me.year, (int)me.month, me.daily);
   }
 
-  LOG_INF("RLOG", "Stats rebuilt: %d books, %d sessions",
-          totalBooks, (int)rctx.totalSessions);
+  LOG_INF("RLOG", "Stats rebuilt: %d books, %d sessions", totalBooks, (int)rctx.totalSessions);
 }
 
 bool ReadingLog::loadStatsSummary(StatsCache& out) const {
@@ -344,18 +359,25 @@ bool ReadingLog::loadStatsSummary(StatsCache& out) const {
   if (!statsStore_.readSummary(rec, STATS_SUM_SIZE)) return false;
 
   int32_t v32;
-  memcpy(&v32, &rec[0],  4); out.totalBooks    = v32;
-  memcpy(&v32, &rec[4],  4); out.totalReadings  = v32;
-  memcpy(&v32, &rec[8],  4); out.totalSessions  = v32;
+  memcpy(&v32, &rec[0], 4);
+  out.totalBooks = v32;
+  memcpy(&v32, &rec[4], 4);
+  out.totalReadings = v32;
+  memcpy(&v32, &rec[8], 4);
+  out.totalSessions = v32;
   for (int i = 0; i < 5; ++i) {
     memcpy(&v32, &rec[12 + i * 4], 4);
     out.byStatus[i] = v32;
   }
   int16_t v16;
-  memcpy(&v16, &rec[32], 2); out.byTracking[0] = v16;
-  memcpy(&v16, &rec[34], 2); out.byTracking[1] = v16;
-  memcpy(&v16, &rec[36], 2); out.latestYear    = v16;
-  memcpy(&v16, &rec[38], 2); out.latestMonth   = v16;
+  memcpy(&v16, &rec[32], 2);
+  out.byTracking[0] = v16;
+  memcpy(&v16, &rec[34], 2);
+  out.byTracking[1] = v16;
+  memcpy(&v16, &rec[36], 2);
+  out.latestYear = v16;
+  memcpy(&v16, &rec[38], 2);
+  out.latestMonth = v16;
   return true;
 }
 
@@ -368,10 +390,6 @@ void ReadingLog::refreshTotalBooks(const char* booksDirPath) const {
   statsStore_.writeSummary(rec, STATS_SUM_SIZE);
 }
 
-void ReadingLog::loadStatsYear(int year, int* out12) const {
-  statsStore_.readYear(year, out12);
-}
+void ReadingLog::loadStatsYear(int year, int* out12) const { statsStore_.readYear(year, out12); }
 
-void ReadingLog::loadStatsMonth(int year, int month, int* out31) const {
-  statsStore_.readMonth(year, month, out31);
-}
+void ReadingLog::loadStatsMonth(int year, int month, int* out31) const { statsStore_.readMonth(year, month, out31); }

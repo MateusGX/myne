@@ -19,7 +19,7 @@ void BootActivity::onEnter() {
   renderer.clearScreen();
   renderer.drawImage(Logo120, (W - logoSize) / 2, (H - logoSize) / 2, logoSize, logoSize);
 
-  const int nameY   = H / 2 + logoSize / 2 + 16;
+  const int nameY = H / 2 + logoSize / 2 + 16;
   renderer.drawCenteredText(UI_10_FONT_ID, nameY, tr(STR_MYNE), true, EpdFontFamily::BOLD);
   renderer.drawCenteredText(SMALL_FONT_ID, nameY + lh10 + 8, tr(STR_BOOTING));
   renderer.drawCenteredText(SMALL_FONT_ID, H - lhSm - 16, MYNE_VERSION);

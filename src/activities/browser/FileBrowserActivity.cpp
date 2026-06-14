@@ -8,8 +8,8 @@
 #include <algorithm>
 
 #include "../util/ConfirmationActivity.h"
-#include "MyneSettings.h"
 #include "MappedInputManager.h"
+#include "MyneSettings.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 

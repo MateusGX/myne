@@ -13,9 +13,9 @@
 
 #include <cstring>
 
+#include "MappedInputManager.h"
 #include "MyneSettings.h"
 #include "MyneState.h"
-#include "MappedInputManager.h"
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
 #include "activities/books/CatalogSyncActivity.h"
@@ -202,8 +202,7 @@ void setup() {
   } else if (HalSystem::isRebootFromPanic()) {
     activityManager.goToCrashReport();
   } else if (Storage.exists(BookCatalog::SYNC_FLAG_PATH)) {
-    activityManager.replaceActivity(
-        std::make_unique<CatalogSyncActivity>(renderer, mappedInputManager));
+    activityManager.replaceActivity(std::make_unique<CatalogSyncActivity>(renderer, mappedInputManager));
   } else {
     activityManager.goHome();
   }
@@ -242,8 +241,7 @@ void loop() {
   }
 
   static unsigned long lastActivityTime = millis();
-  if (gpio.wasAnyPressed() || gpio.wasAnyReleased() ||
-      activityManager.preventAutoSleep()) {
+  if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || activityManager.preventAutoSleep()) {
     lastActivityTime = millis();
     powerManager.setPowerSaving(false);
   }

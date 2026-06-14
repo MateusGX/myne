@@ -77,8 +77,7 @@ struct SettingInfo {
     return s;
   }
 
-  static SettingInfo EnumStrings(StrId nameId, uint8_t MyneSettings::* ptr,
-                                 std::vector<std::string> values,
+  static SettingInfo EnumStrings(StrId nameId, uint8_t MyneSettings::* ptr, std::vector<std::string> values,
                                  const char* key = nullptr, StrId category = StrId::STR_NONE_OPT) {
     SettingInfo s;
     s.nameId = nameId;
