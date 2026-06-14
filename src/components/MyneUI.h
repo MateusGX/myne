@@ -144,10 +144,10 @@ class MyneUI {
                      const char* rightLabel = nullptr) const;  // Lyra version
   void drawTabBar(const GfxRenderer& renderer, Rect rect, const std::vector<TabInfo>& tabs,
                   bool selected) const;  // Lyra version
-  void drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
+  void drawButtonMenu(const GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                       const std::function<std::string(int index)>& buttonLabel,
                       const std::function<UIIcon(int index)>& rowIcon) const;  // Lyra version
-  void drawIconGrid(GfxRenderer& renderer, Rect rect, int count, int selectedIndex,
+  void drawIconGrid(const GfxRenderer& renderer, Rect rect, int count, int selectedIndex,
                     const std::function<std::string(int index)>& labelFn,
                     const std::function<UIIcon(int index)>& iconFn) const;
 
@@ -169,7 +169,7 @@ class MyneUI {
     const char* status;        // e.g. tr(STR_STATUS_READING) or nullptr
   };
 
-  void drawCarouselMenuCard(GfxRenderer& renderer, Rect rect, const CarouselMenuCard& card) const;
+  void drawCarouselMenuCard(const GfxRenderer& renderer, Rect rect, const CarouselMenuCard& card) const;
   void drawCarouselBookCard(GfxRenderer& renderer, Rect rect, const CarouselBookCard& card) const;
   Rect drawPopup(const GfxRenderer& renderer, const char* message) const;                       // Lyra version
   void fillPopupProgress(const GfxRenderer& renderer, const Rect& layout, int progress) const;  // Lyra version

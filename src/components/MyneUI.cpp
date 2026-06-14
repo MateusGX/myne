@@ -470,7 +470,7 @@ void MyneUI::drawSideButtonHints(const GfxRenderer& renderer, const char* topBtn
 // drawButtonMenu — Lyra version
 // ---------------------------------------------------------------------------
 
-void MyneUI::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
+void MyneUI::drawButtonMenu(const GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                             const std::function<std::string(int index)>& buttonLabel,
                             const std::function<UIIcon(int index)>& rowIcon) const {
   for (int i = 0; i < buttonCount; ++i) {
@@ -508,7 +508,7 @@ void MyneUI::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, i
 // drawIconGrid — 2D icon+label grid
 // ---------------------------------------------------------------------------
 
-void MyneUI::drawIconGrid(GfxRenderer& renderer, Rect rect, int count, int selectedIndex,
+void MyneUI::drawIconGrid(const GfxRenderer& renderer, Rect rect, int count, int selectedIndex,
                           const std::function<std::string(int index)>& labelFn,
                           const std::function<UIIcon(int index)>& iconFn) const {
   if (count <= 0) return;
@@ -758,7 +758,7 @@ void MyneUI::drawTextField(const GfxRenderer& renderer, Rect rect, const int tex
 // drawCarouselMenuCard — icon + label card for home screen carousel
 // ---------------------------------------------------------------------------
 
-void MyneUI::drawCarouselMenuCard(GfxRenderer& renderer, Rect rect, const CarouselMenuCard& card) const {
+void MyneUI::drawCarouselMenuCard(const GfxRenderer& renderer, Rect rect, const CarouselMenuCard& card) const {
   constexpr int iconSize = 64;
   constexpr int cardRadius = 14;
   constexpr int sidePad = 28;

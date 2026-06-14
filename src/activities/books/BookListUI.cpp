@@ -50,7 +50,7 @@ void drawSectionRow(const GfxRenderer& renderer, Rect row, char letter, int coun
                     EpdFontFamily::BOLD);
   renderer.drawLine(row.x + 46, row.y + 12, row.x + 46, row.y + row.height - 12);
 
-  char letterBuf[2] = {letter, '\0'};
+  const char letterBuf[2] = {letter, '\0'};
   const int textX = row.x + 62;
   renderer.drawText(UI_10_FONT_ID, textX, row.y + 12, letterBuf, true, EpdFontFamily::BOLD);
 
