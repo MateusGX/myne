@@ -4,6 +4,9 @@ on:
     tags:
       - "[0-9]+.[0-9]+.[0-9]+"
 
+permissions:
+  contents: write
+
 jobs:
   build-release:
     runs-on: ubuntu-latest
@@ -33,6 +36,16 @@ jobs:
         with:
           name: Myne-${{ github.ref_name }}
           path: |
+            .pio/build/gh_release/bootloader.bin
+            .pio/build/gh_release/firmware.bin
+            .pio/build/gh_release/firmware.elf
+            .pio/build/gh_release/firmware.map
+            .pio/build/gh_release/partitions.bin
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
             .pio/build/gh_release/bootloader.bin
             .pio/build/gh_release/firmware.bin
             .pio/build/gh_release/firmware.elf
