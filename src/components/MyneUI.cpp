@@ -414,56 +414,27 @@ void MyneUI::drawButtonHints(GfxRenderer& renderer, const char* btn1, const char
 }
 
 // ---------------------------------------------------------------------------
-// drawSideButtonHints — Lyra version
+// drawSideButtonHints — Lyra version (X4 only: both buttons stacked on the right side)
 // ---------------------------------------------------------------------------
 
 void MyneUI::drawSideButtonHints(const GfxRenderer& renderer, const char* topBtn, const char* bottomBtn) const {
-  const int screenWidth = renderer.getScreenWidth();
   constexpr int buttonWidth = MyneUIMetrics::values.sideButtonHintsWidth;
   constexpr int buttonHeight = 78;
-  constexpr int buttonMargin = 0;
+  constexpr int GAP = 5;
 
-  if (gpio.deviceIsX3()) {
-    // X3 layout: Up on left side, Down on right side, positioned higher
-    constexpr int x3ButtonY = 155;
+  const int x = renderer.getScreenWidth() - buttonWidth;
 
-    if (topBtn != nullptr && topBtn[0] != '\0') {
-      renderer.drawRoundedRect(buttonMargin, x3ButtonY, buttonWidth, buttonHeight, 1, cornerRadius, false, true, false,
-                               true, true);
-      const int textWidth = renderer.getTextWidth(SMALL_FONT_ID, topBtn);
-      renderer.drawTextRotated90CW(SMALL_FONT_ID, buttonMargin, x3ButtonY + (buttonHeight + textWidth) / 2, topBtn);
-    }
+  auto drawHint = [&](int rectY, int textY, const char* label) {
+    if (label == nullptr || label[0] == '\0') return;
 
-    if (bottomBtn != nullptr && bottomBtn[0] != '\0') {
-      const int rightX = screenWidth - buttonWidth;
-      renderer.drawRoundedRect(rightX, x3ButtonY, buttonWidth, buttonHeight, 1, cornerRadius, true, false, true, false,
-                               true);
-      const int textWidth = renderer.getTextWidth(SMALL_FONT_ID, bottomBtn);
-      renderer.drawTextRotated90CW(SMALL_FONT_ID, rightX, x3ButtonY + (buttonHeight + textWidth) / 2, bottomBtn);
-    }
-  } else {
-    // X4 layout: Both buttons stacked on right side
-    const char* labels[] = {topBtn, bottomBtn};
-    const int x = screenWidth - buttonWidth;
+    renderer.drawRoundedRect(x, rectY, buttonWidth, buttonHeight, 1, cornerRadius, true, false, true, false, true);
 
-    if (topBtn != nullptr && topBtn[0] != '\0') {
-      renderer.drawRoundedRect(x, topHintButtonY, buttonWidth, buttonHeight, 1, cornerRadius, true, false, true, false,
-                               true);
-    }
+    const int textWidth = renderer.getTextWidth(SMALL_FONT_ID, label);
+    renderer.drawTextRotated90CW(SMALL_FONT_ID, x, textY + (buttonHeight + textWidth) / 2, label);
+  };
 
-    if (bottomBtn != nullptr && bottomBtn[0] != '\0') {
-      renderer.drawRoundedRect(x, topHintButtonY + buttonHeight + 5, buttonWidth, buttonHeight, 1, cornerRadius, true,
-                               false, true, false, true);
-    }
-
-    for (int i = 0; i < 2; i++) {
-      if (labels[i] != nullptr && labels[i][0] != '\0') {
-        const int y = topHintButtonY + (i * buttonHeight) + 5;
-        const int textWidth = renderer.getTextWidth(SMALL_FONT_ID, labels[i]);
-        renderer.drawTextRotated90CW(SMALL_FONT_ID, x, y + (buttonHeight + textWidth) / 2, labels[i]);
-      }
-    }
-  }
+  drawHint(topHintButtonY, topHintButtonY + GAP, topBtn);
+  drawHint(topHintButtonY + buttonHeight + GAP, topHintButtonY + buttonHeight + GAP, bottomBtn);
 }
 
 // ---------------------------------------------------------------------------

@@ -4,6 +4,8 @@ Myne is a personal fork of [CrossPoint](https://github.com/crosspoint-reader/cro
 
 **Now running on:** ESP32C3-based Xteink [X4](https://www.xteink.com/products/xteink-x4).
 
+> Myne's UI and layouts target the X4 exclusively. Any X3-related code paths inherited from upstream CrossPoint are legacy, untested, and not maintained.
+
 ## What can Myne do?
 
 - **Physical book catalog**: add and edit entries for the books you own (title, author, location, volume), browse the catalog by first letter or by collection.
