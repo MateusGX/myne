@@ -293,7 +293,7 @@ void MyneWebServerActivity::loop() {
   if (state == WebServerActivityState::SERVER_RUNNING) {
     // Prefer UI responsiveness over raw HTTP throughput. This is checked before
     // any network work so the user can always leave the server screen.
-    if (mappedInput.wasPressedGroup(MappedInputManager::ButtonGroup::BottomLeft)) {
+    if (mappedInput.wasReleasedGroup(MappedInputManager::ButtonGroup::BottomLeft)) {
       goHomeOrSync(renderer, mappedInput);
       return;
     }
@@ -372,7 +372,7 @@ void MyneWebServerActivity::loop() {
           esp_task_wdt_reset();
           yield();
           mappedInput.update();
-          if (mappedInput.wasPressedGroup(MappedInputManager::ButtonGroup::BottomLeft)) {
+          if (mappedInput.wasReleasedGroup(MappedInputManager::ButtonGroup::BottomLeft)) {
             goHomeOrSync(renderer, mappedInput);
             return;
           }

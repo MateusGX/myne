@@ -118,14 +118,14 @@ void CatalogSyncActivity::doSync() {
 
 void CatalogSyncActivity::loop() {
   if (state_ == State::DONE) {
-    if (millis() - doneAt_ > 1500 || mappedInput.wasPressed(MappedInputManager::Button::Confirm) ||
-        mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+    if (millis() - doneAt_ > 1500 || mappedInput.wasReleased(MappedInputManager::Button::Confirm) ||
+        mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       onGoHome();
     }
     return;
   }
   if (state_ == State::FAILED) {
-    if (mappedInput.wasPressedGroup(MappedInputManager::ButtonGroup::BottomLeft)) {
+    if (mappedInput.wasReleasedGroup(MappedInputManager::ButtonGroup::BottomLeft)) {
       onGoHome();
     }
   }

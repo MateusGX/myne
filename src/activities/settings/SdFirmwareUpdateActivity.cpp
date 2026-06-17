@@ -187,7 +187,7 @@ void SdFirmwareUpdateActivity::performUpdate() {
 
 void SdFirmwareUpdateActivity::loop() {
   if (state == State::FAILED) {
-    if (mappedInput.wasPressedGroup(MappedInputManager::ButtonGroup::BottomLeft)) {
+    if (mappedInput.wasReleasedGroup(MappedInputManager::ButtonGroup::BottomLeft)) {
       if (recoveryMode) {
         // Go back to picker so user can try a different .bin
         state = State::PICKING;

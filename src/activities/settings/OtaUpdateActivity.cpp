@@ -186,7 +186,7 @@ void OtaUpdateActivity::loop() {
       }
     }
 
-    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       finish();
     }
 
@@ -194,7 +194,7 @@ void OtaUpdateActivity::loop() {
   }
 
   if (state == FAILED || state == NO_UPDATE) {
-    if (mappedInput.wasPressedGroup(MappedInputManager::ButtonGroup::BottomLeft)) {
+    if (mappedInput.wasReleasedGroup(MappedInputManager::ButtonGroup::BottomLeft)) {
       finish();
     }
     return;
