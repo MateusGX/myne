@@ -2,8 +2,12 @@
 
 #include <GfxRenderer.h>
 #include <I18n.h>
+#include <Utf8.h>
 
+#include <algorithm>
 #include <cstring>
+#include <string>
+#include <vector>
 
 #include "BookReadingStatsActivity.h"
 #include "BooksActivityUI.h"
@@ -15,6 +19,7 @@ namespace {
 constexpr int kPad = 20;
 constexpr int kCardR = 8;
 constexpr int kInner = 16;
+constexpr int kLineGap = 2;
 
 const char* statusLabel(ReadingStatus s) {
   switch (s) {
@@ -37,6 +42,126 @@ const char* dashIfEmpty(const std::string& s) { return s.empty() ? "-" : s.c_str
 void drawCard(const GfxRenderer& renderer, Rect rect, bool gray = false) {
   if (gray) renderer.fillRoundedRect(rect.x, rect.y, rect.width, rect.height, kCardR, Color::LightGray);
   renderer.drawRoundedRect(rect.x, rect.y, rect.width, rect.height, 1, kCardR, true);
+}
+
+int textBlockHeight(const GfxRenderer& renderer, int fontId, size_t lineCount) {
+  if (lineCount == 0) return 0;
+  return static_cast<int>(lineCount) * renderer.getLineHeight(fontId) + (static_cast<int>(lineCount) - 1) * kLineGap;
+}
+
+std::vector<std::string> wrappedTextFull(const GfxRenderer& renderer, int fontId, const char* text, int maxWidth,
+                                         EpdFontFamily::Style style = EpdFontFamily::REGULAR) {
+  std::vector<std::string> lines;
+  if (!text || maxWidth <= 0) return lines;
+
+  std::string current;
+  std::string word;
+
+  auto flushWord = [&] {
+    while (!word.empty()) {
+      const std::string candidate = current.empty() ? word : current + " " + word;
+      if (renderer.getTextWidth(fontId, candidate.c_str(), style) <= maxWidth) {
+        current = candidate;
+        word.clear();
+        return;
+      }
+
+      if (!current.empty()) {
+        lines.push_back(current);
+        current.clear();
+        continue;
+      }
+
+      std::string fitted;
+      const unsigned char* p = reinterpret_cast<const unsigned char*>(word.c_str());
+      const unsigned char* split = p;
+      while (*p != 0) {
+        const unsigned char* cpStart = p;
+        utf8NextCodepoint(&p);
+        std::string next = fitted;
+        next.append(reinterpret_cast<const char*>(cpStart), p - cpStart);
+        if (!fitted.empty() && renderer.getTextWidth(fontId, next.c_str(), style) > maxWidth) {
+          split = cpStart;
+          break;
+        }
+        fitted = next;
+        split = p;
+      }
+
+      if (fitted.empty()) {
+        fitted = word.substr(0, 1);
+        split = reinterpret_cast<const unsigned char*>(word.c_str()) + 1;
+      }
+
+      lines.push_back(fitted);
+      word.erase(0, split - reinterpret_cast<const unsigned char*>(word.c_str()));
+    }
+  };
+
+  const unsigned char* p = reinterpret_cast<const unsigned char*>(text);
+  while (*p != 0) {
+    const unsigned char* cpStart = p;
+    const uint32_t cp = utf8NextCodepoint(&p);
+    if (cp == '\n') {
+      flushWord();
+      if (!current.empty()) {
+        lines.push_back(current);
+        current.clear();
+      }
+      continue;
+    }
+    if (cp == ' ' || cp == '\t' || cp == '\r') {
+      flushWord();
+      continue;
+    }
+    word.append(reinterpret_cast<const char*>(cpStart), p - cpStart);
+  }
+  flushWord();
+  if (!current.empty()) lines.push_back(current);
+
+  if (lines.empty() && text[0] != '\0') lines.push_back(text);
+  return lines;
+}
+
+void drawWrappedLines(const GfxRenderer& renderer, int fontId, int x, int y, const std::vector<std::string>& lines,
+                      EpdFontFamily::Style style = EpdFontFamily::REGULAR) {
+  const int lh = renderer.getLineHeight(fontId);
+  for (const auto& line : lines) {
+    renderer.drawText(fontId, x, y, line.c_str(), true, style);
+    y += lh + kLineGap;
+  }
+}
+
+int bookHeroHeight(const GfxRenderer& renderer, int width, const char* title, const char* detail) {
+  const int textW = width - BooksActivityUI::INNER * 2;
+  const auto titleLines = wrappedTextFull(renderer, UI_10_FONT_ID, title, textW, EpdFontFamily::BOLD);
+  const auto detailLines = detail && detail[0] != '\0' ? wrappedTextFull(renderer, SMALL_FONT_ID, detail, textW)
+                                                       : std::vector<std::string>{};
+  const int contentH = 14 + renderer.getLineHeight(SMALL_FONT_ID) + 8 +
+                       textBlockHeight(renderer, UI_10_FONT_ID, titleLines.size()) +
+                       (detailLines.empty() ? 0 : 8 + textBlockHeight(renderer, SMALL_FONT_ID, detailLines.size())) +
+                       14;
+  return std::max(BooksActivityUI::HERO_H, contentH);
+}
+
+void drawBookHero(const GfxRenderer& renderer, Rect rect, const char* eyebrow, const char* title, const char* detail) {
+  BooksActivityUI::panel(renderer, rect, true);
+  const int textW = rect.width - BooksActivityUI::INNER * 2;
+  const int textX = rect.x + BooksActivityUI::INNER;
+  int y = rect.y + 14;
+
+  renderer.drawText(SMALL_FONT_ID, textX, y, eyebrow, true, EpdFontFamily::BOLD);
+  y += renderer.getLineHeight(SMALL_FONT_ID) + 8;
+
+  const auto titleLines = wrappedTextFull(renderer, UI_10_FONT_ID, title, textW, EpdFontFamily::BOLD);
+  drawWrappedLines(renderer, UI_10_FONT_ID, textX, y, titleLines, EpdFontFamily::BOLD);
+  y += textBlockHeight(renderer, UI_10_FONT_ID, titleLines.size());
+
+  if (detail && detail[0] != '\0') {
+    y += 8;
+    const auto detailLines = wrappedTextFull(renderer, SMALL_FONT_ID, detail, textW);
+    drawWrappedLines(renderer, SMALL_FONT_ID, textX, y, detailLines);
+  }
 }
 
 void drawLabelValue(const GfxRenderer& renderer, Rect rect, const char* label, const char* value,
@@ -63,9 +188,22 @@ void drawLabelValue(const GfxRenderer& renderer, Rect rect, const char* label, c
   }
 }
 
-void drawMetaCard(const GfxRenderer& renderer, Rect rect, const char* label, const char* value) {
+int fullLabelValueCardHeight(const GfxRenderer& renderer, int width, const char* value,
+                             int valueFont = UI_10_FONT_ID) {
+  const auto style = valueFont == UI_10_FONT_ID ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
+  const auto lines = wrappedTextFull(renderer, valueFont, value, width - kInner * 2, style);
+  return std::max(74, 14 + renderer.getLineHeight(SMALL_FONT_ID) + 8 +
+                          textBlockHeight(renderer, valueFont, lines.size()) + 14);
+}
+
+void drawFullMetaCard(const GfxRenderer& renderer, Rect rect, const char* label, const char* value,
+                      int valueFont = UI_10_FONT_ID) {
+  const auto style = valueFont == UI_10_FONT_ID ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
   drawCard(renderer, rect);
-  drawLabelValue(renderer, Rect{rect.x + kInner, rect.y + 14, rect.width - kInner * 2, rect.height - 24}, label, value);
+  renderer.drawText(SMALL_FONT_ID, rect.x + kInner, rect.y + 14, label, true, EpdFontFamily::BOLD);
+  const auto lines = wrappedTextFull(renderer, valueFont, value, rect.width - kInner * 2, style);
+  drawWrappedLines(renderer, valueFont, rect.x + kInner, rect.y + 14 + renderer.getLineHeight(SMALL_FONT_ID) + 8, lines,
+                   style);
 }
 
 }  // namespace
@@ -116,22 +254,22 @@ void PhysicalBookDetailActivity::render(RenderLock&&) {
 
   // Hero
   {
-    const auto author =
-        renderer.truncatedText(SMALL_FONT_ID, dashIfEmpty(book.author), CW - BooksActivityUI::INNER * 2);
-    BooksActivityUI::hero(renderer, Rect{kPad, y, CW, BooksActivityUI::HERO_H}, tr(STR_BOOK_DETAIL), book.title.c_str(),
-                          author.c_str());
-    y += BooksActivityUI::HERO_H + 14;
+    const char* author = dashIfEmpty(book.author);
+    const int heroH = bookHeroHeight(renderer, CW, book.title.c_str(), author);
+    drawBookHero(renderer, Rect{kPad, y, CW, heroH}, tr(STR_BOOK_DETAIL), book.title.c_str(), author);
+    y += heroH + 14;
   }
 
-  // Metadata grid
+  // Metadata
   {
     const int gap = 10;
-    const int cardW = (CW - gap) / 2;
-    const int cardH = 74;
-    drawMetaCard(renderer, Rect{kPad, y, cardW, cardH}, tr(STR_BOOK_COLLECTION), dashIfEmpty(book.collection));
-    drawMetaCard(renderer, Rect{kPad + cardW + gap, y, cardW, cardH}, tr(STR_BOOK_LOCATION),
-                 dashIfEmpty(book.location));
-    y += cardH + 12;
+    const int collectionH = fullLabelValueCardHeight(renderer, CW, dashIfEmpty(book.collection));
+    drawFullMetaCard(renderer, Rect{kPad, y, CW, collectionH}, tr(STR_BOOK_COLLECTION), dashIfEmpty(book.collection));
+    y += collectionH + gap;
+
+    const int locationH = fullLabelValueCardHeight(renderer, CW, dashIfEmpty(book.location));
+    drawFullMetaCard(renderer, Rect{kPad, y, CW, locationH}, tr(STR_BOOK_LOCATION), dashIfEmpty(book.location));
+    y += locationH + 12;
   }
 
   // Notes
