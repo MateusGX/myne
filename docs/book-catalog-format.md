@@ -103,10 +103,11 @@ One JSON object per line. **Collection headers** come first (sorted by name), fo
 
 Collection header line:
 ```json
-{"id":"a1b2c3d4","t":"Fantasy","c":1,"n":5,"note":"optional note"}
+{"id":"a1b2c3d4","t":"Fantasy","c":1,"n":5,"e":7,"iv":1,"note":"optional note"}
 ```
-`c: 1` marks this as a collection header; `n` is the number of books in the collection; `note` is
-included if the collection has a note set.
+`c: 1` marks this as a collection header; `n` is the number of books currently in the collection;
+`e` is the expected total number of books (omitted when unset); `iv` is the initial volume number
+(omitted when unset); `note` is included if the collection has a note set.
 
 Book line (standalone, or as a header — collection membership is implied by which file it's in,
 not stored per-line):
@@ -129,12 +130,14 @@ file — the collection's header lives in the relevant letter file.
 
 The persistent registry mapping collection names to IDs, one per line:
 ```json
-{"id":"a1b2c3d4","n":"Fantasy"}
+{"id":"a1b2c3d4","n":"Fantasy","e":7,"iv":1}
 ```
 - `id` — an 8-character lowercase hex string, generated via `DataStoreUtils::generateHexId()` the
   first time a collection name is seen, and reused for that name afterwards (collision-checked
   against existing entries)
 - `n` — the original collection name (up to 96 bytes UTF-8)
+- `e` — optional expected total number of books in the collection; omitted or `0` means unset
+- `iv` — optional initial volume number for the collection; omitted or `0` means unset
 
 ### `notes/{id8}.note`
 

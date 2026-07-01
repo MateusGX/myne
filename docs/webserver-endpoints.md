@@ -35,6 +35,8 @@ to, and can also be used directly with `curl` for scripting.
   - [Collections](#collections)
     - [GET `/api/collections` - List Collections](#get-apicollections---list-collections)
     - [POST `/api/collections/rename` - Rename a Collection](#post-apicollectionsrename---rename-a-collection)
+    - [POST `/api/collections/expected-count` - Set Expected Book Count](#post-apicollectionsexpected-count---set-expected-book-count)
+    - [POST `/api/collections/initial-volume` - Set Initial Volume](#post-apicollectionsinitial-volume---set-initial-volume)
     - [GET `/api/collections/note` - Get a Collection Note](#get-apicollectionsnote---get-a-collection-note)
     - [POST `/api/collections/note` - Set a Collection Note](#post-apicollectionsnote---set-a-collection-note)
     - [DELETE `/api/collections/note` - Clear a Collection Note](#delete-apicollectionsnote---clear-a-collection-note)
@@ -598,12 +600,13 @@ curl http://myne.local/api/collections
 **Response (200 OK, streamed JSON array):**
 ```json
 [
-  {"id": "a1b2c3d4", "name": "Middle-earth"}
+  {"id": "a1b2c3d4", "name": "Middle-earth", "expectedCount": 7, "initialVolume": 1}
 ]
 ```
 
 `id` is the persistent 8-hex-character collection ID (see
-[book-catalog-format.md](./book-catalog-format.md#collectionsndjson)).
+[book-catalog-format.md](./book-catalog-format.md#collectionsndjson)). `expectedCount` is `0` when
+no expected total is set. `initialVolume` is `0` when no initial volume is set.
 
 ---
 
@@ -622,6 +625,40 @@ curl -X POST -H "Content-Type: application/json" \
 
 Updates the registry entry and every member book's stored collection name, and flags the catalog for a
 full rebuild.
+
+---
+
+### POST `/api/collections/expected-count` - Set Expected Book Count
+
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"id": "a1b2c3d4", "expectedCount": 7}' \
+  http://myne.local/api/collections/expected-count
+```
+
+Set `expectedCount` to `0` to clear it. Negative values are stored as `0`.
+
+**Response (200 OK):** `{"ok": true}`
+
+**Error Responses:** 400 `Missing JSON body` / `Invalid JSON: <error>` / `id is required`; 404
+`Collection not found`.
+
+---
+
+### POST `/api/collections/initial-volume` - Set Initial Volume
+
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"id": "a1b2c3d4", "initialVolume": 1}' \
+  http://myne.local/api/collections/initial-volume
+```
+
+Set `initialVolume` to `0` to clear it. Negative values are stored as `0`.
+
+**Response (200 OK):** `{"ok": true}`
+
+**Error Responses:** 400 `Missing JSON body` / `Invalid JSON: <error>` / `id is required`; 404
+`Collection not found`.
 
 ---
 

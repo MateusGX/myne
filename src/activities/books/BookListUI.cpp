@@ -100,7 +100,12 @@ void drawEntryRow(const GfxRenderer& renderer, Rect row, const BookCatalog::Entr
 
   char sub[64] = {};
   if (entry.isCollection) {
-    snprintf(sub, sizeof(sub), "%d %s", entry.count, entry.count == 1 ? tr(STR_BOOK_SINGULAR) : tr(STR_BOOK_PLURAL));
+    if (entry.expectedCount > 0) {
+      snprintf(sub, sizeof(sub), "%d/%d %s", entry.count, entry.expectedCount,
+               entry.expectedCount == 1 ? tr(STR_BOOK_SINGULAR) : tr(STR_BOOK_PLURAL));
+    } else {
+      snprintf(sub, sizeof(sub), "%d %s", entry.count, entry.count == 1 ? tr(STR_BOOK_SINGULAR) : tr(STR_BOOK_PLURAL));
+    }
   } else {
     snprintf(sub, sizeof(sub), "%s", entry.author);
   }

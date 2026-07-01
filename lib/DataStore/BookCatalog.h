@@ -18,7 +18,8 @@
 //
 // NDJSON line formats (max MAX_LINE bytes each):
 //   Book:       {"id":"...","t":"...","a":"...","l":"..."}
-//   Collection: {"id":"...","t":"...","c":1,"n":42}  (c=1: header; n: book count)
+//   Collection: {"id":"...","t":"...","c":1,"n":42,"e":50,"iv":1}
+//               (c=1: header; n: book count; e/iv: optional metadata)
 class BookCatalog {
  public:
   static constexpr const char* CATALOG_DIR = "/.myne/catalog";
@@ -28,8 +29,8 @@ class BookCatalog {
   static constexpr const char* COLL_META_FILE = "/.myne/catalog/tmp/colls.ndjson";
   static constexpr const char* SYNC_FLAG_PATH = "/.myne/sync_needed";
   // Persistent collection-id registry: one line per collection,
-  // {"id":"<8hex>","n":"<name>"}. Lives outside CATALOG_DIR so it survives
-  // rebuild()'s cleanFilesInDir() calls.
+  // {"id":"<8hex>","n":"<name>","e":<expectedCount>,"iv":<initialVolume>}.
+  // Lives outside CATALOG_DIR so it survives rebuild()'s cleanFilesInDir() calls.
   static constexpr const char* REGISTRY_FILE = "/.myne/collections.ndjson";
   // Persistent per-collection notes, keyed by collection id. Lives outside
   // CATALOG_DIR so notes survive rebuild()'s cleanFilesInDir() calls.
@@ -45,6 +46,8 @@ class BookCatalog {
     char volume[17] = {};    // book volume (e.g. "Vol. 1"); empty for collections
     char note[65] = {};      // collection note; empty for books
     int count = 0;           // 0 for books; books-in-collection for headers
+    int expectedCount = 0;   // optional expected books-in-collection for headers
+    int initialVolume = 0;   // optional collection initial volume for headers
   };
 
   // Returns the persistent 8-hex id for a collection name, creating a new
@@ -54,9 +57,12 @@ class BookCatalog {
   // used for on-device display).
   static bool resolveCollectionId(const char* name, char* outId);
 
-  // Calls cb(id, name, ctx) for every registered collection (id is 8-hex,
-  // name is the original UTF-8 collection name, both NUL-terminated).
-  static void forEachCollection(void (*cb)(const char* id, const char* name, void* ctx), void* ctx);
+  // Calls cb(id, name, expectedCount, initialVolume, ctx) for every registered
+  // collection (id is 8-hex; name is NUL-terminated). Optional numeric fields
+  // are 0 when unset.
+  static void forEachCollection(void (*cb)(const char* id, const char* name, int expectedCount, int initialVolume,
+                                           void* ctx),
+                                void* ctx);
 
   // Renames collection `id` to `newName`: updates the registry entry, updates
   // every member book's stored "collection" field, and flags the catalog for
@@ -98,6 +104,16 @@ class BookCatalog {
   // Write (or clear) the persistent note for a collection.
   // Pass an empty string to remove the note.
   static bool setCollectionNote(const char* collId, const char* note);
+
+  // Read/write the optional expected total number of books in a collection.
+  // 0 means unset. Negative values are clamped to 0.
+  static int getCollectionExpectedCount(const char* collId);
+  static bool setCollectionExpectedCount(const char* collId, int expectedCount);
+
+  // Read/write the optional initial volume for a collection.
+  // 0 means unset. Negative values are clamped to 0.
+  static int getCollectionInitialVolume(const char* collId);
+  static bool setCollectionInitialVolume(const char* collId, int initialVolume);
 
   // Raw fields describing a book's catalog-relevant attributes.
   // All pointers must be non-null; use "" for empty fields.

@@ -5,10 +5,16 @@ const BOOKS_SHEET = "Books"
 const NOTES_SHEET = "Collection Notes"
 
 const BOOK_HEADERS = ["Title", "Author", "Collection", "Volume", "Location", "Notes"]
-const NOTE_HEADERS = ["Collection", "Note"]
+const NOTE_HEADERS = ["Collection", "Note", "Expected Count", "Initial Volume"]
 
 const EXAMPLE_BOOK = ["The Hobbit", "J.R.R. Tolkien", "Middle-earth", "", "Shelf 2", "Gift from Sarah"]
-const EXAMPLE_NOTE = ["Middle-earth", "Read in publication order"]
+const EXAMPLE_NOTE = ["Middle-earth", "Read in publication order", 7, 1]
+
+export type CollectionMetadata = {
+  note: string
+  expectedCount: number
+  initialVolume: number
+}
 
 function buildWorkbook(bookRows: unknown[][], noteRows: unknown[][]) {
   const wb = XLSX.utils.book_new()
@@ -23,12 +29,12 @@ export function downloadBooksTemplate() {
   XLSX.writeFile(wb, "myne-books-template.xlsx")
 }
 
-/** Export the current library + collection notes as a 2-sheet .xlsx (mirrors the import template). */
-export function exportBooksXlsx(books: Book[], collectionNotes: Record<string, string>) {
+/** Export the current library + collection metadata as a 2-sheet .xlsx (mirrors the import template). */
+export function exportBooksXlsx(books: Book[], collectionMetadata: Record<string, CollectionMetadata>) {
   const bookRows = books.map((b) => [b.title, b.author, b.collection, b.volume, b.location, b.notes])
-  const noteRows = Object.entries(collectionNotes)
-    .filter(([, note]) => note)
-    .map(([name, note]) => [name, note])
+  const noteRows = Object.entries(collectionMetadata)
+    .filter(([, meta]) => meta.note || meta.expectedCount > 0 || meta.initialVolume > 0)
+    .map(([name, meta]) => [name, meta.note, meta.expectedCount || "", meta.initialVolume || ""])
   XLSX.writeFile(buildWorkbook(bookRows, noteRows), "myne-books.xlsx")
 }
 
@@ -43,12 +49,20 @@ function rowValue(row: Record<string, unknown>, key: string): string {
   return ""
 }
 
+function rowInt(row: Record<string, unknown>, key: string): number {
+  const parsed = Math.floor(Number(rowValue(row, key)))
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+}
+
 function findSheet(workbook: XLSX.WorkBook, name: string): XLSX.WorkSheet | undefined {
   const sheetName = workbook.SheetNames.find((n) => n.trim().toLowerCase() === name.toLowerCase())
   return sheetName ? workbook.Sheets[sheetName] : undefined
 }
 
-export type ParsedBooksImport = { books: BookFormData[]; collectionNotes: Record<string, string> }
+export type ParsedBooksImport = {
+  books: BookFormData[]
+  collectionMetadata: Record<string, CollectionMetadata>
+}
 
 /** Parse a .xlsx file with a "Books" sheet and an optional "Collection Notes" sheet. */
 export async function parseBooksXlsx(file: File): Promise<ParsedBooksImport> {
@@ -71,15 +85,19 @@ export async function parseBooksXlsx(file: File): Promise<ParsedBooksImport> {
 
   if (books.length === 0) throw new Error("No valid books found")
 
-  const collectionNotes: Record<string, string> = {}
+  const collectionMetadata: Record<string, CollectionMetadata> = {}
   const notesSheet = findSheet(workbook, NOTES_SHEET)
   if (notesSheet) {
     for (const row of XLSX.utils.sheet_to_json<Record<string, unknown>>(notesSheet, { defval: "" })) {
       const collection = rowValue(row, "Collection")
       const note = rowValue(row, "Note")
-      if (collection && note) collectionNotes[collection] = note
+      const expectedCount = rowInt(row, "Expected Count")
+      const initialVolume = rowInt(row, "Initial Volume")
+      if (collection && (note || expectedCount > 0 || initialVolume > 0)) {
+        collectionMetadata[collection] = { note, expectedCount, initialVolume }
+      }
     }
   }
 
-  return { books, collectionNotes }
+  return { books, collectionMetadata }
 }

@@ -250,13 +250,28 @@ export const deleteBook = (id: string) =>
 
 // ─── Collections ───────────────────────────────────────────────────────────
 
-export type Collection = { id: string; name: string }
+export type Collection = {
+  id: string
+  name: string
+  expectedCount: number
+  initialVolume: number
+}
 
 export const getCollections = () =>
   api.get<Collection[]>("/api/collections").then((r) => r.data)
 
 export const renameCollection = (id: string, name: string) =>
   api.post<{ ok: boolean }>("/api/collections/rename", { id, name }).then((r) => r.data)
+
+export const setCollectionExpectedCount = (id: string, expectedCount: number) =>
+  api
+    .post<{ ok: boolean }>("/api/collections/expected-count", { id, expectedCount })
+    .then((r) => r.data)
+
+export const setCollectionInitialVolume = (id: string, initialVolume: number) =>
+  api
+    .post<{ ok: boolean }>("/api/collections/initial-volume", { id, initialVolume })
+    .then((r) => r.data)
 
 export const getCollectionNote = (id: string) =>
   api.get<{ id: string; note: string }>("/api/collections/note", { params: { id } }).then((r) => r.data)

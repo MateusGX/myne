@@ -18,6 +18,8 @@ struct CollMeta {
   char id[9];     // 8-hex collection id + NUL
   char name[33];  // collection name, null-padded
   char note[65];  // collection note, null-padded
+  int expectedCount = 0;
+  int initialVolume = 0;
 };
 
 struct SortIdx {
@@ -76,6 +78,16 @@ static void extractJsonStr(const char* json, const char* field, char* out, size_
   out[i] = '\0';
 }
 
+static int extractJsonInt(const char* json, const char* field, int fallback = 0) {
+  char needle[16];
+  snprintf(needle, sizeof(needle), "\"%s\":", field);
+  const char* p = strstr(json, needle);
+  if (!p) return fallback;
+  p += strlen(needle);
+  while (*p == ' ') ++p;
+  return static_cast<int>(strtol(p, nullptr, 10));
+}
+
 // Format a book as a compact NDJSON line (without trailing '\n').
 static void formatBookLine(char* buf, size_t maxLen, const char* id, const char* title, const char* author,
                            const char* location, const char* volume = "") {
@@ -91,16 +103,41 @@ static void formatBookLine(char* buf, size_t maxLen, const char* id, const char*
 // Format a collection header NDJSON line (without trailing '\n').
 // note may be nullptr or empty to omit the "note" field.
 static int formatCollectionHeader(char* buf, size_t maxLen, const char* collId, const char* name, int count,
-                                  const char* note) {
+                                  const char* note, int expectedCount = 0, int initialVolume = 0) {
   char eid[18], et[70], enote[130];
   jsonEscapeStr(collId, eid, sizeof(eid));
   jsonEscapeStr(name, et, sizeof(et));
+
+  char meta[56] = {};
+  if (expectedCount > 0) snprintf(meta + strlen(meta), sizeof(meta) - strlen(meta), ",\"e\":%d", expectedCount);
+  if (initialVolume > 0) snprintf(meta + strlen(meta), sizeof(meta) - strlen(meta), ",\"iv\":%d", initialVolume);
+
   if (note && note[0]) {
     jsonEscapeStr(note, enote, sizeof(enote));
-    return snprintf(buf, maxLen, "{\"id\":\"%s\",\"t\":\"%s\",\"c\":1,\"n\":%d,\"note\":\"%s\"}", eid, et, count,
-                    enote);
+    return snprintf(buf, maxLen, "{\"id\":\"%s\",\"t\":\"%s\",\"c\":1,\"n\":%d%s,\"note\":\"%s\"}", eid, et, count,
+                    meta, enote);
   }
-  return snprintf(buf, maxLen, "{\"id\":\"%s\",\"t\":\"%s\",\"c\":1,\"n\":%d}", eid, et, count);
+  return snprintf(buf, maxLen, "{\"id\":\"%s\",\"t\":\"%s\",\"c\":1,\"n\":%d%s}", eid, et, count, meta);
+}
+
+static void formatRegistryLine(char* line, size_t maxLen, const char* collId, const char* name, int expectedCount,
+                               int initialVolume) {
+  char eid[18], en[REG_NAME_MAX * 2 + 4];
+  jsonEscapeStr(collId, eid, sizeof(eid));
+  jsonEscapeStr(name, en, sizeof(en));
+  if (expectedCount > 0) {
+    if (initialVolume > 0) {
+      snprintf(line, maxLen, "{\"id\":\"%s\",\"n\":\"%s\",\"e\":%d,\"iv\":%d}", eid, en, expectedCount, initialVolume);
+    } else {
+      snprintf(line, maxLen, "{\"id\":\"%s\",\"n\":\"%s\",\"e\":%d}", eid, en, expectedCount);
+    }
+  } else {
+    if (initialVolume > 0) {
+      snprintf(line, maxLen, "{\"id\":\"%s\",\"n\":\"%s\",\"iv\":%d}", eid, en, initialVolume);
+    } else {
+      snprintf(line, maxLen, "{\"id\":\"%s\",\"n\":\"%s\"}", eid, en);
+    }
+  }
 }
 
 // Path of the raw-text note file for a collection: NOTES_DIR/{id8}.note
@@ -214,10 +251,8 @@ static void registerNewCollection(const char* key, char* outId) {
     if (!registryHasId(outId)) break;
   }
 
-  char eid[18], en[REG_NAME_MAX * 2 + 4], line[BookCatalog::MAX_LINE];
-  jsonEscapeStr(outId, eid, sizeof(eid));
-  jsonEscapeStr(key, en, sizeof(en));
-  snprintf(line, sizeof(line), "{\"id\":\"%s\",\"n\":\"%s\"}", eid, en);
+  char line[BookCatalog::MAX_LINE];
+  formatRegistryLine(line, sizeof(line), outId, key, 0, 0);
   Storage.mkdir("/.myne");
   appendLine(BookCatalog::REGISTRY_FILE, line);
 }
@@ -246,10 +281,96 @@ static bool updateRegistryName(const char* collId, const char* newName) {
         extractJsonStr(buf, "id", lineId, sizeof(lineId));
         if (!found && strcmp(lineId, collId) == 0) {
           found = true;
-          char eid[18], en[REG_NAME_MAX * 2 + 4], line[BookCatalog::MAX_LINE];
-          jsonEscapeStr(collId, eid, sizeof(eid));
-          jsonEscapeStr(key, en, sizeof(en));
-          snprintf(line, sizeof(line), "{\"id\":\"%s\",\"n\":\"%s\"}", eid, en);
+          const int expectedCount = extractJsonInt(buf, "e", 0);
+          const int initialVolume = extractJsonInt(buf, "iv", 0);
+          char line[BookCatalog::MAX_LINE];
+          formatRegistryLine(line, sizeof(line), collId, key, expectedCount, initialVolume);
+          dst.write(line, strlen(line));
+          dst.write("\n", 1);
+          continue;
+        }
+        dst.write(buf, strlen(buf));
+        dst.write("\n", 1);
+      }
+    }
+  }  // src and dst close here
+
+  if (found) {
+    Storage.remove(BookCatalog::REGISTRY_FILE);
+    Storage.rename(tmpPath, BookCatalog::REGISTRY_FILE);
+  } else {
+    Storage.remove(tmpPath);
+  }
+  return found;
+}
+
+static bool updateRegistryExpectedCount(const char* collId, int expectedCount) {
+  if (!Storage.exists(BookCatalog::REGISTRY_FILE)) return false;
+  if (expectedCount < 0) expectedCount = 0;
+
+  char tmpPath[120];
+  snprintf(tmpPath, sizeof(tmpPath), "%s.tmp", BookCatalog::REGISTRY_FILE);
+
+  bool found = false;
+  {
+    HalFile dst;
+    if (!Storage.openFileForWrite("CAT", tmpPath, dst)) return false;
+    HalFile src;
+    if (Storage.openFileForRead("CAT", BookCatalog::REGISTRY_FILE, src)) {
+      char buf[BookCatalog::MAX_LINE];
+      while (readLine(src, buf, sizeof(buf))) {
+        char lineId[9] = {};
+        extractJsonStr(buf, "id", lineId, sizeof(lineId));
+        if (!found && strcmp(lineId, collId) == 0) {
+          found = true;
+          char name[REG_NAME_MAX + 1] = {};
+          extractJsonStr(buf, "n", name, sizeof(name));
+          const int initialVolume = extractJsonInt(buf, "iv", 0);
+          char line[BookCatalog::MAX_LINE];
+          formatRegistryLine(line, sizeof(line), collId, name, expectedCount, initialVolume);
+          dst.write(line, strlen(line));
+          dst.write("\n", 1);
+          continue;
+        }
+        dst.write(buf, strlen(buf));
+        dst.write("\n", 1);
+      }
+    }
+  }  // src and dst close here
+
+  if (found) {
+    Storage.remove(BookCatalog::REGISTRY_FILE);
+    Storage.rename(tmpPath, BookCatalog::REGISTRY_FILE);
+  } else {
+    Storage.remove(tmpPath);
+  }
+  return found;
+}
+
+static bool updateRegistryInitialVolume(const char* collId, int initialVolume) {
+  if (!Storage.exists(BookCatalog::REGISTRY_FILE)) return false;
+  if (initialVolume < 0) initialVolume = 0;
+
+  char tmpPath[120];
+  snprintf(tmpPath, sizeof(tmpPath), "%s.tmp", BookCatalog::REGISTRY_FILE);
+
+  bool found = false;
+  {
+    HalFile dst;
+    if (!Storage.openFileForWrite("CAT", tmpPath, dst)) return false;
+    HalFile src;
+    if (Storage.openFileForRead("CAT", BookCatalog::REGISTRY_FILE, src)) {
+      char buf[BookCatalog::MAX_LINE];
+      while (readLine(src, buf, sizeof(buf))) {
+        char lineId[9] = {};
+        extractJsonStr(buf, "id", lineId, sizeof(lineId));
+        if (!found && strcmp(lineId, collId) == 0) {
+          found = true;
+          char name[REG_NAME_MAX + 1] = {};
+          extractJsonStr(buf, "n", name, sizeof(name));
+          const int expectedCount = extractJsonInt(buf, "e", 0);
+          char line[BookCatalog::MAX_LINE];
+          formatRegistryLine(line, sizeof(line), collId, name, expectedCount, initialVolume);
           dst.write(line, strlen(line));
           dst.write("\n", 1);
           continue;
@@ -457,6 +578,8 @@ static void buildLetterFile(char letter, uint16_t& idxOut) {
           if (x[0] != letter) continue;
           extractJsonStr(buf, "id", colls[collCount].id, sizeof(colls[collCount].id));
           extractJsonStr(buf, "t", colls[collCount].name, sizeof(colls[collCount].name));
+          colls[collCount].expectedCount = extractJsonInt(buf, "e", 0);
+          colls[collCount].initialVolume = extractJsonInt(buf, "iv", 0);
           // Load persistent collection note (outside catalog dir, survives rebuild)
           BookCatalog::getCollectionNote(colls[collCount].id, colls[collCount].note, sizeof(colls[collCount].note));
           ++collCount;
@@ -496,7 +619,8 @@ static void buildLetterFile(char letter, uint16_t& idxOut) {
     snprintf(collPath, sizeof(collPath), "%s/%s.ndjson", BookCatalog::COLL_DIR, colls[i].id);
     const int cnt = countLines(collPath);
 
-    const int len = formatCollectionHeader(buf, sizeof(buf), colls[i].id, colls[i].name, cnt, colls[i].note);
+    const int len = formatCollectionHeader(buf, sizeof(buf), colls[i].id, colls[i].name, cnt, colls[i].note,
+                                           colls[i].expectedCount, colls[i].initialVolume);
     if (len > 0) {
       lf.write(buf, static_cast<size_t>(len));
       lf.write("\n", 1);
@@ -616,7 +740,8 @@ static void insertLineSorted(const char* path, const char* newLine, const char* 
 
 // Rewrite the "n" (book count) field of the collection header identified by
 // collId within letterPath. Returns true if the header was found.
-static bool updateCollectionHeaderCount(const char* letterPath, const char* collId, int newCount) {
+static bool updateCollectionHeaderCount(const char* letterPath, const char* collId, int newCount,
+                                        int newExpectedCount = -1, int newInitialVolume = -1) {
   if (!Storage.exists(letterPath)) return false;
 
   char tmpPath[120];
@@ -637,8 +762,11 @@ static bool updateCollectionHeaderCount(const char* letterPath, const char* coll
           char title[33] = {}, note[65] = {};
           extractJsonStr(buf, "t", title, sizeof(title));
           extractJsonStr(buf, "note", note, sizeof(note));
+          const int expectedCount = newExpectedCount >= 0 ? newExpectedCount : extractJsonInt(buf, "e", 0);
+          const int initialVolume = newInitialVolume >= 0 ? newInitialVolume : extractJsonInt(buf, "iv", 0);
           char line[BookCatalog::MAX_LINE];
-          const int len = formatCollectionHeader(line, sizeof(line), collId, title, newCount, note);
+          const int len =
+              formatCollectionHeader(line, sizeof(line), collId, title, newCount, note, expectedCount, initialVolume);
           if (len > 0) {
             dst.write(line, static_cast<size_t>(len));
             dst.write("\n", 1);
@@ -745,8 +873,11 @@ static void addEntry(const BookCatalog::BookChangeInfo& book) {
     if (isNewCollection) {
       char note[65] = {};
       BookCatalog::getCollectionNote(collId, note, sizeof(note));
+      const int expectedCount = BookCatalog::getCollectionExpectedCount(collId);
+      const int initialVolume = BookCatalog::getCollectionInitialVolume(collId);
       char headerLine[BookCatalog::MAX_LINE];
-      formatCollectionHeader(headerLine, sizeof(headerLine), collId, book.collection, newCount, note);
+      formatCollectionHeader(headerLine, sizeof(headerLine), collId, book.collection, newCount, note, expectedCount,
+                             initialVolume);
       insertLineSorted(letterPath, headerLine, book.collection, InsertSection::Header);
       adjustIdxCount(letter, +1);
     } else {
@@ -857,8 +988,15 @@ bool BookCatalog::rebuild(const char* booksDir, void (*onProgress)(int processed
             char eid[18], et[70];
             jsonEscapeStr(collId, eid, sizeof(eid));
             jsonEscapeStr(collection, et, sizeof(et));
-            snprintf(lineBuf, sizeof(lineBuf), "{\"id\":\"%s\",\"t\":\"%s\",\"x\":\"%c\"}", eid, et,
-                     letter ? letter : '?');
+            const int expectedCount = BookCatalog::getCollectionExpectedCount(collId);
+            const int initialVolume = BookCatalog::getCollectionInitialVolume(collId);
+            char meta[64] = {};
+            if (expectedCount > 0)
+              snprintf(meta + strlen(meta), sizeof(meta) - strlen(meta), ",\"e\":%d", expectedCount);
+            if (initialVolume > 0)
+              snprintf(meta + strlen(meta), sizeof(meta) - strlen(meta), ",\"iv\":%d", initialVolume);
+            snprintf(lineBuf, sizeof(lineBuf), "{\"id\":\"%s\",\"t\":\"%s\",\"x\":\"%c\"%s}", eid, et,
+                     letter ? letter : '?', meta);
             appendLine(COLL_META_FILE, lineBuf);
           }
         } else {
@@ -981,6 +1119,8 @@ static int readNdjsonPage(const char* path, int start, int maxCount, BookCatalog
     strncpy(e.note, doc["note"] | "", 64);
     e.note[64] = '\0';
     e.count = e.isCollection ? (doc["n"] | 0) : 0;
+    e.expectedCount = e.isCollection ? (doc["e"] | 0) : 0;
+    e.initialVolume = e.isCollection ? (doc["iv"] | 0) : 0;
     ++n;
     yield();
   }
@@ -1059,7 +1199,95 @@ bool BookCatalog::setCollectionNote(const char* collId, const char* note) {
   return true;
 }
 
-void BookCatalog::forEachCollection(void (*cb)(const char* id, const char* name, void* ctx), void* ctx) {
+int BookCatalog::getCollectionExpectedCount(const char* collId) {
+  if (!Storage.exists(REGISTRY_FILE)) return 0;
+  HalFile f;
+  if (!Storage.openFileForRead("CAT", REGISTRY_FILE, f)) return 0;
+  char buf[MAX_LINE];
+  while (readLine(f, buf, sizeof(buf))) {
+    char id[9] = {};
+    extractJsonStr(buf, "id", id, sizeof(id));
+    if (strcmp(id, collId) == 0) return extractJsonInt(buf, "e", 0);
+  }
+  return 0;
+}
+
+bool BookCatalog::setCollectionExpectedCount(const char* collId, int expectedCount) {
+  if (expectedCount < 0) expectedCount = 0;
+  if (!updateRegistryExpectedCount(collId, expectedCount)) return false;
+
+  char name[REG_NAME_MAX + 1] = {};
+  if (Storage.exists(REGISTRY_FILE)) {
+    HalFile f;
+    char buf[MAX_LINE];
+    if (Storage.openFileForRead("CAT", REGISTRY_FILE, f)) {
+      while (readLine(f, buf, sizeof(buf))) {
+        char id[9] = {};
+        extractJsonStr(buf, "id", id, sizeof(id));
+        if (strcmp(id, collId) == 0) {
+          extractJsonStr(buf, "n", name, sizeof(name));
+          break;
+        }
+      }
+    }
+  }
+
+  if (name[0] && Storage.exists(IDX_FILE)) {
+    char letter = upperFirstLetter(name);
+    if (!letter) letter = '#';
+    char letterPath[80];
+    snprintf(letterPath, sizeof(letterPath), "%s/%c.ndjson", CATALOG_DIR, letter);
+    updateCollectionHeaderCount(letterPath, collId, collectionCount(collId), expectedCount);
+  }
+  return true;
+}
+
+int BookCatalog::getCollectionInitialVolume(const char* collId) {
+  if (!Storage.exists(REGISTRY_FILE)) return 0;
+  HalFile f;
+  if (!Storage.openFileForRead("CAT", REGISTRY_FILE, f)) return 0;
+  char buf[MAX_LINE];
+  while (readLine(f, buf, sizeof(buf))) {
+    char id[9] = {};
+    extractJsonStr(buf, "id", id, sizeof(id));
+    if (strcmp(id, collId) == 0) return extractJsonInt(buf, "iv", 0);
+  }
+  return 0;
+}
+
+bool BookCatalog::setCollectionInitialVolume(const char* collId, int initialVolume) {
+  if (initialVolume < 0) initialVolume = 0;
+  if (!updateRegistryInitialVolume(collId, initialVolume)) return false;
+
+  char name[REG_NAME_MAX + 1] = {};
+  if (Storage.exists(REGISTRY_FILE)) {
+    HalFile f;
+    char buf[MAX_LINE];
+    if (Storage.openFileForRead("CAT", REGISTRY_FILE, f)) {
+      while (readLine(f, buf, sizeof(buf))) {
+        char id[9] = {};
+        extractJsonStr(buf, "id", id, sizeof(id));
+        if (strcmp(id, collId) == 0) {
+          extractJsonStr(buf, "n", name, sizeof(name));
+          break;
+        }
+      }
+    }
+  }
+
+  if (name[0] && Storage.exists(IDX_FILE)) {
+    char letter = upperFirstLetter(name);
+    if (!letter) letter = '#';
+    char letterPath[80];
+    snprintf(letterPath, sizeof(letterPath), "%s/%c.ndjson", CATALOG_DIR, letter);
+    updateCollectionHeaderCount(letterPath, collId, collectionCount(collId), -1, initialVolume);
+  }
+  return true;
+}
+
+void BookCatalog::forEachCollection(void (*cb)(const char* id, const char* name, int expectedCount, int initialVolume,
+                                               void* ctx),
+                                    void* ctx) {
   if (!Storage.exists(REGISTRY_FILE)) return;
   HalFile f;
   if (!Storage.openFileForRead("CAT", REGISTRY_FILE, f)) return;
@@ -1068,7 +1296,9 @@ void BookCatalog::forEachCollection(void (*cb)(const char* id, const char* name,
     char id[9] = {}, name[REG_NAME_MAX + 1] = {};
     extractJsonStr(buf, "id", id, sizeof(id));
     extractJsonStr(buf, "n", name, sizeof(name));
-    if (id[0]) cb(id, name, ctx);
+    const int expectedCount = extractJsonInt(buf, "e", 0);
+    const int initialVolume = extractJsonInt(buf, "iv", 0);
+    if (id[0]) cb(id, name, expectedCount, initialVolume, ctx);
   }
 }
 

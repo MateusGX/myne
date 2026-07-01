@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { type Book } from "@/lib/api"
+import { type CollectionMetadata } from "@/lib/booksXlsx"
 
 export type ImportMode = "import" | "create"
 
@@ -15,7 +16,7 @@ export type ImportPhase =
       step: "preview"
       mode?: ImportMode
       books: Book[]
-      collectionNotes: Record<string, string>
+      collectionMetadata: Record<string, CollectionMetadata>
     }
   | {
       step: "running"
@@ -23,17 +24,17 @@ export type ImportPhase =
       done: number
       total: number
       current: string
-      kind: "book" | "note"
+      kind: "book" | "metadata"
     }
   | {
       step: "done"
       mode?: ImportMode
       created: number
       failed: number
-      notesImported: number
-      notesFailed: number
+      metadataImported: number
+      metadataFailed: number
       failedBooks: Book[]
-      failedNotes: Record<string, string>
+      failedMetadata: Record<string, CollectionMetadata>
     }
 
 export function ImportDialog({
@@ -74,13 +75,13 @@ export function ImportDialog({
                 </span>{" "}
                 {mode === "create" ? "queued" : "found in the file"}
                 {mode === "import" &&
-                  Object.keys(phase.collectionNotes ?? {}).length > 0 && (
+                  Object.keys(phase.collectionMetadata ?? {}).length > 0 && (
                     <>
                       {" "}
                       and{" "}
                       <span className="font-semibold">
-                        {Object.keys(phase.collectionNotes).length} collection
-                        notes
+                        {Object.keys(phase.collectionMetadata).length}{" "}
+                        collection metadata rows
                       </span>
                     </>
                   )}
@@ -122,7 +123,7 @@ export function ImportDialog({
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>
                   {phase.done} / {phase.total}{" "}
-                  {phase.kind === "note" ? "collection notes" : "books"}
+                  {phase.kind === "metadata" ? "collection metadata" : "books"}
                 </span>
                 <span>
                   {phase.total > 0
@@ -142,7 +143,7 @@ export function ImportDialog({
             </div>
             {phase.current && (
               <p className="truncate text-xs text-muted-foreground">
-                {phase.kind === "note" ? "Saving note for:" : "Adding:"}{" "}
+                {phase.kind === "metadata" ? "Saving metadata for:" : "Adding:"}{" "}
                 <span className="font-medium text-foreground">
                   {phase.current}
                 </span>
@@ -165,27 +166,29 @@ export function ImportDialog({
                   to {mode === "create" ? "create" : "import"}.
                 </p>
               )}
-              {phase.notesImported > 0 && (
+              {phase.metadataImported > 0 && (
                 <p className="text-sm">
-                  <span className="font-semibold">{phase.notesImported}</span>{" "}
-                  {phase.notesImported === 1
-                    ? "collection note"
-                    : "collection notes"}{" "}
+                  <span className="font-semibold">
+                    {phase.metadataImported}
+                  </span>{" "}
+                  {phase.metadataImported === 1
+                    ? "collection metadata row"
+                    : "collection metadata rows"}{" "}
                   imported successfully.
                 </p>
               )}
-              {phase.notesFailed > 0 && (
+              {phase.metadataFailed > 0 && (
                 <p className="text-sm text-destructive">
-                  {phase.notesFailed}{" "}
-                  {phase.notesFailed === 1
-                    ? "collection note"
-                    : "collection notes"}{" "}
+                  {phase.metadataFailed}{" "}
+                  {phase.metadataFailed === 1
+                    ? "collection metadata row"
+                    : "collection metadata rows"}{" "}
                   failed to import.
                 </p>
               )}
             </div>
             <DialogFooter>
-              {(phase.failed > 0 || phase.notesFailed > 0) && (
+              {(phase.failed > 0 || phase.metadataFailed > 0) && (
                 <Button variant="outline" onClick={onRetry}>
                   Retry failed
                 </Button>

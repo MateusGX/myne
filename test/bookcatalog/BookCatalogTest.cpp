@@ -16,10 +16,12 @@ namespace {
 struct CollectionEntry {
   std::string id;
   std::string name;
+  int expectedCount = 0;
+  int initialVolume = 0;
 };
 
-void collectCollection(const char* id, const char* name, void* ctx) {
-  static_cast<std::vector<CollectionEntry>*>(ctx)->push_back({id, name});
+void collectCollection(const char* id, const char* name, int expectedCount, int initialVolume, void* ctx) {
+  static_cast<std::vector<CollectionEntry>*>(ctx)->push_back({id, name, expectedCount, initialVolume});
 }
 
 PhysicalBook makeBook(BookStore& store, const std::string& title, const std::string& author,
@@ -86,6 +88,39 @@ void testResolveCollectionIdAndForEachCollection() {
   PASS();
 }
 
+void testCollectionExpectedCount() {
+  TempStorageDir tmp;
+
+  char id[9] = {};
+  ASSERT_TRUE(BookCatalog::resolveCollectionId("My Collection", id));
+  ASSERT_EQ(BookCatalog::getCollectionExpectedCount(id), 0);
+  ASSERT_TRUE(BookCatalog::setCollectionExpectedCount(id, 12));
+  ASSERT_EQ(BookCatalog::getCollectionExpectedCount(id), 12);
+  ASSERT_TRUE(BookCatalog::setCollectionExpectedCount(id, -1));
+  ASSERT_EQ(BookCatalog::getCollectionExpectedCount(id), 0);
+  ASSERT_TRUE(BookCatalog::setCollectionExpectedCount(id, 9));
+  ASSERT_EQ(BookCatalog::getCollectionInitialVolume(id), 0);
+  ASSERT_TRUE(BookCatalog::setCollectionInitialVolume(id, 2));
+  ASSERT_EQ(BookCatalog::getCollectionInitialVolume(id), 2);
+  ASSERT_TRUE(BookCatalog::setCollectionInitialVolume(id, -1));
+  ASSERT_EQ(BookCatalog::getCollectionInitialVolume(id), 0);
+  ASSERT_TRUE(BookCatalog::setCollectionInitialVolume(id, 3));
+
+  std::vector<CollectionEntry> colls;
+  BookCatalog::forEachCollection(collectCollection, &colls);
+  ASSERT_EQ(colls.size(), (size_t)1);
+  ASSERT_EQ(colls[0].id, std::string(id));
+  ASSERT_EQ(colls[0].expectedCount, 9);
+  ASSERT_EQ(colls[0].initialVolume, 3);
+
+  ASSERT_TRUE(BookCatalog::renameCollection(id, "My Renamed Collection"));
+  ASSERT_EQ(BookCatalog::getCollectionExpectedCount(id), 9);
+  ASSERT_EQ(BookCatalog::getCollectionInitialVolume(id), 3);
+
+  printf("  collection metadata persists, clears, lists, and survives rename\n");
+  PASS();
+}
+
 void testRebuildAndReadCatalog() {
   TempStorageDir tmp;
   BookStore books;
@@ -95,6 +130,11 @@ void testRebuildAndReadCatalog() {
   ASSERT_FALSE(BookCatalog::readLetterIndex(idx));
 
   createSampleBooks(books);
+
+  char sagaId[9] = {};
+  ASSERT_TRUE(BookCatalog::resolveCollectionId("Saga Collection", sagaId));
+  ASSERT_TRUE(BookCatalog::setCollectionExpectedCount(sagaId, 3));
+  ASSERT_TRUE(BookCatalog::setCollectionInitialVolume(sagaId, 5));
 
   ASSERT_TRUE(BookCatalog::rebuild(BookStore::DIR_PATH));
 
@@ -128,10 +168,11 @@ void testRebuildAndReadCatalog() {
   ASSERT_TRUE(entries[0].isCollection);
   ASSERT_EQ(std::string(entries[0].title), "Saga Collection");
   ASSERT_EQ(entries[0].count, 2);
+  ASSERT_EQ(entries[0].expectedCount, 3);
+  ASSERT_EQ(entries[0].initialVolume, 5);
   ASSERT_FALSE(entries[1].isCollection);
   ASSERT_EQ(std::string(entries[1].title), "Solo Book");
 
-  char sagaId[9] = {};
   ASSERT_TRUE(BookCatalog::resolveCollectionId("Saga Collection", sagaId));
   ASSERT_EQ(std::string(sagaId), std::string(entries[0].id));
 
@@ -287,6 +328,8 @@ void testApplyBookChangeCollectionLifecycle() {
   char sagaId[9] = {};
   ASSERT_TRUE(BookCatalog::resolveCollectionId("Saga Collection", sagaId));
   ASSERT_EQ(BookCatalog::collectionCount(sagaId), 2);
+  ASSERT_TRUE(BookCatalog::setCollectionExpectedCount(sagaId, 4));
+  ASSERT_TRUE(BookCatalog::setCollectionInitialVolume(sagaId, 2));
 
   // Add a third book to the existing "Saga Collection".
   PhysicalBook saga3 = makeBook(books, "Saga Vol 3", "Author C", "Saga Collection");
@@ -300,6 +343,8 @@ void testApplyBookChangeCollectionLifecycle() {
   ASSERT_TRUE(entries[0].isCollection);
   ASSERT_EQ(std::string(entries[0].id), std::string(sagaId));
   ASSERT_EQ(entries[0].count, 3);
+  ASSERT_EQ(entries[0].expectedCount, 4);
+  ASSERT_EQ(entries[0].initialVolume, 2);
 
   // Add a book that creates a brand-new collection ("Trilogy", letter T).
   PhysicalBook trilogy1 = makeBook(books, "Trilogy Vol 1", "Author E", "Trilogy");
@@ -334,6 +379,7 @@ int main() {
   printf("=== BookCatalog Tests ===\n\n");
 
   testResolveCollectionIdAndForEachCollection();
+  testCollectionExpectedCount();
   testRebuildAndReadCatalog();
   testGetSetCollectionNote();
   testRenameCollection();

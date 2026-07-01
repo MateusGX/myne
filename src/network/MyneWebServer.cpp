@@ -52,7 +52,7 @@ struct CollectionsStreamCtx {
   bool first;
 };
 
-static void streamCollectionCb(const char* id, const char* name, void* ctxPtr) {
+static void streamCollectionCb(const char* id, const char* name, int expectedCount, int initialVolume, void* ctxPtr) {
   auto* ctx = static_cast<CollectionsStreamCtx*>(ctxPtr);
   if (!ctx->first) ctx->server->sendContent(",");
   ctx->first = false;
@@ -60,6 +60,8 @@ static void streamCollectionCb(const char* id, const char* name, void* ctxPtr) {
   JsonDocument doc;
   doc["id"] = id;
   doc["name"] = name;
+  doc["expectedCount"] = expectedCount;
+  doc["initialVolume"] = initialVolume;
   String item;
   serializeJson(doc, item);
   ctx->server->sendContent(item);
@@ -204,6 +206,8 @@ void MyneWebServer::begin() {
   // Collection registry endpoints
   server->on("/api/collections", HTTP_GET, [this] { handleGetCollections(); });
   server->on("/api/collections/rename", HTTP_POST, [this] { handleRenameCollection(); });
+  server->on("/api/collections/expected-count", HTTP_POST, [this] { handleSetCollectionExpectedCount(); });
+  server->on("/api/collections/initial-volume", HTTP_POST, [this] { handleSetCollectionInitialVolume(); });
   // Reading log endpoints
   server->on("/api/readings", HTTP_GET, [this] { handleGetReadings(); });
   server->on("/api/readings/save", HTTP_POST, [this] { handleSaveReadings(); });
@@ -1747,6 +1751,62 @@ void MyneWebServer::handleRenameCollection() {
   }
 
   if (!BookCatalog::renameCollection(id, name)) {
+    server->send(404, "text/plain", "Collection not found");
+    return;
+  }
+
+  server->send(200, "application/json", "{\"ok\":true}");
+}
+
+void MyneWebServer::handleSetCollectionExpectedCount() {
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON body");
+    return;
+  }
+
+  JsonDocument doc;
+  const DeserializationError err = deserializeJson(doc, server->arg("plain"));
+  if (err) {
+    server->send(400, "text/plain", String("Invalid JSON: ") + err.c_str());
+    return;
+  }
+
+  const char* id = doc["id"] | "";
+  if (!id[0]) {
+    server->send(400, "text/plain", "id is required");
+    return;
+  }
+
+  const int expectedCount = std::max(0, static_cast<int>(doc["expectedCount"] | 0));
+  if (!BookCatalog::setCollectionExpectedCount(id, expectedCount)) {
+    server->send(404, "text/plain", "Collection not found");
+    return;
+  }
+
+  server->send(200, "application/json", "{\"ok\":true}");
+}
+
+void MyneWebServer::handleSetCollectionInitialVolume() {
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON body");
+    return;
+  }
+
+  JsonDocument doc;
+  const DeserializationError err = deserializeJson(doc, server->arg("plain"));
+  if (err) {
+    server->send(400, "text/plain", String("Invalid JSON: ") + err.c_str());
+    return;
+  }
+
+  const char* id = doc["id"] | "";
+  if (!id[0]) {
+    server->send(400, "text/plain", "id is required");
+    return;
+  }
+
+  const int initialVolume = std::max(0, static_cast<int>(doc["initialVolume"] | 0));
+  if (!BookCatalog::setCollectionInitialVolume(id, initialVolume)) {
     server->send(404, "text/plain", "Collection not found");
     return;
   }

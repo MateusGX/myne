@@ -146,6 +146,8 @@ class MyneWebServer {
   // Collection registry handlers
   void handleGetCollections() const;
   void handleRenameCollection();
+  void handleSetCollectionExpectedCount();
+  void handleSetCollectionInitialVolume();
 
   // Reading log handlers
   void handleGetReadings() const;

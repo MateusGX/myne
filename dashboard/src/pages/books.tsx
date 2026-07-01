@@ -6,6 +6,7 @@ import {
   ArrowSquareIn,
   ArrowSquareOut,
   FileXls,
+  Hash,
   NotePencilIcon,
   PencilSimple,
   Plus,
@@ -17,6 +18,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
 import {
   EmptyState,
   MetricCard,
@@ -41,6 +43,8 @@ import {
   deleteCollectionNote,
   getCollectionNote,
   importBooks,
+  setCollectionExpectedCount,
+  setCollectionInitialVolume,
   setCollectionNote,
   updateBook,
   type Book,
@@ -48,6 +52,7 @@ import {
   type Collection,
 } from "@/lib/api"
 import {
+  type CollectionMetadata,
   downloadBooksTemplate,
   exportBooksXlsx,
   parseBooksXlsx,
@@ -64,12 +69,141 @@ const emptyForm: BookFormData = {
 }
 
 type CollectionGroup = { name: string; books: Book[] }
+type MissingVolumeMode = "with-existing" | "missing-only"
+type CollectionDisplayRow =
+  | { kind: "book"; key: string; book: Book }
+  | { kind: "missing"; key: string; volume: number }
+
+function parseVolumeNumber(value: string) {
+  const match = value.trim().match(/\d+/)
+  if (!match) return null
+  const volume = Number(match[0])
+  return Number.isFinite(volume) ? volume : null
+}
+
+function expectedVolumes(collection?: Collection) {
+  if (
+    !collection ||
+    collection.expectedCount <= 0 ||
+    collection.initialVolume <= 0
+  ) {
+    return []
+  }
+  return Array.from(
+    { length: collection.expectedCount },
+    (_, index) => collection.initialVolume + index
+  )
+}
+
+function missingVolumes(collection: Collection | undefined, books: Book[]) {
+  const present = new Set(
+    books
+      .map((book) => parseVolumeNumber(book.volume))
+      .filter((volume): volume is number => volume !== null)
+  )
+  return expectedVolumes(collection).filter((volume) => !present.has(volume))
+}
+
+function buildCollectionRows({
+  visibleBooks,
+  allCollectionBooks,
+  collection,
+  missingVolumeMode,
+  showMissingVolumes,
+}: {
+  visibleBooks: Book[]
+  allCollectionBooks: Book[]
+  collection?: Collection
+  missingVolumeMode: MissingVolumeMode
+  showMissingVolumes: boolean
+}): CollectionDisplayRow[] {
+  const volumes = expectedVolumes(collection)
+  if (!showMissingVolumes) {
+    return visibleBooks.map((book) => ({
+      kind: "book",
+      key: book.id,
+      book,
+    }))
+  }
+  if (volumes.length === 0) {
+    if (missingVolumeMode === "missing-only") return []
+    return visibleBooks.map((book) => ({
+      kind: "book",
+      key: book.id,
+      book,
+    }))
+  }
+
+  const expectedSet = new Set(volumes)
+  const present = new Set(
+    allCollectionBooks
+      .map((book) => parseVolumeNumber(book.volume))
+      .filter((volume): volume is number => volume !== null)
+  )
+  const visibleByVolume = new Map<number, Book[]>()
+  const visibleOutsideRange: Book[] = []
+
+  for (const book of visibleBooks) {
+    const volume = parseVolumeNumber(book.volume)
+    if (volume !== null && expectedSet.has(volume)) {
+      const books = visibleByVolume.get(volume) ?? []
+      books.push(book)
+      visibleByVolume.set(volume, books)
+    } else {
+      visibleOutsideRange.push(book)
+    }
+  }
+
+  const rows: CollectionDisplayRow[] = []
+  for (const volume of volumes) {
+    if (missingVolumeMode === "with-existing") {
+      for (const book of visibleByVolume.get(volume) ?? []) {
+        rows.push({ kind: "book", key: book.id, book })
+      }
+    }
+    if (!present.has(volume)) {
+      rows.push({
+        kind: "missing",
+        key: `missing-${collection?.id ?? "collection"}-${volume}`,
+        volume,
+      })
+    }
+  }
+
+  if (missingVolumeMode === "with-existing") {
+    for (const book of visibleOutsideRange) {
+      rows.push({ kind: "book", key: book.id, book })
+    }
+  }
+
+  return rows
+}
+
+function MissingVolumeRow({ volume }: { volume: number }) {
+  return (
+    <div className="flex items-center gap-4 px-4 py-3 text-muted-foreground">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-dashed border-border bg-muted/30">
+        <Hash size={16} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-1.5">
+          <span className="truncate text-sm font-medium">Missing volume</span>
+          <span className="shrink-0 text-xs">Vol. {volume}</span>
+        </div>
+        <p className="truncate text-xs">Not registered in this collection</p>
+      </div>
+    </div>
+  )
+}
 
 export function BooksPage() {
   const [books, setBooks] = useState<Book[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [collectionFilter, setCollectionFilter] = useState("All")
+  const [showIncompleteOnly, setShowIncompleteOnly] = useState(false)
+  const [missingVolumeMode, setMissingVolumeMode] =
+    useState<MissingVolumeMode>("with-existing")
   const [expandedCollections, setExpandedCollections] = useState<Set<string>>(
     new Set()
   )
@@ -91,6 +225,10 @@ export function BooksPage() {
 
   const nameToId = useMemo(
     () => new Map(collections.map((c) => [c.name, c.id])),
+    [collections]
+  )
+  const collectionByName = useMemo(
+    () => new Map(collections.map((c) => [c.name, c])),
     [collections]
   )
 
@@ -173,6 +311,41 @@ export function BooksPage() {
     [books, collectionFilter, search]
   )
 
+  const collectionBookCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const book of books) {
+      if (!book.collection) continue
+      counts.set(book.collection, (counts.get(book.collection) ?? 0) + 1)
+    }
+    return counts
+  }, [books])
+
+  const booksByCollection = useMemo(() => {
+    const byCollection = new Map<string, Book[]>()
+    for (const book of books) {
+      if (!book.collection) continue
+      const collectionBooks = byCollection.get(book.collection) ?? []
+      collectionBooks.push(book)
+      byCollection.set(book.collection, collectionBooks)
+    }
+    return byCollection
+  }, [books])
+
+  const incompleteCollections = useMemo(
+    () =>
+      new Set(
+        collections
+          .filter(
+            (collection) =>
+              collection.expectedCount > 0 &&
+              (collectionBookCounts.get(collection.name) ?? 0) <
+                collection.expectedCount
+          )
+          .map((collection) => collection.name)
+      ),
+    [collectionBookCounts, collections]
+  )
+
   const { groups, standalone } = useMemo(() => {
     const colMap = new Map<string, Book[]>()
     const standalone: Book[] = []
@@ -185,6 +358,9 @@ export function BooksPage() {
       }
     }
     const groups: CollectionGroup[] = [...colMap.entries()]
+      .filter(
+        ([name]) => !showIncompleteOnly || incompleteCollections.has(name)
+      )
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([name, books]) => ({
         name,
@@ -192,9 +368,11 @@ export function BooksPage() {
       }))
     return {
       groups,
-      standalone: standalone.sort((a, b) => a.title.localeCompare(b.title)),
+      standalone: showIncompleteOnly
+        ? []
+        : standalone.sort((a, b) => a.title.localeCompare(b.title)),
     }
-  }, [filtered])
+  }, [filtered, incompleteCollections, showIncompleteOnly])
 
   function toggleCollection(name: string) {
     setExpandedCollections((prev) => {
@@ -266,6 +444,64 @@ export function BooksPage() {
     }
   }
 
+  async function handleSetExpectedCount(name: string) {
+    const collection = collectionByName.get(name)
+    if (!collection) {
+      toast.error("Collection not yet synced")
+      return
+    }
+    const typed = prompt(
+      "Expected total books in this collection",
+      collection.expectedCount > 0 ? String(collection.expectedCount) : ""
+    )
+    if (typed === null) return
+    const expectedCount = Math.max(0, Math.floor(Number(typed.trim() || "0")))
+    if (!Number.isFinite(expectedCount)) {
+      toast.error("Expected total must be a number")
+      return
+    }
+    try {
+      await setCollectionExpectedCount(collection.id, expectedCount)
+      setCollections((prev) =>
+        prev.map((c) =>
+          c.id === collection.id ? { ...c, expectedCount } : c
+        )
+      )
+      toast.success("Expected total updated")
+    } catch {
+      toast.error("Failed to update expected total")
+    }
+  }
+
+  async function handleSetInitialVolume(name: string) {
+    const collection = collectionByName.get(name)
+    if (!collection) {
+      toast.error("Collection not yet synced")
+      return
+    }
+    const typed = prompt(
+      "Initial volume in this collection",
+      collection.initialVolume > 0 ? String(collection.initialVolume) : ""
+    )
+    if (typed === null) return
+    const initialVolume = Math.max(0, Math.floor(Number(typed.trim() || "0")))
+    if (!Number.isFinite(initialVolume)) {
+      toast.error("Initial volume must be a number")
+      return
+    }
+    try {
+      await setCollectionInitialVolume(collection.id, initialVolume)
+      setCollections((prev) =>
+        prev.map((c) =>
+          c.id === collection.id ? { ...c, initialVolume } : c
+        )
+      )
+      toast.success("Initial volume updated")
+    } catch {
+      toast.error("Failed to update initial volume")
+    }
+  }
+
   function openCreate() {
     setEditing(null)
     setForm(emptyForm)
@@ -324,7 +560,7 @@ export function BooksPage() {
       step: "preview",
       mode: "create",
       books: cleaned,
-      collectionNotes: {},
+      collectionMetadata: {},
     })
   }
 
@@ -341,26 +577,32 @@ export function BooksPage() {
   }
 
   function handleExport() {
-    // Build a map of collection name → note for all collections that have notes.
-    const idToName = new Map(collections.map((c) => [c.id, c.name]))
-    const notesMap: Record<string, string> = {}
-    for (const [id, note] of Object.entries(collectionNotes)) {
-      if (note) {
-        const name = idToName.get(id)
-        if (name) notesMap[name] = note
+    const metadataMap: Record<string, CollectionMetadata> = {}
+    for (const collection of collections) {
+      const note = collectionNotes[collection.id] ?? ""
+      if (
+        note ||
+        collection.expectedCount > 0 ||
+        collection.initialVolume > 0
+      ) {
+        metadataMap[collection.name] = {
+          note,
+          expectedCount: collection.expectedCount,
+          initialVolume: collection.initialVolume,
+        }
       }
     }
-    exportBooksXlsx(books, notesMap)
+    exportBooksXlsx(books, metadataMap)
   }
 
   function handleImportFilePicked(file: File) {
     parseBooksXlsx(file)
-      .then(({ books: parsed, collectionNotes: importedNotes }) => {
+      .then(({ books: parsed, collectionMetadata: importedMetadata }) => {
         const cleaned: Book[] = parsed.map((item) => ({ id: "", ...item }))
         setImportPhase({
           step: "preview",
           books: cleaned,
-          collectionNotes: importedNotes,
+          collectionMetadata: importedMetadata,
         })
       })
       .catch((e) => {
@@ -374,11 +616,11 @@ export function BooksPage() {
 
   async function runImport(
     booksToImport: Book[],
-    noteEntries: [string, string][],
+    metadataEntries: [string, CollectionMetadata][],
     mode: ImportMode = "import"
   ) {
     const booksTotal = booksToImport.length
-    const notesTotal = noteEntries.length
+    const metadataTotal = metadataEntries.length
     if (booksTotal > 0) {
       setImportPhase({
         step: "running",
@@ -402,60 +644,75 @@ export function BooksPage() {
     // Re-fetch collections so newly created collection names have registered ids.
     const cols = await getCollections().catch(() => collections)
     const byName = new Map(cols.map((c) => [c.name, c.id]))
-    // Restore collection notes from the import file, with progress feedback.
-    let notesImported = 0
-    const failedNotes: Record<string, string> = {}
-    for (let i = 0; i < noteEntries.length; i++) {
-      const [name, note] = noteEntries[i]
+    // Restore collection metadata from the import file, with progress feedback.
+    let metadataImported = 0
+    const failedMetadata: Record<string, CollectionMetadata> = {}
+    for (let i = 0; i < metadataEntries.length; i++) {
+      const [name, metadata] = metadataEntries[i]
       setImportPhase({
         step: "running",
         mode,
         done: i,
-        total: notesTotal,
+        total: metadataTotal,
         current: name,
-        kind: "note",
+        kind: "metadata",
       })
       const id = byName.get(name)
-      if (
-        id &&
-        (await setCollectionNote(id, String(note))
-          .then(() => true)
-          .catch(() => false))
-      ) {
-        notesImported++
-      } else {
-        failedNotes[name] = note
+      let ok = Boolean(id)
+      if (id && metadata.note) {
+        ok =
+          ok &&
+          (await setCollectionNote(id, metadata.note)
+            .then(() => true)
+            .catch(() => false))
       }
+      if (id && metadata.expectedCount > 0) {
+        ok =
+          ok &&
+          (await setCollectionExpectedCount(id, metadata.expectedCount)
+            .then(() => true)
+            .catch(() => false))
+      }
+      if (id && metadata.initialVolume > 0) {
+        ok =
+          ok &&
+          (await setCollectionInitialVolume(id, metadata.initialVolume)
+            .then(() => true)
+            .catch(() => false))
+      }
+      if (ok) metadataImported++
+      else failedMetadata[name] = metadata
     }
     setImportPhase({
       step: "done",
       mode,
       created: result.count,
       failed: result.failed,
-      notesImported,
-      notesFailed: Object.keys(failedNotes).length,
+      metadataImported,
+      metadataFailed: Object.keys(failedMetadata).length,
       failedBooks: result.failedBooks,
-      failedNotes,
+      failedMetadata,
     })
     load()
   }
 
   async function handleConfirmImport() {
     if (!importPhase || importPhase.step !== "preview") return
-    const { books: importBooks_, collectionNotes: importedNotes } = importPhase
+    const { books: importBooks_, collectionMetadata: importedMetadata } =
+      importPhase
     await runImport(
       importBooks_,
-      Object.entries(importedNotes ?? {}),
+      Object.entries(importedMetadata ?? {}),
       importPhase.mode ?? "import"
     )
   }
 
   async function handleRetryFailedImport() {
     if (!importPhase || importPhase.step !== "done") return
-    const { failedBooks, failedNotes } = importPhase
+    const { failedBooks, failedMetadata } = importPhase
     await runImport(
       failedBooks,
-      Object.entries(failedNotes),
+      Object.entries(failedMetadata),
       importPhase.mode ?? "import"
     )
   }
@@ -464,7 +721,25 @@ export function BooksPage() {
     setImportPhase(null)
   }
 
-  const isEmpty = filtered.length === 0
+  const visibleBookCount =
+    standalone.length +
+    groups.reduce((total, group) => total + group.books.length, 0)
+  const visibleMissingCount = showIncompleteOnly
+    ? groups.reduce(
+        (total, group) =>
+          total +
+          missingVolumes(
+            collectionByName.get(group.name),
+            booksByCollection.get(group.name) ?? []
+          ).length,
+        0
+      )
+    : 0
+  const visibleCount =
+    showIncompleteOnly && missingVolumeMode === "missing-only"
+      ? visibleMissingCount
+      : visibleBookCount + visibleMissingCount
+  const isEmpty = groups.length === 0 && standalone.length === 0
 
   return (
     <div className="space-y-6">
@@ -498,6 +773,27 @@ export function BooksPage() {
                 {c}
               </option>
             ))}
+          </select>
+        )}
+        <label className="flex h-10 items-center gap-2 rounded-md border border-border px-3 text-xs text-muted-foreground">
+          <Switch
+            size="sm"
+            checked={showIncompleteOnly}
+            onCheckedChange={setShowIncompleteOnly}
+          />
+          Incomplete only
+        </label>
+        {showIncompleteOnly && (
+          <select
+            value={missingVolumeMode}
+            onChange={(e) =>
+              setMissingVolumeMode(e.target.value as MissingVolumeMode)
+            }
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+            title="Missing volume display"
+          >
+            <option value="with-existing">Existing + missing</option>
+            <option value="missing-only">Missing only</option>
           </select>
         )}
         <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -545,13 +841,17 @@ export function BooksPage() {
       <div className="grid gap-3 sm:grid-cols-3">
         <MetricCard
           label="Visible"
-          value={loading ? "…" : filtered.length}
+          value={loading ? "…" : visibleCount}
           detail={`${books.length} total books`}
         />
         <MetricCard
           label="Collections"
           value={groups.length}
-          detail="Grouped series and shelves"
+          detail={
+            showIncompleteOnly
+              ? `${incompleteCollections.size} incomplete`
+              : "Grouped series and shelves"
+          }
         />
         <MetricCard
           label="Standalone"
@@ -581,9 +881,24 @@ export function BooksPage() {
           {/* Collection groups */}
           {groups.map((group) => {
             const expanded = expandedCollections.has(group.name)
-            const collId = nameToId.get(group.name)
+            const collection = collectionByName.get(group.name)
+            const collId = collection?.id
             const note = collId ? (collectionNotes[collId] ?? "") : ""
             const isEditingNote = editingNote === group.name
+            const expectedCount = collection?.expectedCount ?? 0
+            const initialVolume = collection?.initialVolume ?? 0
+            const collectionBookCount =
+              collectionBookCounts.get(group.name) ?? group.books.length
+            const allCollectionBooks = booksByCollection.get(group.name) ?? []
+            const collectionRows = buildCollectionRows({
+              visibleBooks: group.books,
+              allCollectionBooks,
+              collection,
+              missingVolumeMode,
+              showMissingVolumes: showIncompleteOnly,
+            })
+            const canCalculateMissing =
+              showIncompleteOnly && expectedCount > 0 && initialVolume > 0
             return (
               <div key={group.name} className="flat-panel overflow-hidden">
                 <button
@@ -608,9 +923,38 @@ export function BooksPage() {
                   <span className="flex-1 text-base font-semibold tracking-tight">
                     {group.name}
                   </span>
+                  {initialVolume > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      Vol. {initialVolume}
+                    </span>
+                  )}
                   <span className="text-xs text-muted-foreground">
-                    {group.books.length}{" "}
-                    {group.books.length === 1 ? "book" : "books"}
+                    {expectedCount > 0
+                      ? `${collectionBookCount} / ${expectedCount}`
+                      : collectionBookCount}{" "}
+                    {collectionBookCount === 1 ? "book" : "books"}
+                  </span>
+                  <span
+                    role="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleSetInitialVolume(group.name)
+                    }}
+                    className="ml-1 flex size-5 shrink-0 items-center justify-center rounded-md text-[10px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
+                    title="Edit initial volume"
+                  >
+                    V
+                  </span>
+                  <span
+                    role="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleSetExpectedCount(group.name)
+                    }}
+                    className="ml-1 shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    title="Edit expected total"
+                  >
+                    <Hash size={12} />
                   </span>
                   <span
                     role="button"
@@ -694,15 +1038,30 @@ export function BooksPage() {
 
                 {expanded && (
                   <div className="divide-y divide-border bg-card">
-                    {group.books.map((book) => (
-                      <BookRow
-                        key={book.id}
-                        book={book}
-                        onSelect={setDetailBook}
-                        onEdit={openEdit}
-                        onDelete={handleDelete}
-                      />
-                    ))}
+                    {collectionRows.length > 0 ? (
+                      collectionRows.map((row) =>
+                        row.kind === "book" ? (
+                          <BookRow
+                            key={row.key}
+                            book={row.book}
+                            onSelect={setDetailBook}
+                            onEdit={openEdit}
+                            onDelete={handleDelete}
+                          />
+                        ) : (
+                          <MissingVolumeRow
+                            key={row.key}
+                            volume={row.volume}
+                          />
+                        )
+                      )
+                    ) : (
+                      <div className="px-4 py-3 text-xs text-muted-foreground">
+                        {canCalculateMissing
+                          ? "No missing volumes in the configured range."
+                          : "Set an initial volume to calculate missing volumes."}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
