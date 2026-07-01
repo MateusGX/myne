@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import {
   ArrowLeft,
   File,
@@ -7,26 +7,18 @@ import {
   PencilSimple,
   Trash,
   UploadSimple,
-  X,
   ArrowsOut,
   Download,
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { EmptyState, PageHeader, Toolbar } from "@/components/dashboard-layout"
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Breadcrumb } from "@/components/files/Breadcrumb"
 import { MoveDialog } from "@/components/files/MoveDialog"
+import { NewFolderDialog } from "@/components/files/NewFolderDialog"
+import { RenameDialog } from "@/components/files/RenameDialog"
+import { UploadDialog, type UploadState } from "@/components/files/UploadDialog"
 import { formatSize, joinPath, parentPath } from "@/lib/fileUtils"
 import {
   convertToJpeg,
@@ -39,13 +31,6 @@ import {
   type FileInfo,
   uploadViaWebSocket,
 } from "@/lib/api"
-
-interface UploadState {
-  files: File[]
-  progress: number
-  current: string
-  uploading: boolean
-}
 
 export function FilesPage() {
   const [path, setPath] = useState("/")
@@ -64,26 +49,22 @@ export function FilesPage() {
   const [renameTarget, setRenameTarget] = useState<string | null>(null)
   const [renameName, setRenameName] = useState("")
   const [moveTarget, setMoveTarget] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const load = useCallback(
-    (p: string) => {
-      setLoading(true)
-      setSelected(new Set())
-      getFiles(p)
-        .then((f) => {
-          const sorted = [...f].sort((a, b) => {
-            if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
-            return a.name.localeCompare(b.name)
-          })
-          setFiles(sorted)
-          setPath(p)
+  const load = useCallback((p: string) => {
+    setLoading(true)
+    setSelected(new Set())
+    getFiles(p)
+      .then((f) => {
+        const sorted = [...f].sort((a, b) => {
+          if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
+          return a.name.localeCompare(b.name)
         })
-        .catch(() => toast.error("Failed to load files"))
-        .finally(() => setLoading(false))
-    },
-    [],
-  )
+        setFiles(sorted)
+        setPath(p)
+      })
+      .catch(() => toast.error("Failed to load files"))
+      .finally(() => setLoading(false))
+  }, [])
 
   useEffect(() => {
     load("/")
@@ -178,7 +159,11 @@ export function FilesPage() {
         eyebrow="File manager"
         title="Device storage"
         description="Upload, organize, rename and move files on the Myne SD card."
-        actions={<Badge variant="secondary" className="w-fit font-mono">{path}</Badge>}
+        actions={
+          <Badge variant="secondary" className="w-fit font-mono">
+            {path}
+          </Badge>
+        }
       />
 
       <Toolbar className="justify-between">
@@ -199,11 +184,7 @@ export function FilesPage() {
           {selected.size > 0 && (
             <>
               <Badge variant="secondary">{selected.size} selected</Badge>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleDelete}
-              >
+              <Button variant="destructive" size="sm" onClick={handleDelete}>
                 <Trash size={14} />
               </Button>
             </>
@@ -227,18 +208,23 @@ export function FilesPage() {
         {loading ? (
           <div className="flex flex-col gap-2 p-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="bg-muted h-12 animate-pulse rounded-xl" />
+              <div key={i} className="h-12 animate-pulse rounded-xl bg-muted" />
             ))}
           </div>
         ) : sorted.length === 0 ? (
-          <EmptyState title="Empty folder" description="Upload files or create a folder to start organizing this path." />
+          <EmptyState
+            title="Empty folder"
+            description="Upload files or create a folder to start organizing this path."
+          />
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-border bg-muted/40 border-b">
+              <tr className="border-b border-border bg-muted/40">
                 <th className="w-10 px-4 py-3" />
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Name</th>
-                <th className="hidden px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:table-cell">
+                <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                  Name
+                </th>
+                <th className="hidden px-4 py-3 text-right text-xs font-semibold tracking-wide text-muted-foreground uppercase sm:table-cell">
                   Size
                 </th>
                 <th className="px-4 py-3" />
@@ -251,7 +237,7 @@ export function FilesPage() {
                 return (
                   <tr
                     key={f.name}
-                    className={`border-border border-b transition-colors last:border-0 ${isSelected ? "bg-accent/60" : "hover:bg-muted/45"}`}
+                    className={`border-b border-border transition-colors last:border-0 ${isSelected ? "bg-accent/60" : "hover:bg-muted/45"}`}
                   >
                     <td className="px-4 py-3">
                       {!f.isDirectory && (
@@ -267,7 +253,9 @@ export function FilesPage() {
                       <button
                         className="flex min-w-0 items-center gap-3 text-left"
                         onClick={() =>
-                          f.isDirectory ? navigate(fullPath) : toggleSelect(f.name)
+                          f.isDirectory
+                            ? navigate(fullPath)
+                            : toggleSelect(f.name)
                         }
                       >
                         {f.isDirectory ? (
@@ -284,7 +272,7 @@ export function FilesPage() {
                         </span>
                       </button>
                     </td>
-                    <td className="text-muted-foreground hidden px-4 py-3 text-right sm:table-cell">
+                    <td className="hidden px-4 py-3 text-right text-muted-foreground sm:table-cell">
                       {f.isDirectory ? "—" : formatSize(f.size)}
                     </td>
                     <td className="px-4 py-3">
@@ -295,7 +283,11 @@ export function FilesPage() {
                             download={f.name}
                             title="Download"
                           >
-                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                            >
                               <Download size={13} />
                             </Button>
                           </a>
@@ -333,153 +325,29 @@ export function FilesPage() {
         )}
       </section>
 
-      {/* Upload dialog */}
-      <Dialog open={showUpload} onOpenChange={(o) => !o && !uploadState.uploading && setShowUpload(false)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Upload Files</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div
-              className="border-border hover:border-primary rounded-lg border border-dashed bg-muted/20 p-8 text-center transition-colors"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault()
-                const dropped = Array.from(e.dataTransfer.files)
-                setUploadState((s) => ({ ...s, files: dropped }))
-              }}
-            >
-              <UploadSimple size={24} className="text-muted-foreground mx-auto mb-2" />
-              <p className="text-muted-foreground text-sm">
-                Drop files here or{" "}
-                <button
-                  className="text-primary hover:underline"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  browse
-                </button>
-              </p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  const chosen = Array.from(e.target.files ?? [])
-                  setUploadState((s) => ({ ...s, files: chosen }))
-                }}
-              />
-            </div>
+      <UploadDialog
+        open={showUpload}
+        uploadState={uploadState}
+        setUploadState={setUploadState}
+        onClose={() => setShowUpload(false)}
+        onUpload={handleUpload}
+      />
 
-            {uploadState.files.length > 0 && (
-              <div className="space-y-1">
-                {uploadState.files.map((f) => {
-                  const willConvert = isImageFile(f) && f.type !== "image/jpeg"
-                  const finalName = willConvert
-                    ? f.name.replace(/\.[^.]+$/, "") + ".jpg"
-                    : f.name
-                  return (
-                    <div
-                      key={f.name}
-                      className="bg-muted flex items-center justify-between rounded px-3 py-1.5 text-xs"
-                    >
-                      <span className="truncate">
-                        {willConvert ? (
-                          <>
-                            {f.name}
-                            <span className="text-muted-foreground"> → {finalName}</span>
-                          </>
-                        ) : (
-                          f.name
-                        )}
-                      </span>
-                      <span className="text-muted-foreground ml-2 shrink-0">
-                        {formatSize(f.size)}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
+      <NewFolderDialog
+        open={showNewFolder}
+        name={newFolderName}
+        onNameChange={setNewFolderName}
+        onClose={() => setShowNewFolder(false)}
+        onCreate={handleCreateFolder}
+      />
 
-            {uploadState.uploading && (
-              <div className="space-y-1.5">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground truncate">{uploadState.current}</span>
-                  <span>{uploadState.progress}%</span>
-                </div>
-                <Progress value={uploadState.progress} className="h-1.5" />
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowUpload(false)}
-              disabled={uploadState.uploading}
-            >
-              <X size={14} className="mr-1" /> Cancel
-            </Button>
-            <Button
-              onClick={handleUpload}
-              disabled={uploadState.files.length === 0 || uploadState.uploading}
-            >
-              {uploadState.uploading ? "Uploading..." : "Upload"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* New folder dialog */}
-      <Dialog open={showNewFolder} onOpenChange={(o) => !o && setShowNewFolder(false)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>New Folder</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <Label htmlFor="folder-name">Folder name</Label>
-            <Input
-              id="folder-name"
-              value={newFolderName}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
-              placeholder="My Folder"
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewFolder(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreateFolder}>Create</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Rename dialog */}
-      <Dialog open={!!renameTarget} onOpenChange={(o) => !o && setRenameTarget(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Rename</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <Label htmlFor="rename-input">New name</Label>
-            <Input
-              id="rename-input"
-              value={renameName}
-              onChange={(e) => setRenameName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleRename()}
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRenameTarget(null)}>
-              Cancel
-            </Button>
-            <Button onClick={handleRename}>Rename</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RenameDialog
+        open={!!renameTarget}
+        name={renameName}
+        onNameChange={setRenameName}
+        onClose={() => setRenameTarget(null)}
+        onRename={handleRename}
+      />
 
       {/* Move dialog */}
       <MoveDialog

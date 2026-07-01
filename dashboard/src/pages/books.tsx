@@ -16,23 +16,24 @@ import {
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { EmptyState, MetricCard, PageHeader, Toolbar } from "@/components/dashboard-layout"
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  EmptyState,
+  MetricCard,
+  PageHeader,
+  Toolbar,
+} from "@/components/dashboard-layout"
 import { BadgeLike } from "@/components/books/BookBadge"
 import { BookRow } from "@/components/books/BookRow"
-import { DetailField } from "@/components/books/DetailField"
+import { BookDetailDialog } from "@/components/books/BookDetailDialog"
+import { BookFormDialog } from "@/components/books/BookFormDialog"
 import { ReadingsDialog } from "@/components/books/ReadingsDialog"
-import { ImportDialog, type ImportPhase } from "@/components/books/ImportDialog"
 import {
-  createBook,
+  ImportDialog,
+  type ImportMode,
+  type ImportPhase,
+} from "@/components/books/ImportDialog"
+import {
   deleteBook,
   getBooks,
   getCollections,
@@ -46,7 +47,11 @@ import {
   type BookFormData,
   type Collection,
 } from "@/lib/api"
-import { downloadBooksTemplate, exportBooksXlsx, parseBooksXlsx } from "@/lib/booksXlsx"
+import {
+  downloadBooksTemplate,
+  exportBooksXlsx,
+  parseBooksXlsx,
+} from "@/lib/booksXlsx"
 import { MAX_COLLECTION_NAME_BYTES, truncateUtf8 } from "@/lib/utils"
 
 const emptyForm: BookFormData = {
@@ -65,7 +70,9 @@ export function BooksPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [collectionFilter, setCollectionFilter] = useState("All")
-  const [expandedCollections, setExpandedCollections] = useState<Set<string>>(new Set())
+  const [expandedCollections, setExpandedCollections] = useState<Set<string>>(
+    new Set()
+  )
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Book | null>(null)
   const [form, setForm] = useState<BookFormData>(emptyForm)
@@ -75,38 +82,46 @@ export function BooksPage() {
   const [readingsBook, setReadingsBook] = useState<Book | null>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
   const [collections, setCollections] = useState<Collection[]>([])
-  const [collectionNotes, setCollectionNotes] = useState<Record<string, string>>({})
+  const [collectionNotes, setCollectionNotes] = useState<
+    Record<string, string>
+  >({})
   const [notesLoading, setNotesLoading] = useState(false)
   const [editingNote, setEditingNote] = useState<string | null>(null)
   const [noteDraft, setNoteDraft] = useState("")
 
-  const nameToId = useMemo(() => new Map(collections.map((c) => [c.name, c.id])), [collections])
+  const nameToId = useMemo(
+    () => new Map(collections.map((c) => [c.name, c.id])),
+    [collections]
+  )
 
-  const loadCollectionNotes = useCallback((bookList: Book[], cols: Collection[]) => {
-    const byName = new Map(cols.map((c) => [c.name, c.id]))
-    const ids = Array.from(
-      new Set(
-        bookList
-          .map((b) => byName.get(b.collection))
-          .filter((id): id is string => Boolean(id)),
-      ),
-    )
-    if (ids.length === 0) {
-      setCollectionNotes({})
-      setNotesLoading(false)
-      return
-    }
-    setNotesLoading(true)
-    Promise.all(
-      ids.map((id) =>
-        getCollectionNote(id)
-          .then((r) => [id, r.note] as [string, string])
-          .catch(() => [id, ""] as [string, string]),
-      ),
-    )
-      .then((entries) => setCollectionNotes(Object.fromEntries(entries)))
-      .finally(() => setNotesLoading(false))
-  }, [])
+  const loadCollectionNotes = useCallback(
+    (bookList: Book[], cols: Collection[]) => {
+      const byName = new Map(cols.map((c) => [c.name, c.id]))
+      const ids = Array.from(
+        new Set(
+          bookList
+            .map((b) => byName.get(b.collection))
+            .filter((id): id is string => Boolean(id))
+        )
+      )
+      if (ids.length === 0) {
+        setCollectionNotes({})
+        setNotesLoading(false)
+        return
+      }
+      setNotesLoading(true)
+      Promise.all(
+        ids.map((id) =>
+          getCollectionNote(id)
+            .then((r) => [id, r.note] as [string, string])
+            .catch(() => [id, ""] as [string, string])
+        )
+      )
+        .then((entries) => setCollectionNotes(Object.fromEntries(entries)))
+        .finally(() => setNotesLoading(false))
+    },
+    []
+  )
 
   const load = useCallback(() => {
     setLoading(true)
@@ -127,24 +142,35 @@ export function BooksPage() {
   }, [load])
 
   const collectionOptions = useMemo(
-    () => ["All", ...Array.from(new Set(books.map((b) => b.collection).filter(Boolean))).sort()],
-    [books],
+    () => [
+      "All",
+      ...Array.from(
+        new Set(books.map((b) => b.collection).filter(Boolean))
+      ).sort(),
+    ],
+    [books]
   )
   const existingCollections = useMemo(
-    () => Array.from(new Set(books.map((b) => b.collection).filter(Boolean))).sort(),
-    [books],
+    () =>
+      Array.from(
+        new Set(books.map((b) => b.collection).filter(Boolean))
+      ).sort(),
+    [books]
   )
 
   const filtered = useMemo(
     () =>
       books.filter((b) => {
-        const matchCol = collectionFilter === "All" || b.collection === collectionFilter
+        const matchCol =
+          collectionFilter === "All" || b.collection === collectionFilter
         const q = search.toLowerCase()
         const matchSearch =
-          !q || b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q)
+          !q ||
+          b.title.toLowerCase().includes(q) ||
+          b.author.toLowerCase().includes(q)
         return matchCol && matchSearch
       }),
-    [books, collectionFilter, search],
+    [books, collectionFilter, search]
   )
 
   const { groups, standalone } = useMemo(() => {
@@ -164,7 +190,10 @@ export function BooksPage() {
         name,
         books: [...books].sort((a, b) => a.title.localeCompare(b.title)),
       }))
-    return { groups, standalone: standalone.sort((a, b) => a.title.localeCompare(b.title)) }
+    return {
+      groups,
+      standalone: standalone.sort((a, b) => a.title.localeCompare(b.title)),
+    }
   }, [filtered])
 
   function toggleCollection(name: string) {
@@ -223,7 +252,9 @@ export function BooksPage() {
     if (!typed || typed === name) return
     const newName = truncateUtf8(typed, MAX_COLLECTION_NAME_BYTES)
     if (newName !== typed) {
-      toast.error(`Collection name too long, truncated to ${MAX_COLLECTION_NAME_BYTES} bytes`)
+      toast.error(
+        `Collection name too long, truncated to ${MAX_COLLECTION_NAME_BYTES} bytes`
+      )
     }
     if (newName === name) return
     try {
@@ -266,22 +297,35 @@ export function BooksPage() {
       toast.error("Title is required")
       return
     }
+    if (!editing) return
     setSaving(true)
     try {
-      if (editing) {
-        await updateBook({ ...form, id: editing.id })
-        toast.success("Book updated")
-      } else {
-        await createBook(form)
-        toast.success("Book added")
-      }
+      await updateBook({ ...form, title: form.title.trim(), id: editing.id })
+      toast.success("Book updated")
       closeForm()
       load()
     } catch {
-      toast.error(editing ? "Failed to update book" : "Failed to add book")
+      toast.error("Failed to update book")
     } finally {
       setSaving(false)
     }
+  }
+
+  function handleCreateMany(booksToCreate: BookFormData[]) {
+    const cleaned: Book[] = booksToCreate
+      .map((item) => ({ id: "", ...item, title: item.title.trim() }))
+      .filter((book) => book.title)
+    if (cleaned.length === 0) {
+      toast.error("Title is required")
+      return
+    }
+    closeForm()
+    setImportPhase({
+      step: "preview",
+      mode: "create",
+      books: cleaned,
+      collectionNotes: {},
+    })
   }
 
   async function handleDelete(book: Book) {
@@ -313,7 +357,11 @@ export function BooksPage() {
     parseBooksXlsx(file)
       .then(({ books: parsed, collectionNotes: importedNotes }) => {
         const cleaned: Book[] = parsed.map((item) => ({ id: "", ...item }))
-        setImportPhase({ step: "preview", books: cleaned, collectionNotes: importedNotes })
+        setImportPhase({
+          step: "preview",
+          books: cleaned,
+          collectionNotes: importedNotes,
+        })
       })
       .catch((e) => {
         if (e instanceof Error && e.message === "No valid books found") {
@@ -324,14 +372,32 @@ export function BooksPage() {
       })
   }
 
-  async function runImport(booksToImport: Book[], noteEntries: [string, string][]) {
+  async function runImport(
+    booksToImport: Book[],
+    noteEntries: [string, string][],
+    mode: ImportMode = "import"
+  ) {
     const booksTotal = booksToImport.length
     const notesTotal = noteEntries.length
     if (booksTotal > 0) {
-      setImportPhase({ step: "running", done: 0, total: booksTotal, current: "", kind: "book" })
+      setImportPhase({
+        step: "running",
+        mode,
+        done: 0,
+        total: booksTotal,
+        current: "",
+        kind: "book",
+      })
     }
     const result = await importBooks(booksToImport, (done, _total, current) => {
-      setImportPhase({ step: "running", done, total: booksTotal, current, kind: "book" })
+      setImportPhase({
+        step: "running",
+        mode,
+        done,
+        total: booksTotal,
+        current,
+        kind: "book",
+      })
     })
     // Re-fetch collections so newly created collection names have registered ids.
     const cols = await getCollections().catch(() => collections)
@@ -341,9 +407,21 @@ export function BooksPage() {
     const failedNotes: Record<string, string> = {}
     for (let i = 0; i < noteEntries.length; i++) {
       const [name, note] = noteEntries[i]
-      setImportPhase({ step: "running", done: i, total: notesTotal, current: name, kind: "note" })
+      setImportPhase({
+        step: "running",
+        mode,
+        done: i,
+        total: notesTotal,
+        current: name,
+        kind: "note",
+      })
       const id = byName.get(name)
-      if (id && (await setCollectionNote(id, String(note)).then(() => true).catch(() => false))) {
+      if (
+        id &&
+        (await setCollectionNote(id, String(note))
+          .then(() => true)
+          .catch(() => false))
+      ) {
         notesImported++
       } else {
         failedNotes[name] = note
@@ -351,6 +429,7 @@ export function BooksPage() {
     }
     setImportPhase({
       step: "done",
+      mode,
       created: result.count,
       failed: result.failed,
       notesImported,
@@ -364,13 +443,21 @@ export function BooksPage() {
   async function handleConfirmImport() {
     if (!importPhase || importPhase.step !== "preview") return
     const { books: importBooks_, collectionNotes: importedNotes } = importPhase
-    await runImport(importBooks_, Object.entries(importedNotes ?? {}))
+    await runImport(
+      importBooks_,
+      Object.entries(importedNotes ?? {}),
+      importPhase.mode ?? "import"
+    )
   }
 
   async function handleRetryFailedImport() {
     if (!importPhase || importPhase.step !== "done") return
     const { failedBooks, failedNotes } = importPhase
-    await runImport(failedBooks, Object.entries(failedNotes))
+    await runImport(
+      failedBooks,
+      Object.entries(failedNotes),
+      importPhase.mode ?? "import"
+    )
   }
 
   function handleImportClose() {
@@ -387,33 +474,33 @@ export function BooksPage() {
         description="Manage your shelf, collections, reading sessions and import/export snapshots."
         actions={
           <div className="grid grid-cols-2 gap-2 sm:flex">
-          <BadgeLike value={books.length} label="Books" />
-          <BadgeLike value={groups.length} label="Collections" />
+            <BadgeLike value={books.length} label="Books" />
+            <BadgeLike value={groups.length} label="Collections" />
           </div>
         }
       />
 
       <Toolbar>
-          <Input
-            placeholder="Search title or author..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="min-w-56 flex-1 sm:max-w-80"
-          />
-          {collectionOptions.length > 2 && (
-            <select
-              value={collectionFilter}
-              onChange={(e) => setCollectionFilter(e.target.value)}
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-            >
-              {collectionOptions.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          )}
-          <div className="ml-auto flex flex-wrap items-center gap-2">
+        <Input
+          placeholder="Search title or author..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="min-w-56 flex-1 sm:max-w-80"
+        />
+        {collectionOptions.length > 2 && (
+          <select
+            value={collectionFilter}
+            onChange={(e) => setCollectionFilter(e.target.value)}
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+          >
+            {collectionOptions.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        )}
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           <input
             ref={importInputRef}
             type="file"
@@ -456,16 +543,28 @@ export function BooksPage() {
 
       {/* Stats */}
       <div className="grid gap-3 sm:grid-cols-3">
-        <MetricCard label="Visible" value={loading ? "…" : filtered.length} detail={`${books.length} total books`} />
-        <MetricCard label="Collections" value={groups.length} detail="Grouped series and shelves" />
-        <MetricCard label="Standalone" value={standalone.length} detail="Books without collection" />
+        <MetricCard
+          label="Visible"
+          value={loading ? "…" : filtered.length}
+          detail={`${books.length} total books`}
+        />
+        <MetricCard
+          label="Collections"
+          value={groups.length}
+          detail="Grouped series and shelves"
+        />
+        <MetricCard
+          label="Standalone"
+          value={standalone.length}
+          detail="Books without collection"
+        />
       </div>
 
       {/* Content */}
       {loading ? (
         <div className="space-y-3">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="bg-muted h-28 animate-pulse rounded-lg" />
+            <div key={i} className="h-28 animate-pulse rounded-lg bg-muted" />
           ))}
         </div>
       ) : isEmpty ? (
@@ -483,7 +582,7 @@ export function BooksPage() {
           {groups.map((group) => {
             const expanded = expandedCollections.has(group.name)
             const collId = nameToId.get(group.name)
-            const note = collId ? collectionNotes[collId] ?? "" : ""
+            const note = collId ? (collectionNotes[collId] ?? "") : ""
             const isEditingNote = editingNote === group.name
             return (
               <div key={group.name} className="flat-panel overflow-hidden">
@@ -491,31 +590,46 @@ export function BooksPage() {
                   onClick={() => toggleCollection(group.name)}
                   className={`flex w-full items-center gap-3 px-5 py-4 text-left transition-colors ${
                     expanded
-                      ? "border-border bg-muted/40 border-b"
+                      ? "border-b border-border bg-muted/40"
                       : "hover:bg-muted/45"
                   }`}
                 >
                   {expanded ? (
-                    <CaretDown size={12} className="text-muted-foreground shrink-0" />
+                    <CaretDown
+                      size={12}
+                      className="shrink-0 text-muted-foreground"
+                    />
                   ) : (
-                    <CaretRight size={12} className="text-muted-foreground shrink-0" />
+                    <CaretRight
+                      size={12}
+                      className="shrink-0 text-muted-foreground"
+                    />
                   )}
-                  <span className="flex-1 text-base font-semibold tracking-tight">{group.name}</span>
-                  <span className="text-muted-foreground text-xs">
-                    {group.books.length} {group.books.length === 1 ? "book" : "books"}
+                  <span className="flex-1 text-base font-semibold tracking-tight">
+                    {group.name}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {group.books.length}{" "}
+                    {group.books.length === 1 ? "book" : "books"}
                   </span>
                   <span
                     role="button"
-                    onClick={(e) => { e.stopPropagation(); startEditNote(group.name) }}
-                    className="text-muted-foreground hover:text-foreground ml-1 shrink-0 rounded-md p-1 hover:bg-muted"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      startEditNote(group.name)
+                    }}
+                    className="ml-1 shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                     title="Edit collection note"
                   >
                     <NotePencilIcon size={12} />
                   </span>
                   <span
                     role="button"
-                    onClick={(e) => { e.stopPropagation(); handleRenameCollection(group.name) }}
-                    className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1 hover:bg-muted"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleRenameCollection(group.name)
+                    }}
+                    className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                     title="Rename collection"
                   >
                     <PencilSimple size={12} />
@@ -525,7 +639,7 @@ export function BooksPage() {
                 {/* Collection note row */}
                 {isEditingNote ? (
                   <div
-                    className="border-border flex items-center gap-2 border-b bg-muted/30 px-5 py-3"
+                    className="flex items-center gap-2 border-b border-border bg-muted/30 px-5 py-3"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <Input
@@ -539,7 +653,11 @@ export function BooksPage() {
                       placeholder="Add a note for this collection…"
                       className="h-7 flex-1 text-xs"
                     />
-                    <Button size="sm" className="h-7 text-xs" onClick={() => saveNote(group.name)}>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => saveNote(group.name)}
+                    >
                       Save
                     </Button>
                     <Button
@@ -552,10 +670,13 @@ export function BooksPage() {
                     </Button>
                   </div>
                 ) : note ? (
-                  <div className="border-border text-muted-foreground border-b bg-muted/25 flex items-center gap-2 px-5 py-2">
+                  <div className="flex items-center gap-2 border-b border-border bg-muted/25 px-5 py-2 text-muted-foreground">
                     <span className="flex-1 text-xs italic">{note}</span>
                     <button
-                      onClick={(e) => { e.stopPropagation(); deleteNote(group.name) }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        deleteNote(group.name)
+                      }}
                       className="shrink-0 rounded p-0.5 hover:bg-muted hover:text-destructive"
                       title="Delete note"
                     >
@@ -563,14 +684,16 @@ export function BooksPage() {
                     </button>
                   </div>
                 ) : notesLoading ? (
-                  <div className="border-border text-muted-foreground border-b bg-muted/25 flex items-center gap-2 px-5 py-2">
+                  <div className="flex items-center gap-2 border-b border-border bg-muted/25 px-5 py-2 text-muted-foreground">
                     <SpinnerIcon size={11} className="animate-spin" />
-                    <span className="text-xs italic">Checking for collection note…</span>
+                    <span className="text-xs italic">
+                      Checking for collection note…
+                    </span>
                   </div>
                 ) : null}
 
                 {expanded && (
-                  <div className="divide-border divide-y bg-card">
+                  <div className="divide-y divide-border bg-card">
                     {group.books.map((book) => (
                       <BookRow
                         key={book.id}
@@ -592,11 +715,13 @@ export function BooksPage() {
               {groups.length > 0 && (
                 <div className="flex items-center gap-3 py-1">
                   <Separator className="flex-1" />
-                  <span className="text-muted-foreground text-xs">No collection</span>
+                  <span className="text-xs text-muted-foreground">
+                    No collection
+                  </span>
                   <Separator className="flex-1" />
                 </div>
               )}
-              <div className="flat-panel divide-border divide-y overflow-hidden">
+              <div className="flat-panel divide-y divide-border overflow-hidden">
                 {standalone.map((book) => (
                   <BookRow
                     key={book.id}
@@ -612,56 +737,16 @@ export function BooksPage() {
         </div>
       )}
 
-      {/* Book Detail Dialog */}
-      <Dialog open={!!detailBook} onOpenChange={(o) => !o && setDetailBook(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="leading-snug">
-              {detailBook?.title}
-              {detailBook?.volume && (
-                <span className="text-muted-foreground ml-2 text-sm font-normal">
-                  {detailBook.volume}
-                </span>
-              )}
-            </DialogTitle>
-          </DialogHeader>
-          {detailBook && (
-            <div className="space-y-3">
-              <DetailField label="Author" value={detailBook.author} />
-              <DetailField label="Collection" value={detailBook.collection} />
-              <DetailField label="Location" value={detailBook.location} />
-              <DetailField label="Notes" value={detailBook.notes} />
-            </div>
-          )}
-          <DialogFooter className="gap-2 sm:justify-between">
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => detailBook && handleDelete(detailBook)}
-            >
-              <Trash size={14} className="mr-1" />
-              Delete
-            </Button>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setReadingsBook(detailBook)
-                  setDetailBook(null)
-                }}
-              >
-                <BookOpen size={14} className="mr-1" />
-                Readings
-              </Button>
-              <Button size="sm" onClick={() => detailBook && openEdit(detailBook)}>
-                <PencilSimple size={14} className="mr-1" />
-                Edit
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <BookDetailDialog
+        book={detailBook}
+        onClose={() => setDetailBook(null)}
+        onDelete={handleDelete}
+        onEdit={openEdit}
+        onReadings={(book) => {
+          setReadingsBook(book)
+          setDetailBook(null)
+        }}
+      />
 
       {/* Readings Dialog */}
       {readingsBook && (
@@ -672,91 +757,17 @@ export function BooksPage() {
         />
       )}
 
-      {/* Create / Edit Dialog */}
-      <Dialog open={showForm} onOpenChange={(o) => !o && closeForm()}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit Book" : "Add Book"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="book-title">Title *</Label>
-              <Input
-                id="book-title"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                onKeyDown={(e) => e.key === "Enter" && handleSave()}
-                placeholder="Book title"
-                autoFocus
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="book-author">Author</Label>
-              <Input
-                id="book-author"
-                value={form.author}
-                onChange={(e) => setForm({ ...form, author: e.target.value })}
-                placeholder="Author name"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="book-collection">Collection / Series</Label>
-              <Input
-                id="book-collection"
-                value={form.collection}
-                onChange={(e) =>
-                  setForm({ ...form, collection: truncateUtf8(e.target.value, MAX_COLLECTION_NAME_BYTES) })
-                }
-                placeholder="e.g. Middle Earth, Science Fiction"
-                list="collections-list"
-              />
-              <datalist id="collections-list">
-                {existingCollections.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="book-volume">Volume</Label>
-                <Input
-                  id="book-volume"
-                  value={form.volume}
-                  onChange={(e) => setForm({ ...form, volume: e.target.value })}
-                  placeholder="e.g. Vol. 1, Book 2"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="book-location">Storage Location</Label>
-                <Input
-                  id="book-location"
-                  value={form.location}
-                  onChange={(e) => setForm({ ...form, location: e.target.value })}
-                  placeholder="e.g. Shelf A-3, Box 2"
-                />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="book-notes">Notes</Label>
-              <Input
-                id="book-notes"
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                placeholder="Optional notes"
-              />
-            </div>
-
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeForm} disabled={saving}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Saving…" : editing ? "Save Changes" : "Add Book"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <BookFormDialog
+        open={showForm}
+        editing={editing}
+        form={form}
+        saving={saving}
+        existingCollections={existingCollections}
+        onClose={closeForm}
+        onFormChange={setForm}
+        onSave={handleSave}
+        onCreateMany={handleCreateMany}
+      />
 
       <ImportDialog
         phase={importPhase}

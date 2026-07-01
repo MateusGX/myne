@@ -137,10 +137,9 @@ int bookHeroHeight(const GfxRenderer& renderer, int width, const char* title, co
   const auto titleLines = wrappedTextFull(renderer, UI_10_FONT_ID, title, textW, EpdFontFamily::BOLD);
   const auto detailLines = detail && detail[0] != '\0' ? wrappedTextFull(renderer, SMALL_FONT_ID, detail, textW)
                                                        : std::vector<std::string>{};
-  const int contentH = 14 + renderer.getLineHeight(SMALL_FONT_ID) + 8 +
-                       textBlockHeight(renderer, UI_10_FONT_ID, titleLines.size()) +
-                       (detailLines.empty() ? 0 : 8 + textBlockHeight(renderer, SMALL_FONT_ID, detailLines.size())) +
-                       14;
+  const int contentH =
+      14 + renderer.getLineHeight(SMALL_FONT_ID) + 8 + textBlockHeight(renderer, UI_10_FONT_ID, titleLines.size()) +
+      (detailLines.empty() ? 0 : 8 + textBlockHeight(renderer, SMALL_FONT_ID, detailLines.size())) + 14;
   return std::max(BooksActivityUI::HERO_H, contentH);
 }
 
@@ -188,12 +187,11 @@ void drawLabelValue(const GfxRenderer& renderer, Rect rect, const char* label, c
   }
 }
 
-int fullLabelValueCardHeight(const GfxRenderer& renderer, int width, const char* value,
-                             int valueFont = UI_10_FONT_ID) {
+int fullLabelValueCardHeight(const GfxRenderer& renderer, int width, const char* value, int valueFont = UI_10_FONT_ID) {
   const auto style = valueFont == UI_10_FONT_ID ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
   const auto lines = wrappedTextFull(renderer, valueFont, value, width - kInner * 2, style);
-  return std::max(74, 14 + renderer.getLineHeight(SMALL_FONT_ID) + 8 +
-                          textBlockHeight(renderer, valueFont, lines.size()) + 14);
+  return std::max(
+      74, 14 + renderer.getLineHeight(SMALL_FONT_ID) + 8 + textBlockHeight(renderer, valueFont, lines.size()) + 14);
 }
 
 void drawFullMetaCard(const GfxRenderer& renderer, Rect rect, const char* label, const char* value,
