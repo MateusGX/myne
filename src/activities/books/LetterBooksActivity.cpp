@@ -65,32 +65,9 @@ void LetterBooksActivity::openSelected() {
     return;
   }
 
-  // Load full book JSON for the detail view
-  char path[80];
-  snprintf(path, sizeof(path), "%s/%s.json", BookStore::DIR_PATH, e.id);
-  if (!Storage.exists(path)) return;
-
-  auto* rawBuf = static_cast<char*>(malloc(512));
-  if (!rawBuf) return;
-  const size_t n = Storage.readFileToBuffer(path, rawBuf, 511);
-  rawBuf[n] = '\0';
-
   PhysicalBook book;
-  bool found = false;
-  {
-    JsonDocument doc;
-    if (deserializeJson(doc, rawBuf) == DeserializationError::Ok) {
-      book.id = doc["id"] | "";
-      book.title = doc["t"] | "";
-      book.author = doc["a"] | "";
-      book.collection = doc["c"] | "";
-      book.volume = doc["v"] | "";
-      book.location = doc["l"] | "";
-      book.notes = doc["n"] | "";
-      found = !book.id.empty() && !book.title.empty();
-    }
-  }
-  free(rawBuf);
+  BookStore bookStore;
+  const bool found = bookStore.get(e.id, book) && !book.title.empty();
 
   if (found) {
     startActivityForResult(std::make_unique<PhysicalBookDetailActivity>(renderer, mappedInput, std::move(book)),

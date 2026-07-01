@@ -43,7 +43,7 @@ export function BookDetailDialog({
             <DetailField label="Author" value={book.author} />
             <DetailField label="Collection" value={book.collection} />
             <DetailField label="Location" value={book.location} />
-            <DetailField label="Notes" value={book.notes} />
+            <DetailField label="Note" value={book.note} />
           </div>
         )}
         <DialogFooter className="gap-2 sm:justify-between">

@@ -272,12 +272,12 @@ void PhysicalBookDetailActivity::render(RenderLock&&) {
 
   // Notes
   {
-    const int notesH = 96;
-    drawCard(renderer, Rect{kPad, y, CW, notesH});
-    const char* notes = book.notes.empty() ? "-" : book.notes.c_str();
-    drawLabelValue(renderer, Rect{kPad + kInner, y + 14, CW - kInner * 2, notesH - 24}, tr(STR_BOOK_NOTES), notes,
+    const int noteH = 96;
+    drawCard(renderer, Rect{kPad, y, CW, noteH});
+    const char* note = book.note.empty() ? "-" : book.note.c_str();
+    drawLabelValue(renderer, Rect{kPad + kInner, y + 14, CW - kInner * 2, noteH - 24}, tr(STR_BOOK_NOTE), note,
                    SMALL_FONT_ID, 3);
-    y += notesH + 12;
+    y += noteH + 12;
   }
 
   // Reading summary / action card

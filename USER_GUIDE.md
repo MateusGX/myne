@@ -97,12 +97,12 @@ The book detail screen shows everything Myne knows about a single book:
 
 - **Collection** — which collection (if any) the book belongs to
 - **Location** — a free-text field for where the physical book lives (e.g. "Shelf 2, Box A")
-- **Notes** — any notes you've added for the book (wraps up to 3 lines)
+- **Note** — the note you've added for the book, if any (wraps up to 3 lines)
 - **Reading summary** — the book's current status and your last logged position/date, or "No readings
   yet" if you haven't logged any sessions
 
 Fields that haven't been filled in show as "–". This screen is read-only on the device — to add or edit
-book metadata (title, author, volume, collection, location, notes), use the **dashboard** (see
+book metadata (title, author, volume, collection, location, note), use the **dashboard** (see
 [File Transfer & Dashboard](#6-file-transfer--dashboard)).
 
 From here:
@@ -195,8 +195,8 @@ The `dashboard/` web app is the primary way to manage your book catalog day-to-d
 computer (see its [README](./dashboard/README.md) for setup) and point it at your device's IP address.
 From the dashboard you can:
 
-- Add, edit, and delete books — title, author, volume, collection, location, and notes
-- Create and rename collections, and add per-collection notes
+- Add, edit, and delete books — title, author, volume, collection, location, and note
+- Create and rename collections, and add a per-collection note
 - View and edit reading sessions for any book
 - Browse, upload, download, rename, move, and delete files on the SD card
 - View device status (battery, Wi-Fi, free space) and change settings

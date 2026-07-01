@@ -140,9 +140,9 @@ static void formatRegistryLine(char* line, size_t maxLen, const char* collId, co
   }
 }
 
-// Path of the raw-text note file for a collection: NOTES_DIR/{id8}.note
+// Path of the raw-text note file for a collection: NOTE_DIR/{id8}.note
 static void notePath(const char* collId, char* out, size_t outSize) {
-  snprintf(out, outSize, "%s/%s.note", BookCatalog::NOTES_DIR, collId);
+  snprintf(out, outSize, "%s/%s.note", BookCatalog::NOTE_DIR, collId);
 }
 
 // ── IO helpers ────────────────────────────────────────────────────────────────
@@ -906,7 +906,8 @@ bool BookCatalog::rebuild(const char* booksDir, void (*onProgress)(int processed
   Storage.mkdir(CATALOG_DIR);
   Storage.mkdir(COLL_DIR);
   Storage.mkdir(TMP_DIR);
-  Storage.mkdir(NOTES_DIR);  // never cleaned: persistent collection notes
+  Storage.mkdir(NOTE_ROOT_DIR);
+  Storage.mkdir(NOTE_DIR);  // never cleaned: persistent collection note files
 
   int processed = 0;
 
@@ -1192,7 +1193,8 @@ bool BookCatalog::setCollectionNote(const char* collId, const char* note) {
     return true;
   }
 
-  Storage.mkdir(NOTES_DIR);
+  Storage.mkdir(NOTE_ROOT_DIR);
+  Storage.mkdir(NOTE_DIR);
   HalFile f;
   if (!Storage.openFileForWrite("CAT", path, f)) return false;
   f.write(note, strlen(note));
@@ -1335,7 +1337,7 @@ bool BookCatalog::renameCollection(const char* id, const char* newName) {
 bool BookCatalog::applyBookChange(const BookChangeInfo* oldBook, const BookChangeInfo* newBook) {
   // Register the collection name<->id mapping immediately, even if the full
   // catalog hasn't been built yet (idx.bin missing). Otherwise /api/collections
-  // and notes don't see newly-created collections until the next rebuild.
+  // and collection note endpoints don't see newly-created collections until the next rebuild.
   if (newBook && newBook->collection[0]) {
     char collId[9];
     resolveCollectionId(newBook->collection, collId);

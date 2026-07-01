@@ -57,7 +57,7 @@ export function BookFormDialog({
       collection: form.collection,
       volume: "",
       location: form.location,
-      notes: "",
+      note: "",
     })
   }
 
@@ -294,14 +294,14 @@ export function BookFormDialog({
                 </div>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="book-notes">Notes</Label>
+                <Label htmlFor="book-note">Note</Label>
                 <Input
-                  id="book-notes"
-                  value={form.notes}
+                  id="book-note"
+                  value={form.note}
                   onChange={(e) =>
-                    onFormChange({ ...form, notes: e.target.value })
+                    onFormChange({ ...form, note: e.target.value })
                   }
-                  placeholder="Optional notes"
+                  placeholder="Optional note"
                 />
               </div>
               {!isEditing && (

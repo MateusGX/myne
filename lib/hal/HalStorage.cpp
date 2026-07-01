@@ -197,11 +197,17 @@ HalStorage::StorageStats HalStorage::getStorageStats() {
   }
 #else
   FsFile root = SDCard.open("/");
-  if (!root) return stats;
+  if (!root) {
+    stats.totalBytes = SDCard.totalBytes();
+    return stats;
+  }
 
   if (!readStatsFromVolume(root, stats, 0)) {
     stats.usedBytes = sumUsedBytes(root);
     stats.totalBytes = readTotalBytesFromVolume(root, 0);
+    if (stats.totalBytes == 0) {
+      stats.totalBytes = SDCard.totalBytes();
+    }
   }
 
   root.close();

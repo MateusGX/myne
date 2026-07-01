@@ -92,14 +92,14 @@ void testUpdateOverwrites() {
   ASSERT_TRUE(store.create(book));
 
   book.title = "Updated Title";
-  book.notes = "Some notes";
+  book.note = "Some note";
   ASSERT_TRUE(store.update(book));
 
   PhysicalBook out;
   ASSERT_TRUE(store.get(book.id, out));
   ASSERT_EQ(out.title, "Updated Title");
   ASSERT_EQ(out.author, "Original Author");
-  ASSERT_EQ(out.notes, "Some notes");
+  ASSERT_EQ(out.note, "Some note");
 
   printf("  update() overwrites the stored book\n");
   PASS();

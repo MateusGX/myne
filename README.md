@@ -173,7 +173,9 @@ Book catalog entries, collections, reading sessions, and stats are stored on the
 ├── books/            # one JSON file per physical book (id.json)
 ├── catalog/          # alphabetical (A-Z, #) and per-collection NDJSON indexes + idx.bin
 ├── collections.ndjson # collection ID registry
-├── notes/            # per-collection notes
+├── notes/            # per-book and per-collection notes
+│   ├── books/        # notes/books/{bookId}.note
+│   └── collections/  # notes/collections/{id8}.note
 ├── readings/         # reading session records (one JSON file per book)
 ├── readings-sum/     # 17-byte binary reading summaries for fast lookups
 └── stats-cache/      # 40-byte binary stats cache for reading stats

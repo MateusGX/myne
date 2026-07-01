@@ -3,9 +3,8 @@ import type { Book, Collection } from "./api"
 
 const BOOKS_SHEET = "Books"
 const COLLECTION_SHEET = "Collection"
-const LEGACY_NOTES_SHEET = "Collection Notes"
 
-const BOOK_HEADERS = ["ID", "Title", "Author", "Collection", "Volume", "Location", "Notes"]
+const BOOK_HEADERS = ["ID", "Title", "Author", "Collection", "Volume", "Location", "Note"]
 const COLLECTION_HEADERS = ["ID", "Collection", "Note", "Expected Count", "Initial Volume"]
 
 const EXAMPLE_BOOK = ["", "The Hobbit", "J.R.R. Tolkien", "Middle-earth", "", "Shelf 2", "Gift from Sarah"]
@@ -42,7 +41,7 @@ export function exportBooksXlsx(
   collections: Collection[],
   collectionNotes: Record<string, string>,
 ) {
-  const bookRows = books.map((b) => [b.id, b.title, b.author, b.collection, b.volume, b.location, b.notes])
+  const bookRows = books.map((b) => [b.id, b.title, b.author, b.collection, b.volume, b.location, b.note])
   const collectionRows = collections.map((collection) => [
     collection.id,
     collection.name,
@@ -95,12 +94,12 @@ export async function parseBooksXlsx(file: File): Promise<ParsedBooksImport> {
       collection: rowValue(row, "Collection"),
       volume: rowValue(row, "Volume"),
       location: rowValue(row, "Location"),
-      notes: rowValue(row, "Notes"),
+      note: rowValue(row, "Note"),
     }))
     .filter((b) => b.title)
 
   const collectionMetadata: CollectionMetadata[] = []
-  const collectionSheet = findSheet(workbook, COLLECTION_SHEET) ?? findSheet(workbook, LEGACY_NOTES_SHEET)
+  const collectionSheet = findSheet(workbook, COLLECTION_SHEET)
   if (collectionSheet) {
     for (const row of XLSX.utils.sheet_to_json<Record<string, unknown>>(collectionSheet, { defval: "" })) {
       const id = rowValue(row, "ID")

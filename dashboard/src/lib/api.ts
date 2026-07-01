@@ -242,12 +242,13 @@ export type Book = {
   collection: string
   volume: string
   location: string
-  notes: string
+  note: string
 }
 
 export type BookFormData = Omit<Book, "id">
 
-export const getBooks = () => api.get<Book[]>("/api/books").then((r) => r.data)
+export const getBooks = () =>
+  api.get<Book[]>("/api/books").then((r) => r.data)
 
 export const createBook = (data: BookFormData) =>
   api.post<{ ok: boolean; id: string }>("/api/books/create", data).then((r) => r.data)
@@ -265,6 +266,7 @@ export type Collection = {
   name: string
   expectedCount: number
   initialVolume: number
+  note: string
 }
 
 export const getCollections = () =>
@@ -328,7 +330,14 @@ export async function importBooks(
         existingById.set(data.id, data)
         existingByKey.set(bookImportKey(data), data)
       } else {
-        const { id: _id, ...data } = book
+        const data: BookFormData = {
+          title: book.title,
+          author: book.author,
+          collection: book.collection,
+          volume: book.volume,
+          location: book.location,
+          note: book.note,
+        }
         const result = await createBook(data)
         created++
         const createdBook = { ...book, id: result.id }

@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 #include <string>
 
 #include "DataStoreUtils.h"
@@ -11,13 +12,16 @@ struct PhysicalBook {
   std::string collection;
   std::string volume;
   std::string location;
-  std::string notes;
+  std::string note;
 };
 
 class BookStore {
  public:
   // Per-book JSON directory.
   static constexpr const char* DIR_PATH = "/.myne/books";
+  static constexpr const char* NOTE_ROOT_DIR = "/.myne/notes";
+  // Per-book plain-text note directory. Keyed by book id.
+  static constexpr const char* NOTE_DIR = "/.myne/notes/books";
 
   // Ensure the books directory exists.
   bool init();
@@ -33,6 +37,10 @@ class BookStore {
 
   // Delete a book JSON file.
   bool remove(const std::string& id);
+
+  // Read/write/clear the plain-text note for a book.
+  static bool getNote(const char* id, char* out, size_t maxOut);
+  static bool setNote(const char* id, const char* note);
 
   // Count .json files without parsing. O(N), O(1) RAM.
   int countBooks() const { return store_.count(); }

@@ -32,9 +32,10 @@ class BookCatalog {
   // {"id":"<8hex>","n":"<name>","e":<expectedCount>,"iv":<initialVolume>}.
   // Lives outside CATALOG_DIR so it survives rebuild()'s cleanFilesInDir() calls.
   static constexpr const char* REGISTRY_FILE = "/.myne/collections.ndjson";
-  // Persistent per-collection notes, keyed by collection id. Lives outside
-  // CATALOG_DIR so notes survive rebuild()'s cleanFilesInDir() calls.
-  static constexpr const char* NOTES_DIR = "/.myne/notes";
+  // Persistent per-collection note, keyed by collection id. Lives outside
+  // CATALOG_DIR so note files survive rebuild()'s cleanFilesInDir() calls.
+  static constexpr const char* NOTE_ROOT_DIR = "/.myne/notes";
+  static constexpr const char* NOTE_DIR = "/.myne/notes/collections";
   static constexpr size_t MAX_LINE = 256;
 
   struct Entry {

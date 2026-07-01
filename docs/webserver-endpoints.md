@@ -578,7 +578,7 @@ curl http://myne.local/api/books
 **Response (200 OK, streamed JSON array):**
 ```json
 [
-  {"id": "lz3k9f2a", "title": "The Hobbit", "author": "J.R.R. Tolkien", "collection": "Middle-earth", "volume": "", "location": "Shelf 2", "notes": ""}
+  {"id": "lz3k9f2a", "title": "The Hobbit", "author": "J.R.R. Tolkien", "collection": "Middle-earth", "volume": "", "location": "Shelf 2", "note": ""}
 ]
 ```
 
@@ -590,7 +590,7 @@ curl http://myne.local/api/books
 | `collection` | string | Collection name (empty if standalone)    |
 | `volume`     | string | Volume/number label                      |
 | `location`   | string | Free-text shelf/location                 |
-| `notes`      | string | Free-text notes                          |
+| `note`       | string | Free-text note                           |
 
 ---
 
@@ -602,8 +602,8 @@ curl -X POST -H "Content-Type: application/json" \
   http://myne.local/api/books/create
 ```
 
-**Request body:** `title` is required (non-empty); `author`, `collection`, `volume`, `location`,
-`notes` are optional and default to `""`.
+**Request body:** `title` is required (non-empty); `author`, `collection`, `volume`, `location`, and
+`note` are optional and default to `""`.
 
 **Response (201 Created):**
 ```json
@@ -626,7 +626,7 @@ curl -X POST -H "Content-Type: application/json" \
 ```
 
 **Request body:** `id` is required; any of `title`, `author`, `collection`, `volume`, `location`,
-`notes` may be included and will be updated (omitted fields are left unchanged).
+`note` may be included and will be updated (omitted fields are left unchanged).
 
 **Response (200 OK):** `{"ok": true}`
 
@@ -662,13 +662,14 @@ curl http://myne.local/api/collections
 **Response (200 OK, streamed JSON array):**
 ```json
 [
-  {"id": "a1b2c3d4", "name": "Middle-earth", "expectedCount": 7, "initialVolume": 1}
+  {"id": "a1b2c3d4", "name": "Middle-earth", "expectedCount": 7, "initialVolume": 1, "note": "Read in publication order"}
 ]
 ```
 
 `id` is the persistent 8-hex-character collection ID (see
 [book-catalog-format.md](./book-catalog-format.md#collectionsndjson)). `expectedCount` is `0` when
-no expected total is set. `initialVolume` is `0` when no initial volume is set.
+no expected total is set. `initialVolume` is `0` when no initial volume is set. `note` is `""` when
+no collection note is set.
 
 ---
 

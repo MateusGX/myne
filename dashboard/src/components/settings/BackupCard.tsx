@@ -2,9 +2,8 @@ import { useRef, useState } from "react"
 import { Archive, DownloadSimple, UploadSimple } from "@phosphor-icons/react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
+import { FilePicker } from "@/components/settings/FilePicker"
 import {
   BACKUP_RESTORE_DIR,
   BACKUP_RESTORE_FILENAME,
@@ -31,6 +30,7 @@ export function BackupCard() {
     if (!file) return
     if (!file.name.endsWith(".ndjson")) {
       toast.error("Please select a .ndjson backup file")
+      if (inputRef.current) inputRef.current.value = ""
       return
     }
     setSelectedFile(file)
@@ -110,39 +110,33 @@ export function BackupCard() {
 
         {(state.phase === "idle" || state.phase === "ready") && (
           <div className="space-y-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Backup file (.ndjson)</Label>
-              <Input
-                ref={inputRef}
-                type="file"
-                accept=".ndjson,application/x-ndjson,application/json"
-                onChange={handleFileChange}
-                className="h-8 text-xs"
-              />
-            </div>
+            <FilePicker
+              id="backup-file"
+              label="Backup file (.ndjson)"
+              accept=".ndjson,application/x-ndjson,application/json"
+              selectedFile={selectedFile}
+              inputRef={inputRef}
+              onChange={handleFileChange}
+              onClear={reset}
+            />
             {state.phase === "ready" && (
-              <div className="flex items-center justify-between gap-2">
-                <p className="truncate text-xs text-muted-foreground">
-                  {state.fileName}
-                </p>
-                <div className="flex shrink-0 gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={reset}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={handleRestore}
-                  >
-                    <UploadSimple size={13} />
-                    Restore
-                  </Button>
-                </div>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={reset}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={handleRestore}
+                >
+                  <UploadSimple size={13} />
+                  Restore
+                </Button>
               </div>
             )}
           </div>

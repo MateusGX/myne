@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   BookOpen,
   CaretDown,
@@ -10,7 +10,6 @@ import {
   NotePencilIcon,
   PencilSimple,
   Plus,
-  SpinnerIcon,
   Trash,
   X,
 } from "@phosphor-icons/react"
@@ -37,11 +36,9 @@ import {
 } from "@/components/books/ImportDialog"
 import {
   deleteBook,
-  getBooks,
   getCollections,
   renameCollection,
   deleteCollectionNote,
-  getCollectionNote,
   importBooks,
   setCollectionExpectedCount,
   setCollectionInitialVolume,
@@ -51,6 +48,7 @@ import {
   type BookFormData,
   type Collection,
 } from "@/lib/api"
+import { useBooksData } from "@/lib/useBooksData"
 import {
   type CollectionMetadata,
   downloadBooksTemplate,
@@ -65,7 +63,7 @@ const emptyForm: BookFormData = {
   collection: "",
   volume: "",
   location: "",
-  notes: "",
+  note: "",
 }
 
 type CollectionGroup = { name: string; books: Book[] }
@@ -197,8 +195,15 @@ function MissingVolumeRow({ volume }: { volume: number }) {
 }
 
 export function BooksPage() {
-  const [books, setBooks] = useState<Book[]>([])
-  const [loading, setLoading] = useState(true)
+  const {
+    books,
+    collections,
+    loading,
+    loaded,
+    refresh,
+    setBooks,
+    setCollections,
+  } = useBooksData()
   const [search, setSearch] = useState("")
   const [collectionFilter, setCollectionFilter] = useState("All")
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false)
@@ -215,13 +220,9 @@ export function BooksPage() {
   const [detailBook, setDetailBook] = useState<Book | null>(null)
   const [readingsBook, setReadingsBook] = useState<Book | null>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
-  const [collections, setCollections] = useState<Collection[]>([])
-  const [collectionNotes, setCollectionNotes] = useState<
-    Record<string, string>
-  >({})
-  const [notesLoading, setNotesLoading] = useState(false)
   const [editingNote, setEditingNote] = useState<string | null>(null)
   const [noteDraft, setNoteDraft] = useState("")
+  const didExpandInitialCollections = useRef(false)
 
   const nameToId = useMemo(
     () => new Map(collections.map((c) => [c.name, c.id])),
@@ -231,53 +232,28 @@ export function BooksPage() {
     () => new Map(collections.map((c) => [c.name, c])),
     [collections]
   )
-
-  const loadCollectionNotes = useCallback(
-    (bookList: Book[], cols: Collection[]) => {
-      const byName = new Map(cols.map((c) => [c.name, c.id]))
-      const ids = Array.from(
-        new Set(
-          bookList
-            .map((b) => byName.get(b.collection))
-            .filter((id): id is string => Boolean(id))
-        )
-      )
-      if (ids.length === 0) {
-        setCollectionNotes({})
-        setNotesLoading(false)
-        return
-      }
-      setNotesLoading(true)
-      Promise.all(
-        ids.map((id) =>
-          getCollectionNote(id)
-            .then((r) => [id, r.note] as [string, string])
-            .catch(() => [id, ""] as [string, string])
-        )
-      )
-        .then((entries) => setCollectionNotes(Object.fromEntries(entries)))
-        .finally(() => setNotesLoading(false))
-    },
-    []
+  const collectionNotes = useMemo(
+    () =>
+      Object.fromEntries(
+        collections.map((collection) => [
+          collection.id,
+          collection.note ?? "",
+        ])
+      ),
+    [collections]
   )
 
-  const load = useCallback(() => {
-    setLoading(true)
-    Promise.all([getBooks(), getCollections()])
-      .then(([data, cols]) => {
-        setBooks(data)
-        setCollections(cols)
-        const colSet = new Set(data.map((b) => b.collection).filter(Boolean))
-        setExpandedCollections(colSet)
-        loadCollectionNotes(data, cols)
-      })
-      .catch(() => toast.error("Failed to load books"))
-      .finally(() => setLoading(false))
-  }, [loadCollectionNotes])
+  useEffect(() => {
+    refresh(false).catch(() => toast.error("Failed to load books"))
+  }, [refresh])
 
   useEffect(() => {
-    load()
-  }, [load])
+    if (!loaded || didExpandInitialCollections.current) return
+    setExpandedCollections(new Set(books.map((b) => b.collection).filter(Boolean)))
+    didExpandInitialCollections.current = true
+  }, [books, loaded])
+
+  const initialLoading = loading && !loaded
 
   const collectionOptions = useMemo(
     () => [
@@ -398,7 +374,11 @@ export function BooksPage() {
     }
     try {
       await setCollectionNote(id, noteDraft)
-      setCollectionNotes((prev) => ({ ...prev, [id]: noteDraft }))
+      setCollections((prev) =>
+        prev.map((collection) =>
+          collection.id === id ? { ...collection, note: noteDraft } : collection
+        )
+      )
       setEditingNote(null)
     } catch {
       toast.error("Failed to save collection note")
@@ -410,11 +390,11 @@ export function BooksPage() {
     if (!id) return
     try {
       await deleteCollectionNote(id)
-      setCollectionNotes((prev) => {
-        const next = { ...prev }
-        delete next[id]
-        return next
-      })
+      setCollections((prev) =>
+        prev.map((collection) =>
+          collection.id === id ? { ...collection, note: "" } : collection
+        )
+      )
     } catch {
       toast.error("Failed to delete collection note")
     }
@@ -437,8 +417,22 @@ export function BooksPage() {
     if (newName === name) return
     try {
       await renameCollection(id, newName)
+      setBooks((prev) =>
+        prev.map((book) =>
+          book.collection === name ? { ...book, collection: newName } : book
+        )
+      )
+      setCollections((prev) =>
+        prev.map((collection) =>
+          collection.id === id ? { ...collection, name: newName } : collection
+        )
+      )
+      setExpandedCollections((prev) => {
+        const next = new Set(prev)
+        if (next.delete(name)) next.add(newName)
+        return next
+      })
       toast.success("Collection renamed")
-      load()
     } catch {
       toast.error("Failed to rename collection")
     }
@@ -517,7 +511,7 @@ export function BooksPage() {
       collection: book.collection,
       volume: book.volume,
       location: book.location,
-      notes: book.notes,
+      note: book.note,
     })
     setShowForm(true)
   }
@@ -539,7 +533,7 @@ export function BooksPage() {
       await updateBook({ ...form, title: form.title.trim(), id: editing.id })
       toast.success("Book updated")
       closeForm()
-      load()
+      refresh(true).catch(() => toast.error("Failed to refresh books"))
     } catch {
       toast.error("Failed to update book")
     } finally {
@@ -570,7 +564,7 @@ export function BooksPage() {
       await deleteBook(book.id)
       toast.success("Book deleted")
       setDetailBook(null)
-      load()
+      refresh(true).catch(() => toast.error("Failed to refresh books"))
     } catch {
       toast.error("Failed to delete book")
     }
@@ -701,7 +695,7 @@ export function BooksPage() {
       failedBooks: result.failedBooks,
       failedMetadata,
     })
-    load()
+    refresh(true).catch(() => toast.error("Failed to refresh books"))
   }
 
   async function handleConfirmImport() {
@@ -849,7 +843,7 @@ export function BooksPage() {
       <div className="grid gap-3 sm:grid-cols-3">
         <MetricCard
           label="Visible"
-          value={loading ? "…" : visibleCount}
+          value={initialLoading ? "…" : visibleCount}
           detail={`${books.length} total books`}
         />
         <MetricCard
@@ -869,7 +863,7 @@ export function BooksPage() {
       </div>
 
       {/* Content */}
-      {loading ? (
+      {initialLoading ? (
         <div className="space-y-3">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="h-28 animate-pulse rounded-lg bg-muted" />
@@ -1034,13 +1028,6 @@ export function BooksPage() {
                     >
                       <Trash size={11} />
                     </button>
-                  </div>
-                ) : notesLoading ? (
-                  <div className="flex items-center gap-2 border-b border-border bg-muted/25 px-5 py-2 text-muted-foreground">
-                    <SpinnerIcon size={11} className="animate-spin" />
-                    <span className="text-xs italic">
-                      Checking for collection note…
-                    </span>
                   </div>
                 ) : null}
 

@@ -271,32 +271,9 @@ void ActivityManager::goToLastRead() {
     return;
   }
 
-  // Look up the book directly from its own file using short keys.
   PhysicalBook book;
-  bool found = false;
-
-  char bookPath[80];
-  snprintf(bookPath, sizeof(bookPath), "%s/%s.json", BookStore::DIR_PATH, bestBookId.c_str());
-  if (Storage.exists(bookPath)) {
-    static constexpr size_t BOOK_BUF_SIZE = 512;
-    auto* buf = static_cast<char*>(malloc(BOOK_BUF_SIZE));
-    if (buf) {
-      const size_t n = Storage.readFileToBuffer(bookPath, buf, BOOK_BUF_SIZE);
-      buf[n] = '\0';
-      JsonDocument doc;
-      if (deserializeJson(doc, buf) == DeserializationError::Ok) {
-        book.id = doc["id"] | "";
-        book.title = doc["t"] | "";
-        book.author = doc["a"] | "";
-        book.collection = doc["c"] | "";
-        book.volume = doc["v"] | "";
-        book.location = doc["l"] | "";
-        book.notes = doc["n"] | "";
-        found = !book.id.empty() && !book.title.empty();
-      }
-      free(buf);
-    }
-  }
+  BookStore bookStore;
+  const bool found = bookStore.get(bestBookId, book) && !book.title.empty();
 
   if (!found) {
     goToFullScreenMessage(tr(STR_NO_LAST_READ), EpdFontFamily::REGULAR, true);

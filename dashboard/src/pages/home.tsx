@@ -77,12 +77,23 @@ export function HomePage() {
   }
 
   const isAp = status.mode === "AP"
-  const hasStorage = status.storageTotal > 0
+  const hasStorageUsed = status.storageUsed > 0
+  const hasStorageTotal = status.storageTotal > 0
   const hasSignal = !isAp && Number.isFinite(status.rssi) && status.rssi !== 0
   const storagePercent =
-    hasStorage
+    hasStorageTotal
       ? Math.min(100, Math.round((status.storageUsed / status.storageTotal) * 100))
       : 0
+  const storageDetail = hasStorageTotal
+    ? `of ${formatBytes(status.storageTotal)} used`
+    : hasStorageUsed
+      ? "Used space"
+      : "Storage details unavailable"
+  const storageStatus = hasStorageTotal
+    ? `${storagePercent}% full`
+    : hasStorageUsed
+      ? "Total capacity unavailable"
+      : "Waiting for storage stats"
 
   return (
     <div className="space-y-6">
@@ -138,9 +149,9 @@ export function HomePage() {
           icon={<HardDrive size={18} />}
           detail={
             <>
-              {hasStorage ? `of ${formatBytes(status.storageTotal)} used` : "Storage details unavailable"}
-            <Progress value={storagePercent} className="mt-4 h-2" />
-              <p className="mt-2">{hasStorage ? `${storagePercent}% full` : "Waiting for storage stats"}</p>
+              {storageDetail}
+              {hasStorageTotal && <Progress value={storagePercent} className="mt-4 h-2" />}
+              <p className={hasStorageTotal ? "mt-2" : "mt-4"}>{storageStatus}</p>
             </>
           }
         />

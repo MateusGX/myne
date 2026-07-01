@@ -68,6 +68,9 @@ static void streamCollectionCb(const char* id, const char* name, int expectedCou
   doc["name"] = name;
   doc["expectedCount"] = expectedCount;
   doc["initialVolume"] = initialVolume;
+  char note[65] = {};
+  BookCatalog::getCollectionNote(id, note, sizeof(note));
+  doc["note"] = note;
   String item;
   serializeJson(doc, item);
   ctx->server->sendContent(item);
@@ -1801,7 +1804,12 @@ void MyneWebServer::handleGetBooks() const {
         outDoc["collection"] = inDoc["c"];
         outDoc["volume"] = inDoc["v"];
         outDoc["location"] = inDoc["l"];
-        outDoc["notes"] = inDoc["n"];
+        char note[512] = {};
+        if (BookStore::getNote(id, note, sizeof(note))) {
+          outDoc["note"] = note;
+        } else {
+          outDoc["note"] = inDoc["note"] | "";
+        }
         String item;
         serializeJson(outDoc, item);
         server->sendContent(item);
@@ -1844,7 +1852,7 @@ void MyneWebServer::handleCreateBook() {
   book.collection = doc["collection"] | "";
   book.volume = doc["volume"] | "";
   book.location = doc["location"] | "";
-  book.notes = doc["notes"] | "";
+  book.note = doc["note"] | "";
 
   if (!bookStore->create(book)) {
     server->send(500, "text/plain", "Failed to save book");
@@ -1893,7 +1901,7 @@ void MyneWebServer::handleUpdateBook() {
   book.collection = doc["collection"] | "";
   book.volume = doc["volume"] | "";
   book.location = doc["location"] | "";
-  book.notes = doc["notes"] | "";
+  book.note = doc["note"] | "";
 
   PhysicalBook oldBook;
   const bool hadOldBook = bookStore->get(book.id, oldBook);

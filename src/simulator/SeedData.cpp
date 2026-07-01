@@ -23,7 +23,7 @@ static void writeJson(const char* path, const JsonDocument& doc) {
 }
 
 static void seedBook(const char* id, const char* title, const char* author, const char* collection, const char* volume,
-                     const char* location, const char* notes = "") {
+                     const char* location, const char* note = "") {
   char path[80];
   snprintf(path, sizeof(path), "%s/%s.json", BookStore::DIR_PATH, id);
   if (Storage.exists(path)) return;
@@ -36,8 +36,8 @@ static void seedBook(const char* id, const char* title, const char* author, cons
   doc["c"] = collection;
   doc["v"] = volume;
   doc["l"] = location;
-  doc["n"] = notes;
   writeJson(path, doc);
+  BookStore::setNote(id, note);
 }
 
 static void seedCollectionNote(const char* collection, const char* note) {

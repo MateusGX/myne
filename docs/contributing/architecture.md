@@ -113,7 +113,8 @@ Typical persisted areas on SD:
   readings/{bookId}.json
   catalog/...
   collections.ndjson
-  notes/{id8}.note
+  notes/books/{bookId}.note
+  notes/collections/{id8}.note
   readings-sum/{bookId}.bin
   stats-cache/...
   settings.json
