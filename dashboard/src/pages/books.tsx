@@ -560,7 +560,7 @@ export function BooksPage() {
       step: "preview",
       mode: "create",
       books: cleaned,
-      collectionMetadata: {},
+      collectionMetadata: [],
     })
   }
 
@@ -577,37 +577,21 @@ export function BooksPage() {
   }
 
   function handleExport() {
-    const metadataMap: Record<string, CollectionMetadata> = {}
-    for (const collection of collections) {
-      const note = collectionNotes[collection.id] ?? ""
-      if (
-        note ||
-        collection.expectedCount > 0 ||
-        collection.initialVolume > 0
-      ) {
-        metadataMap[collection.name] = {
-          note,
-          expectedCount: collection.expectedCount,
-          initialVolume: collection.initialVolume,
-        }
-      }
-    }
-    exportBooksXlsx(books, metadataMap)
+    exportBooksXlsx(books, collections, collectionNotes)
   }
 
   function handleImportFilePicked(file: File) {
     parseBooksXlsx(file)
       .then(({ books: parsed, collectionMetadata: importedMetadata }) => {
-        const cleaned: Book[] = parsed.map((item) => ({ id: "", ...item }))
         setImportPhase({
           step: "preview",
-          books: cleaned,
+          books: parsed,
           collectionMetadata: importedMetadata,
         })
       })
       .catch((e) => {
-        if (e instanceof Error && e.message === "No valid books found") {
-          toast.error("No valid books found in file")
+        if (e instanceof Error && e.message === "No valid rows found") {
+          toast.error("No valid books or collections found in file")
         } else {
           toast.error("Failed to read file — check the format")
         }
@@ -616,7 +600,7 @@ export function BooksPage() {
 
   async function runImport(
     booksToImport: Book[],
-    metadataEntries: [string, CollectionMetadata][],
+    metadataEntries: CollectionMetadata[],
     mode: ImportMode = "import"
   ) {
     const booksTotal = booksToImport.length
@@ -631,65 +615,89 @@ export function BooksPage() {
         kind: "book",
       })
     }
-    const result = await importBooks(booksToImport, (done, _total, current) => {
-      setImportPhase({
-        step: "running",
-        mode,
-        done,
-        total: booksTotal,
-        current,
-        kind: "book",
-      })
-    })
+    const result = await importBooks(
+      booksToImport,
+      mode === "import" ? books : [],
+      (done, _total, current) => {
+        setImportPhase({
+          step: "running",
+          mode,
+          done,
+          total: booksTotal,
+          current,
+          kind: "book",
+        })
+      }
+    )
     // Re-fetch collections so newly created collection names have registered ids.
     const cols = await getCollections().catch(() => collections)
-    const byName = new Map(cols.map((c) => [c.name, c.id]))
-    // Restore collection metadata from the import file, with progress feedback.
+    const byId = new Map(cols.map((c) => [c.id, c]))
+    const byName = new Map(cols.map((c) => [c.name, c]))
+    // Restore collection rows from the import file, with progress feedback.
     let metadataImported = 0
-    const failedMetadata: Record<string, CollectionMetadata> = {}
+    const failedMetadata: CollectionMetadata[] = []
     for (let i = 0; i < metadataEntries.length; i++) {
-      const [name, metadata] = metadataEntries[i]
+      const metadata = metadataEntries[i]
+      const displayName = metadata.name || metadata.id || "Collection"
       setImportPhase({
         step: "running",
         mode,
         done: i,
         total: metadataTotal,
-        current: name,
+        current: displayName,
         kind: "metadata",
       })
-      const id = byName.get(name)
-      let ok = Boolean(id)
-      if (id && metadata.note) {
+      let collection =
+        (metadata.id ? byId.get(metadata.id) : undefined) ??
+        (metadata.name ? byName.get(metadata.name) : undefined)
+      let ok = Boolean(collection)
+      if (collection && metadata.name && metadata.name !== collection.name) {
         ok =
           ok &&
-          (await setCollectionNote(id, metadata.note)
+          (await renameCollection(collection.id, metadata.name)
             .then(() => true)
             .catch(() => false))
+        if (ok) {
+          byName.delete(collection.name)
+          collection = { ...collection, name: metadata.name }
+          byId.set(collection.id, collection)
+          byName.set(collection.name, collection)
+        }
       }
-      if (id && metadata.expectedCount > 0) {
+      if (collection) {
         ok =
           ok &&
-          (await setCollectionExpectedCount(id, metadata.expectedCount)
+          (await setCollectionNote(collection.id, metadata.note)
             .then(() => true)
             .catch(() => false))
-      }
-      if (id && metadata.initialVolume > 0) {
         ok =
           ok &&
-          (await setCollectionInitialVolume(id, metadata.initialVolume)
+          (await setCollectionExpectedCount(
+            collection.id,
+            metadata.expectedCount
+          )
+            .then(() => true)
+            .catch(() => false))
+        ok =
+          ok &&
+          (await setCollectionInitialVolume(
+            collection.id,
+            metadata.initialVolume
+          )
             .then(() => true)
             .catch(() => false))
       }
       if (ok) metadataImported++
-      else failedMetadata[name] = metadata
+      else failedMetadata.push(metadata)
     }
     setImportPhase({
       step: "done",
       mode,
       created: result.count,
+      updated: result.updated,
       failed: result.failed,
       metadataImported,
-      metadataFailed: Object.keys(failedMetadata).length,
+      metadataFailed: failedMetadata.length,
       failedBooks: result.failedBooks,
       failedMetadata,
     })
@@ -702,7 +710,7 @@ export function BooksPage() {
       importPhase
     await runImport(
       importBooks_,
-      Object.entries(importedMetadata ?? {}),
+      importedMetadata ?? [],
       importPhase.mode ?? "import"
     )
   }
@@ -712,7 +720,7 @@ export function BooksPage() {
     const { failedBooks, failedMetadata } = importPhase
     await runImport(
       failedBooks,
-      Object.entries(failedMetadata),
+      failedMetadata,
       importPhase.mode ?? "import"
     )
   }

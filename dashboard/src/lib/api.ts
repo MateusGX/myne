@@ -121,6 +121,16 @@ export const deleteWifiNetwork = (index: number) =>
 export const downloadUrl = (path: string) =>
   `/download?path=${encodeURIComponent(path)}`
 
+export const backupDownloadUrl = () => "/api/backup/download"
+
+export const BACKUP_RESTORE_DIR = "/"
+export const BACKUP_RESTORE_FILENAME = ".myne-restore-backup.ndjson"
+
+export const restoreBackup = () =>
+  api
+    .post<{ ok: boolean; error?: string }>("/api/backup/restore")
+    .then((r) => r.data)
+
 export const WS_PORT = 81
 
 export const flashFirmware = () =>
@@ -282,23 +292,54 @@ export const setCollectionNote = (id: string, note: string) =>
 export const deleteCollectionNote = (id: string) =>
   api.delete<{ ok: boolean }>("/api/collections/note", { params: { id } }).then((r) => r.data)
 
+function bookImportKey(book: Pick<Book, "title" | "author" | "collection" | "volume">) {
+  return [book.title, book.author, book.collection, book.volume]
+    .map((value) => value.trim().toLowerCase())
+    .join("\u001f")
+}
+
 export async function importBooks(
   books: Book[],
+  existingBooks: Book[] = [],
   onProgress?: (done: number, total: number, currentTitle: string) => void,
-): Promise<{ ok: boolean; count: number; failed: number; failedBooks: Book[] }> {
+): Promise<{
+  ok: boolean
+  count: number
+  created: number
+  updated: number
+  failed: number
+  failedBooks: Book[]
+}> {
   let created = 0
+  let updated = 0
   const failedBooks: Book[] = []
+  const existingById = new Map(existingBooks.map((book) => [book.id, book]))
+  const existingByKey = new Map(existingBooks.map((book) => [bookImportKey(book), book]))
   for (const book of books) {
-    const { id: _id, ...data } = book
-    onProgress?.(created + failedBooks.length, books.length, book.title)
+    const existing =
+      (book.id ? existingById.get(book.id) : undefined) ??
+      existingByKey.get(bookImportKey(book))
+    onProgress?.(created + updated + failedBooks.length, books.length, book.title)
     try {
-      await createBook(data)
-      created++
+      if (existing) {
+        const data = { ...book, id: existing.id }
+        await updateBook(data)
+        updated++
+        existingById.set(data.id, data)
+        existingByKey.set(bookImportKey(data), data)
+      } else {
+        const { id: _id, ...data } = book
+        const result = await createBook(data)
+        created++
+        const createdBook = { ...book, id: result.id }
+        existingById.set(result.id, createdBook)
+        existingByKey.set(bookImportKey(createdBook), createdBook)
+      }
     } catch {
       failedBooks.push(book)
     }
   }
-  return { ok: true, count: created, failed: failedBooks.length, failedBooks }
+  return { ok: true, count: created + updated, created, updated, failed: failedBooks.length, failedBooks }
 }
 
 // ─── Reading Log ───────────────────────────────────────────────────────────

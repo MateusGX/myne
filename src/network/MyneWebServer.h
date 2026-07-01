@@ -110,6 +110,8 @@ class MyneWebServer {
   void handleStatus() const;
   void handleFileListData() const;
   void handleDownload() const;
+  void handleDownloadBackup() const;
+  void handleRestoreBackup();
   void handleUpload(UploadState& state) const;
   void handleUploadPost(UploadState& state) const;
   void handleCreateFolder() const;

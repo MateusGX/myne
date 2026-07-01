@@ -8,6 +8,7 @@ import { SettingsCategoryContent, type SettingsValues } from "@/components/setti
 import { WifiNetworkRow } from "@/components/settings/WifiNetworkRow"
 import { NewNetworkForm } from "@/components/settings/NewNetworkForm"
 import { FirmwareUpdateCard } from "@/components/settings/FirmwareUpdateCard"
+import { BackupCard } from "@/components/settings/BackupCard"
 import {
   getSettings,
   getWifiNetworks,
@@ -174,6 +175,8 @@ export function SettingsPage() {
       </section>
 
       <FirmwareUpdateCard />
+
+      <BackupCard />
     </div>
   )
 }

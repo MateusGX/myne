@@ -10,6 +10,7 @@ Myne's built-in web server lets you, from any device on the same Wi-Fi network:
 
 - Manage your physical book catalog, collections, and reading sessions
 - Browse, upload, download, rename, move, and delete files on the SD card
+- Download and restore full SD-card backups
 - View and change device settings, including saved Wi-Fi networks
 - Flash new firmware over the air
 
@@ -46,6 +47,7 @@ your book catalog, reading sessions, SD card files, and device settings. From he
 - View and log reading sessions per book
 - Browse/upload/download/rename/move/delete files on the SD card (including fast drag-and-drop
   uploads over a WebSocket)
+- Download and restore a full device backup from Settings
 - View device status (battery, Wi-Fi signal, free SD space) and change settings
 - Add or remove saved Wi-Fi networks
 - Flash new firmware

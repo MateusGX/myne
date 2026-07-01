@@ -12,6 +12,8 @@ to, and can also be used directly with `curl` for scripting.
   - [SD card files](#sd-card-files)
     - [GET `/api/files` - List Files](#get-apifiles---list-files)
     - [GET `/download` - Download File](#get-download---download-file)
+    - [GET `/api/backup/download` - Download Full Device Backup](#get-apibackupdownload---download-full-device-backup)
+    - [POST `/api/backup/restore` - Restore Full Device Backup](#post-apibackuprestore---restore-full-device-backup)
     - [POST `/upload` - Upload File](#post-upload---upload-file)
     - [POST `/mkdir` - Create Folder](#post-mkdir---create-folder)
     - [POST `/rename` - Rename File](#post-rename---rename-file)
@@ -170,6 +172,65 @@ curl -OJ "http://myne.local/download?path=/sleep.bmp"
 
 ---
 
+### GET `/api/backup/download` - Download Full Device Backup
+
+```bash
+curl -OJ http://myne.local/api/backup/download
+```
+
+Streams a full SD-card backup as newline-delimited JSON (`.ndjson`). File contents are split into
+base64 chunks so the firmware does not need to build a ZIP archive or buffer the whole card in RAM.
+
+**Response (200 OK):** `application/x-ndjson`, with
+`Content-Disposition: attachment; filename="myne-backup-<version>.ndjson"`.
+
+**Format:**
+
+```json
+{"format":"myne-device-backup","version":1,"firmware":"..."}
+{"type":"dir","path":"/Books"}
+{"type":"file","path":"/Books/example.epub","size":12345}
+{"type":"chunk","data":"...base64..."}
+{"type":"end"}
+{"type":"done"}
+```
+
+The temporary restore upload file (`/.myne-restore-backup.ndjson`) is omitted from generated backups.
+
+---
+
+### POST `/api/backup/restore` - Restore Full Device Backup
+
+```bash
+# 1. Upload the backup file to the restore staging path
+curl -X POST -F "file=@myne-backup.ndjson" \
+  "http://myne.local/upload?path=/&name=.myne-restore-backup.ndjson"
+
+# 2. Restore the staged backup
+curl -X POST http://myne.local/api/backup/restore
+```
+
+Restores the staged `.ndjson` backup from `/.myne-restore-backup.ndjson`. Files present in the backup
+overwrite files with the same path on the SD card. Extra files that are not present in the backup are
+left in place. After a successful restore, Myne removes the staged backup file and marks the physical
+book catalog for rebuild.
+
+**Response (200 OK):**
+
+```json
+{"ok":true}
+```
+
+**Error Responses:**
+
+| Status | Body | Cause |
+| ------ | ---- | ----- |
+| 404 | `{"ok":false,"error":"Upload restore-backup.ndjson first"}` | No staged backup file |
+| 400 | `{"ok":false,"error":"Backup restore failed"}` | Invalid/corrupt backup or write failure |
+| 500 | `{"ok":false,"error":"Failed to open uploaded backup"}` | SD card error |
+
+---
+
 ### POST `/upload` - Upload File
 
 ```bash
@@ -185,6 +246,7 @@ curl -X POST -F "file=@sleep.bmp" "http://myne.local/upload?path=/sleep"
 | Parameter | Required | Default | Description                     |
 | --------- | -------- | ------- | --------------------------------- |
 | `path`    | No       | `/`     | Target directory for the upload   |
+| `name`    | No       | uploaded filename | File name to use on the SD card |
 
 **Response (200 OK):**
 ```

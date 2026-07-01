@@ -8,9 +8,12 @@
 #include <Logging.h>
 #include <ReadingLog.h>
 #include <WiFi.h>
+#include <base64.h>
 #include <esp_task_wdt.h>
+#include <mbedtls/base64.h>
 
 #include <algorithm>
+#include <cstring>
 
 #include "FirmwareFlasher.h"
 #include "MyneSettings.h"
@@ -25,6 +28,9 @@ namespace {
 constexpr const char* HIDDEN_ITEMS[] = {"System Volume Information", "XTCache"};
 constexpr uint16_t UDP_PORTS[] = {54982, 48123, 39001, 44044, 59678};
 constexpr uint16_t LOCAL_UDP_PORT = 8134;
+constexpr const char* BACKUP_RESTORE_PATH = "/.myne-restore-backup.ndjson";
+constexpr size_t BACKUP_RAW_CHUNK_SIZE = 768;
+constexpr size_t BACKUP_DECODED_CHUNK_SIZE = BACKUP_RAW_CHUNK_SIZE;
 
 // Static pointer for WebSocket callback (WebSocketsServer requires C-style callback)
 MyneWebServer* wsInstance = nullptr;
@@ -109,6 +115,120 @@ bool isProtectedItemName(const String& name) {
   }
   return false;
 }
+
+void sendJsonLine(WebServer* server, JsonDocument& doc) {
+  String line;
+  serializeJson(doc, line);
+  line += "\n";
+  server->sendContent(line);
+}
+
+bool readBackupLine(FsFile& file, String& line) {
+  line = "";
+  while (file.available()) {
+    const int c = file.read();
+    if (c < 0) break;
+    if (c == '\r') continue;
+    if (c == '\n') return true;
+    line += static_cast<char>(c);
+  }
+  return line.length() > 0;
+}
+
+bool ensureParentDirs(const String& path) {
+  const int slash = path.lastIndexOf('/');
+  if (slash <= 0) return true;
+  const String parent = path.substring(0, slash);
+  if (Storage.exists(parent.c_str())) return true;
+  return Storage.mkdir(parent.c_str(), true);
+}
+
+bool shouldSkipBackupPath(const String& path) { return path == BACKUP_RESTORE_PATH; }
+
+bool isRestorableBackupPath(const String& path) {
+  return path.startsWith("/") && path.length() > 1 && !path.endsWith("/") && path != BACKUP_RESTORE_PATH;
+}
+
+bool streamBackupFile(WebServer* server, const String& path) {
+  if (shouldSkipBackupPath(path)) return true;
+
+  FsFile file = Storage.open(path.c_str());
+  if (!file || file.isDirectory()) {
+    if (file) file.close();
+    LOG_DBG("WEB", "Skipping unreadable backup file: %s", path.c_str());
+    return false;
+  }
+
+  JsonDocument doc;
+  doc["type"] = "file";
+  doc["path"] = path;
+  doc["size"] = static_cast<uint32_t>(file.fileSize());
+  sendJsonLine(server, doc);
+
+  uint8_t raw[BACKUP_RAW_CHUNK_SIZE];
+  while (file.available()) {
+    esp_task_wdt_reset();
+    yield();
+    const int got = file.read(raw, sizeof(raw));
+    if (got <= 0) break;
+    const String encoded = base64::encode(raw, static_cast<size_t>(got));
+    server->sendContent("{\"type\":\"chunk\",\"data\":\"");
+    server->sendContent(encoded);
+    server->sendContent("\"}\n");
+  }
+  file.close();
+
+  doc.clear();
+  doc["type"] = "end";
+  sendJsonLine(server, doc);
+  return true;
+}
+
+void streamBackupPath(WebServer* server, const String& path) {
+  FsFile root = Storage.open(path.c_str());
+  if (!root) {
+    LOG_DBG("WEB", "Skipping unreadable backup path: %s", path.c_str());
+    return;
+  }
+
+  if (!root.isDirectory()) {
+    root.close();
+    streamBackupFile(server, path);
+    return;
+  }
+
+  if (path != "/") {
+    JsonDocument doc;
+    doc["type"] = "dir";
+    doc["path"] = path;
+    sendJsonLine(server, doc);
+  }
+
+  FsFile entry = root.openNextFile();
+  char name[256];
+  while (entry) {
+    esp_task_wdt_reset();
+    yield();
+    entry.getName(name, sizeof(name));
+    const String entryName = name;
+    const bool isDir = entry.isDirectory();
+    entry.close();
+
+    String childPath = path;
+    if (!childPath.endsWith("/")) childPath += "/";
+    childPath += entryName;
+    if (!shouldSkipBackupPath(childPath)) {
+      if (isDir) {
+        streamBackupPath(server, childPath);
+      } else {
+        streamBackupFile(server, childPath);
+      }
+    }
+
+    entry = root.openNextFile();
+  }
+  root.close();
+}
 }  // namespace
 
 MyneWebServer::MyneWebServer() : bookStore(std::make_unique<BookStore>()) {}
@@ -165,6 +285,8 @@ void MyneWebServer::begin() {
   server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
   server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
   server->on("/download", HTTP_GET, [this] { handleDownload(); });
+  server->on("/api/backup/download", HTTP_GET, [this] { handleDownloadBackup(); });
+  server->on("/api/backup/restore", HTTP_POST, [this] { handleRestoreBackup(); });
 
   // Upload endpoint with special handling for multipart form data
   server->on("/upload", HTTP_POST, [this] { handleUploadPost(upload); }, [this] { handleUpload(upload); });
@@ -616,6 +738,186 @@ void MyneWebServer::handleDownload() const {
   file.close();
 }
 
+void MyneWebServer::handleDownloadBackup() const {
+  server->setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server->sendHeader("Content-Disposition", "attachment; filename=\"myne-backup-" MYNE_VERSION ".ndjson\"");
+  server->send(200, "application/x-ndjson", "");
+
+  JsonDocument doc;
+  doc["format"] = "myne-device-backup";
+  doc["version"] = 1;
+  doc["firmware"] = MYNE_VERSION;
+  sendJsonLine(server.get(), doc);
+
+  streamBackupPath(server.get(), "/");
+
+  doc.clear();
+  doc["type"] = "done";
+  sendJsonLine(server.get(), doc);
+  server->sendContent("");
+  LOG_DBG("WEB", "Served full device backup");
+}
+
+void MyneWebServer::handleRestoreBackup() {
+  if (!Storage.exists(BACKUP_RESTORE_PATH)) {
+    server->send(404, "application/json", "{\"ok\":false,\"error\":\"Upload restore-backup.ndjson first\"}");
+    return;
+  }
+
+  FsFile backup = Storage.open(BACKUP_RESTORE_PATH);
+  if (!backup) {
+    server->send(500, "application/json", "{\"ok\":false,\"error\":\"Failed to open uploaded backup\"}");
+    return;
+  }
+
+  bool ok = true;
+  bool headerSeen = false;
+  bool doneSeen = false;
+  size_t lineNo = 0;
+  String error = "";
+  String line;
+  String currentPath;
+  FsFile out;
+  size_t expectedSize = 0;
+  size_t writtenSize = 0;
+  uint8_t decoded[BACKUP_DECODED_CHUNK_SIZE];
+
+  while (ok && readBackupLine(backup, line)) {
+    lineNo++;
+    esp_task_wdt_reset();
+    yield();
+    if (line.isEmpty()) continue;
+
+    JsonDocument doc;
+    const DeserializationError parseError = deserializeJson(doc, line);
+    if (parseError) {
+      ok = false;
+      error = "Invalid backup JSON";
+      break;
+    }
+
+    if (!headerSeen) {
+      const char* format = doc["format"] | "";
+      const int version = doc["version"] | 0;
+      if (strcmp(format, "myne-device-backup") != 0 || version != 1) {
+        ok = false;
+        error = "Unsupported backup format";
+        break;
+      }
+      headerSeen = true;
+      continue;
+    }
+
+    const char* type = doc["type"] | "";
+    if (strcmp(type, "dir") == 0) {
+      const char* path = doc["path"] | "";
+      String dirPath = normalizeWebPath(path);
+      if (dirPath.length() > 1 && !Storage.exists(dirPath.c_str()) && !Storage.mkdir(dirPath.c_str(), true)) {
+        ok = false;
+        error = "Failed to create directory";
+      }
+    } else if (strcmp(type, "file") == 0) {
+      if (out) {
+        ok = false;
+        error = "Previous file missing end marker";
+        break;
+      }
+      currentPath = normalizeWebPath(doc["path"] | "");
+      expectedSize = doc["size"] | 0;
+      writtenSize = 0;
+      if (!isRestorableBackupPath(currentPath)) {
+        ok = false;
+        error = "Invalid file path in backup";
+        break;
+      }
+      if (!ensureParentDirs(currentPath)) {
+        ok = false;
+        error = "Failed to create parent directory";
+        break;
+      }
+      if (Storage.exists(currentPath.c_str())) {
+        Storage.remove(currentPath.c_str());
+      }
+      if (!Storage.openFileForWrite("BACKUP", currentPath, out)) {
+        ok = false;
+        error = "Failed to create restored file";
+      }
+    } else if (strcmp(type, "chunk") == 0) {
+      if (!out) {
+        ok = false;
+        error = "Chunk without file";
+        break;
+      }
+      const char* data = doc["data"] | "";
+      size_t decodedLen = 0;
+      const int ret = mbedtls_base64_decode(decoded, sizeof(decoded), &decodedLen,
+                                            reinterpret_cast<const unsigned char*>(data), strlen(data));
+      if (ret != 0) {
+        ok = false;
+        error = "Invalid base64 chunk";
+        break;
+      }
+      const size_t wrote = out.write(decoded, decodedLen);
+      if (wrote != decodedLen) {
+        ok = false;
+        error = "Failed to write restored data";
+        break;
+      }
+      writtenSize += decodedLen;
+      if (writtenSize > expectedSize) {
+        ok = false;
+        error = "Restored file exceeded expected size";
+      }
+    } else if (strcmp(type, "end") == 0) {
+      if (!out) {
+        ok = false;
+        error = "End marker without file";
+        break;
+      }
+      out.close();
+      if (writtenSize != expectedSize) {
+        ok = false;
+        error = "Restored file size mismatch";
+      }
+      currentPath = "";
+      expectedSize = 0;
+      writtenSize = 0;
+    } else if (strcmp(type, "done") == 0) {
+      if (out) {
+        ok = false;
+        error = "Backup ended during a file";
+        break;
+      }
+      doneSeen = true;
+      break;
+    } else {
+      ok = false;
+      error = "Unknown backup record type";
+    }
+  }
+
+  if (out) out.close();
+  backup.close();
+
+  if (ok && (!headerSeen || !doneSeen)) {
+    ok = false;
+    error = "Incomplete backup file";
+  }
+
+  if (!ok) {
+    LOG_ERR("WEB", "Backup restore failed at line %u: %s (%s)", static_cast<unsigned>(lineNo), error.c_str(),
+            currentPath.c_str());
+    server->send(400, "application/json", "{\"ok\":false,\"error\":\"Backup restore failed\"}");
+    return;
+  }
+
+  Storage.remove(BACKUP_RESTORE_PATH);
+  writeSyncFlag();
+  bookStoreInitialized = false;
+  LOG_INF("WEB", "Backup restored successfully");
+  server->send(200, "application/json", "{\"ok\":true}");
+}
+
 // Diagnostic counters for upload performance analysis
 static unsigned long uploadStartTime = 0;
 static unsigned long totalWriteTime = 0;
@@ -659,6 +961,9 @@ void MyneWebServer::handleUpload(UploadState& state) const {
     esp_task_wdt_reset();
 
     state.fileName = upload.filename;
+    if (server->hasArg("name") && !server->arg("name").isEmpty()) {
+      state.fileName = server->arg("name");
+    }
     state.size = 0;
     state.success = false;
     state.error = "";
