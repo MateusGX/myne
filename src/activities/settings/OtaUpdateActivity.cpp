@@ -4,12 +4,44 @@
 #include <I18n.h>
 #include <WiFi.h>
 
+#include <cstddef>
+#include <cstdio>
+#include <string>
+
 #include "MappedInputManager.h"
 #include "SettingsActivityUI.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "network/OtaUpdater.h"
+
+namespace {
+std::string formatBytes(std::size_t bytes) {
+  char buf[24];
+  if (bytes >= 1024 * 1024) {
+    std::snprintf(buf, sizeof(buf), "%.1f MB", static_cast<double>(bytes) / (1024.0 * 1024.0));
+  } else if (bytes >= 1024) {
+    std::snprintf(buf, sizeof(buf), "%.1f KB", static_cast<double>(bytes) / 1024.0);
+  } else {
+    std::snprintf(buf, sizeof(buf), "%u B", static_cast<unsigned>(bytes));
+  }
+  return buf;
+}
+
+void drawUpdateProgress(const GfxRenderer& renderer, const Rect& card, int percent, const char* title,
+                        const char* detail, const ThemeMetrics& metrics) {
+  SettingsActivityUI::panel(renderer, card, true);
+  const int x = card.x + SettingsActivityUI::INNER + 8;
+  const int w = card.width - SettingsActivityUI::INNER * 2 - 8;
+
+  SettingsActivityUI::text(renderer, UI_10_FONT_ID, x, card.y + 26, title, w, EpdFontFamily::BOLD);
+  GUI.drawProgressBar(renderer, Rect{x, card.y + 78, w, metrics.progressBarHeight}, percent, 100);
+
+  if (detail && detail[0] != '\0') {
+    renderer.drawCenteredText(SMALL_FONT_ID, card.y + 142, detail);
+  }
+}
+}  // namespace
 
 void OtaUpdateActivity::onWifiSelectionComplete(const bool success) {
   if (!success) {
@@ -77,6 +109,7 @@ void OtaUpdateActivity::onExit() {
 void OtaUpdateActivity::render(RenderLock&&) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const auto pageWidth = renderer.getScreenWidth();
+  const auto pageHeight = renderer.getScreenHeight();
 
   float updaterProgress = 0;
   if (state == UPDATE_IN_PROGRESS) {
@@ -98,48 +131,47 @@ void OtaUpdateActivity::render(RenderLock&&) {
   SettingsActivityUI::hero(renderer, Rect{SettingsActivityUI::PAD, heroY, pageWidth - SettingsActivityUI::PAD * 2, 104},
                            tr(STR_SETTINGS_TITLE), tr(STR_UPDATE), MYNE_VERSION);
 
-  const int cardY = heroY + 132;
-  const int cardH = 190;
-  const Rect card{SettingsActivityUI::PAD, cardY, pageWidth - SettingsActivityUI::PAD * 2, cardH};
+  const int contentY = heroY + 124;
+  const int contentBottom = pageHeight - metrics.buttonHintsHeight - 16;
+  const int cardW = pageWidth - SettingsActivityUI::PAD * 2;
+  const int stateCardH = contentBottom > contentY ? contentBottom - contentY : 160;
+  const Rect stateCard{SettingsActivityUI::PAD, contentY, cardW, stateCardH};
 
   if (state == CHECKING_FOR_UPDATE) {
-    SettingsActivityUI::stateCard(renderer, card, tr(STR_CHECKING_UPDATE));
+    SettingsActivityUI::stateCard(renderer, stateCard, tr(STR_CHECKING_UPDATE));
   } else if (state == WAITING_CONFIRMATION) {
-    SettingsActivityUI::panel(renderer, card, true);
-    SettingsActivityUI::text(renderer, UI_10_FONT_ID, card.x + SettingsActivityUI::INNER + 8, card.y + 24,
-                             tr(STR_NEW_UPDATE), card.width - SettingsActivityUI::INNER * 2 - 8, EpdFontFamily::BOLD);
+    const Rect notice{SettingsActivityUI::PAD, contentY, cardW, 68};
+    SettingsActivityUI::panel(renderer, notice, true);
+    SettingsActivityUI::text(renderer, UI_10_FONT_ID, notice.x + SettingsActivityUI::INNER + 8, notice.y + 18,
+                             tr(STR_NEW_UPDATE), notice.width - SettingsActivityUI::INNER * 2 - 8,
+                             EpdFontFamily::BOLD);
+
+    const int versionY = notice.y + notice.height + SettingsActivityUI::GAP;
+    const int rowH = 58;
     SettingsActivityUI::option(
-        renderer,
-        Rect{card.x + SettingsActivityUI::INNER + 8, card.y + 74, card.width - SettingsActivityUI::INNER * 2 - 8, 54},
+        renderer, Rect{SettingsActivityUI::PAD, versionY, cardW, rowH},
         tr(STR_CURRENT_VERSION), MYNE_VERSION);
     SettingsActivityUI::option(
-        renderer,
-        Rect{card.x + SettingsActivityUI::INNER + 8, card.y + 136, card.width - SettingsActivityUI::INNER * 2 - 8, 54},
+        renderer, Rect{SettingsActivityUI::PAD, versionY + rowH + SettingsActivityUI::GAP, cardW, rowH},
         tr(STR_NEW_VERSION), updater.getLatestVersion().c_str());
 
     const auto labels = mappedInput.mapLabels(tr(STR_CANCEL), tr(STR_UPDATE), "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == UPDATE_IN_PROGRESS) {
-    SettingsActivityUI::panel(renderer, card, true);
-    SettingsActivityUI::text(renderer, UI_10_FONT_ID, card.x + SettingsActivityUI::INNER + 8, card.y + 30,
-                             tr(STR_UPDATING), card.width - SettingsActivityUI::INNER * 2 - 8, EpdFontFamily::BOLD);
-    GUI.drawProgressBar(renderer,
-                        Rect{card.x + SettingsActivityUI::INNER + 8, card.y + 86,
-                             card.width - SettingsActivityUI::INNER * 2 - 8, metrics.progressBarHeight},
-                        static_cast<int>(updaterProgress * 100), 100);
-    const std::string bytes =
-        std::to_string(updater.getProcessedSize()) + " / " + std::to_string(updater.getTotalSize());
-    renderer.drawCenteredText(SMALL_FONT_ID, card.y + 132, bytes.c_str());
+    const Rect progressCard{SettingsActivityUI::PAD, contentY, cardW, 184};
+    const std::string bytes = formatBytes(updater.getProcessedSize()) + " / " + formatBytes(updater.getTotalSize());
+    drawUpdateProgress(renderer, progressCard, static_cast<int>(updaterProgress * 100), tr(STR_UPDATING),
+                       bytes.c_str(), metrics);
   } else if (state == NO_UPDATE) {
-    SettingsActivityUI::stateCard(renderer, card, tr(STR_NO_UPDATE), MYNE_VERSION);
+    SettingsActivityUI::stateCard(renderer, stateCard, tr(STR_NO_UPDATE), MYNE_VERSION);
     const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == FAILED) {
-    SettingsActivityUI::stateCard(renderer, card, tr(STR_UPDATE_FAILED));
+    SettingsActivityUI::stateCard(renderer, stateCard, tr(STR_UPDATE_FAILED));
     const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == FINISHED) {
-    SettingsActivityUI::stateCard(renderer, card, tr(STR_UPDATE_COMPLETE), tr(STR_POWER_ON_HINT));
+    SettingsActivityUI::stateCard(renderer, stateCard, tr(STR_UPDATE_COMPLETE), tr(STR_POWER_ON_HINT));
   }
 
   renderer.displayBuffer();

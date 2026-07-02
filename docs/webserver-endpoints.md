@@ -39,6 +39,7 @@ to, and can also be used directly with `curl` for scripting.
     - [POST `/api/collections/rename` - Rename a Collection](#post-apicollectionsrename---rename-a-collection)
     - [POST `/api/collections/expected-count` - Set Expected Book Count](#post-apicollectionsexpected-count---set-expected-book-count)
     - [POST `/api/collections/initial-volume` - Set Initial Volume](#post-apicollectionsinitial-volume---set-initial-volume)
+    - [POST `/api/collections/metadata` - Set Note, Expected Count, and Initial Volume](#post-apicollectionsmetadata---set-note-expected-count-and-initial-volume)
     - [GET `/api/collections/note` - Get a Collection Note](#get-apicollectionsnote---get-a-collection-note)
     - [POST `/api/collections/note` - Set a Collection Note](#post-apicollectionsnote---set-a-collection-note)
     - [DELETE `/api/collections/note` - Clear a Collection Note](#delete-apicollectionsnote---clear-a-collection-note)
@@ -722,6 +723,26 @@ Set `initialVolume` to `0` to clear it. Negative values are stored as `0`.
 
 **Error Responses:** 400 `Missing JSON body` / `Invalid JSON: <error>` / `id is required`; 404
 `Collection not found`.
+
+---
+
+### POST `/api/collections/metadata` - Set Note, Expected Count, and Initial Volume
+
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"id": "a1b2c3d4", "note": "Read in publication order", "expectedCount": 7, "initialVolume": 1}' \
+  http://myne.local/api/collections/metadata
+```
+
+Sets all three collection fields in one request — equivalent to calling `expected-count`,
+`initial-volume`, and `note` individually, but avoids a round trip per field. Used by the dashboard's
+XLSX metadata import/restore. Omitted `expectedCount`/`initialVolume` are stored as `0`; omitted `note`
+clears it.
+
+**Response (200 OK):** `{"ok": true}`
+
+**Error Responses:** 400 `Missing JSON body` / `Invalid JSON: <error>` / `id is required`; 404
+`Collection not found`; 500 `Failed to save collection note`.
 
 ---
 

@@ -130,6 +130,9 @@ bool JsonSettingsIO::saveSettings(const MyneSettings& s, const char* path) {
   // Stored as ISO code string ("EN", "DE", ...) for stability across enum reorders.
   doc["language"] = (s.language < getLanguageCount()) ? LANGUAGE_CODES[s.language] : "EN";
 
+  // Timezone -- managed by TimezoneSelectActivity, not in SettingsList.
+  doc["timezoneOffset"] = s.timezoneOffset;
+
   String json;
   serializeJson(doc, json);
   return Storage.writeFile(path, json);
@@ -215,6 +218,10 @@ bool JsonSettingsIO::loadSettings(MyneSettings& s, const char* json, bool* needs
   if (doc["language"].is<const char*>()) {
     s.language = static_cast<uint8_t>(I18n::languageFromCode(doc["language"].as<const char*>()));
   }
+
+  // Timezone -- managed by TimezoneSelectActivity, not in SettingsList.
+  // Range is 0 (UTC-12) .. 26 (UTC+14), see MyneSettings::timezoneOffset.
+  s.timezoneOffset = clamp(doc["timezoneOffset"] | s.timezoneOffset, 27, s.timezoneOffset);
 
   LOG_DBG("CPS", "Settings loaded from file");
 

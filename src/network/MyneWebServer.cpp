@@ -14,13 +14,20 @@
 
 #include <algorithm>
 #include <cstring>
+#ifdef SIMULATOR
+#include <cstdlib>
+#include <filesystem>
+#include <system_error>
+#endif
 
 #include "FirmwareFlasher.h"
 #include "MyneSettings.h"
 #include "SettingsList.h"
-#include "WebDAVHandler.h"
 #include "WifiCredentialStore.h"
 #include "html/DashboardHtml.generated.h"
+#ifndef SIMULATOR
+#include "WebDAVHandler.h"
+#endif
 
 namespace {
 // Folders/files to hide from the web interface file browser
@@ -50,6 +57,37 @@ size_t wsLastCompleteSize = 0;
 unsigned long wsLastCompleteAt = 0;
 
 static void clearEpubCacheIfNeeded(const String&) {}  // No-op: epub cache removed
+
+struct WebStorageStats {
+  uint64_t totalBytes = 0;
+  uint64_t usedBytes = 0;
+};
+
+#ifdef SIMULATOR
+std::string simulatorStorageRoot() {
+  const char* root = std::getenv("CROSSPOINT_SIM_SD");
+  if (!root || !*root) {
+    root = std::getenv("CROSSPOINT_EMU_SD");
+  }
+  return (root && *root) ? std::string(root) : std::string("./fs_");
+}
+
+WebStorageStats getWebStorageStats() {
+  WebStorageStats stats;
+  std::error_code ec;
+  const auto space = std::filesystem::space(simulatorStorageRoot(), ec);
+  if (!ec) {
+    stats.totalBytes = space.capacity;
+    stats.usedBytes = space.capacity > space.available ? space.capacity - space.available : 0;
+  }
+  return stats;
+}
+#else
+WebStorageStats getWebStorageStats() {
+  const auto storageStats = Storage.getStorageStats();
+  return WebStorageStats{storageStats.totalBytes, storageStats.usedBytes};
+}
+#endif
 
 // Context + callback for streaming BookCatalog::forEachCollection results as
 // a JSON array (function-pointer callback per project convention).
@@ -333,6 +371,7 @@ void MyneWebServer::begin() {
   server->on("/api/collections/rename", HTTP_POST, [this] { handleRenameCollection(); });
   server->on("/api/collections/expected-count", HTTP_POST, [this] { handleSetCollectionExpectedCount(); });
   server->on("/api/collections/initial-volume", HTTP_POST, [this] { handleSetCollectionInitialVolume(); });
+  server->on("/api/collections/metadata", HTTP_POST, [this] { handleSetCollectionMetadata(); });
   // Reading log endpoints
   server->on("/api/readings", HTTP_GET, [this] { handleGetReadings(); });
   server->on("/api/readings/save", HTTP_POST, [this] { handleSaveReadings(); });
@@ -340,11 +379,13 @@ void MyneWebServer::begin() {
   server->onNotFound([this] { handleNotFound(); });
   LOG_DBG("WEB", "[MEM] Free heap after route setup: %d bytes", ESP.getFreeHeap());
 
+#ifndef SIMULATOR
   // Collect WebDAV headers and register handler
   const char* davHeaders[] = {"Depth", "Destination", "Overwrite", "If", "Lock-Token", "Timeout"};
   server->collectHeaders(davHeaders, 6);
   server->addHandler(new WebDAVHandler());  // Note: WebDAVHandler will be deleted by WebServer when server is stopped
   LOG_DBG("WEB", "WebDAV handler initialized");
+#endif
 
   server->begin();
 
@@ -549,7 +590,7 @@ void MyneWebServer::handleStatus() const {
   doc["rssi"] = apMode ? 0 : WiFi.RSSI();
   doc["freeHeap"] = ESP.getFreeHeap();
   doc["uptime"] = millis() / 1000;
-  const auto storageStats = Storage.getStorageStats();
+  const auto storageStats = getWebStorageStats();
   doc["storageTotal"] = storageStats.totalBytes;
   doc["storageUsed"] = storageStats.usedBytes;
 
@@ -2121,6 +2162,45 @@ void MyneWebServer::handleSetCollectionInitialVolume() {
   const int initialVolume = std::max(0, static_cast<int>(doc["initialVolume"] | 0));
   if (!BookCatalog::setCollectionInitialVolume(id, initialVolume)) {
     server->send(404, "text/plain", "Collection not found");
+    return;
+  }
+
+  server->send(200, "application/json", "{\"ok\":true}");
+}
+
+// Sets note, expectedCount, and initialVolume for a collection in a single request
+// (equivalent to calling the three single-field endpoints above, but avoids a
+// round trip per field for bulk metadata restore, e.g. XLSX import).
+void MyneWebServer::handleSetCollectionMetadata() {
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON body");
+    return;
+  }
+
+  JsonDocument doc;
+  const DeserializationError err = deserializeJson(doc, server->arg("plain"));
+  if (err) {
+    server->send(400, "text/plain", String("Invalid JSON: ") + err.c_str());
+    return;
+  }
+
+  const char* id = doc["id"] | "";
+  if (!id[0]) {
+    server->send(400, "text/plain", "id is required");
+    return;
+  }
+
+  const int expectedCount = std::max(0, static_cast<int>(doc["expectedCount"] | 0));
+  const int initialVolume = std::max(0, static_cast<int>(doc["initialVolume"] | 0));
+  if (!BookCatalog::setCollectionExpectedCount(id, expectedCount) ||
+      !BookCatalog::setCollectionInitialVolume(id, initialVolume)) {
+    server->send(404, "text/plain", "Collection not found");
+    return;
+  }
+
+  const char* note = doc["note"] | "";
+  if (!BookCatalog::setCollectionNote(id, note)) {
+    server->send(500, "text/plain", "Failed to save collection note");
     return;
   }
 

@@ -129,10 +129,7 @@ class MyneWebServer {
   void handlePostWifiNetwork();
   void handleDeleteWifiNetwork();
 
-  // Physical book handlers
-#ifndef SIMULATOR
   std::unique_ptr<BookStore> bookStore;
-#endif
   bool bookStoreInitialized = false;
   bool ensureBookStoreInitialized();
   void handleGetBooks() const;
@@ -150,6 +147,7 @@ class MyneWebServer {
   void handleRenameCollection();
   void handleSetCollectionExpectedCount();
   void handleSetCollectionInitialVolume();
+  void handleSetCollectionMetadata();
 
   // Reading log handlers
   void handleGetReadings() const;

@@ -58,7 +58,6 @@ void NetworkModeSelectionActivity::render(RenderLock&&) {
 
   const auto& metrics = UITheme::getInstance().getMetrics();
   const int pageWidth = renderer.getScreenWidth();
-  const int pageHeight = renderer.getScreenHeight();
 
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight});
 
@@ -74,13 +73,6 @@ void NetworkModeSelectionActivity::render(RenderLock&&) {
   NetworkActivityUI::choice(renderer,
                             Rect{NetworkActivityUI::PAD, contentY + cardH + NetworkActivityUI::GAP, cardW, cardH},
                             tr(STR_CREATE_HOTSPOT), tr(STR_HOTSPOT_DESC), selectedIndex == 1);
-
-  const int footerY = pageHeight - metrics.buttonHintsHeight - 84;
-  if (footerY > contentY + cardH * 2 + NetworkActivityUI::GAP) {
-    NetworkActivityUI::stateCard(renderer,
-                                 Rect{NetworkActivityUI::PAD, footerY, pageWidth - NetworkActivityUI::PAD * 2, 64},
-                                 selectedIndex == 0 ? tr(STR_WIFI_NETWORKS) : tr(STR_HOTSPOT_MODE));
-  }
 
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);

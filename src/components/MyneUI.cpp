@@ -23,6 +23,8 @@ constexpr int cornerRadius = 6;
 constexpr int topHintButtonY = 345;
 constexpr int popupMarginX = 16;
 constexpr int popupMarginY = 12;
+constexpr int popupAccentWidth = 8;
+constexpr int popupAccentGap = 12;
 constexpr int maxListValueWidth = 200;
 constexpr int mainMenuIconSize = 32;
 constexpr int listIconSize = 24;
@@ -555,22 +557,23 @@ void MyneUI::drawIconGrid(const GfxRenderer& renderer, Rect rect, int count, int
 // ---------------------------------------------------------------------------
 
 Rect MyneUI::drawPopup(const GfxRenderer& renderer, const char* message) const {
-  // Scale y position proportionally to screen height (16.5% from top)
-  const int y = static_cast<int>(renderer.getScreenHeight() * 0.165f);
-  constexpr int outline = 2;
-  const int textWidth = renderer.getTextWidth(UI_12_FONT_ID, message, EpdFontFamily::REGULAR);
+  const int maxWidth = renderer.getScreenWidth() - MyneUIMetrics::values.contentSidePadding * 2;
+  const int maxTextWidth = std::max(12, maxWidth - popupMarginX * 2 - popupAccentWidth - popupAccentGap);
+  const auto text = renderer.truncatedText(UI_12_FONT_ID, message, maxTextWidth, EpdFontFamily::REGULAR);
+  const int textWidth = renderer.getTextWidth(UI_12_FONT_ID, text.c_str(), EpdFontFamily::REGULAR);
   const int textHeight = renderer.getLineHeight(UI_12_FONT_ID);
-  const int w = textWidth + popupMarginX * 2;
+  const int w = textWidth + popupMarginX * 2 + popupAccentWidth + popupAccentGap;
   const int h = textHeight + popupMarginY * 2;
-  const int x = (renderer.getScreenWidth() - w) / 2;
+  const int x = MyneUIMetrics::values.contentSidePadding;
+  const int y = MyneUIMetrics::values.contentSidePadding;
 
-  renderer.fillRoundedRect(x - outline, y - outline, w + outline * 2, h + outline * 2, cornerRadius + outline,
-                           Color::White);
-  renderer.fillRoundedRect(x, y, w, h, cornerRadius, Color::Black);
+  renderer.fillRoundedRect(x, y, w, h, cornerRadius, Color::White);
+  renderer.drawRoundedRect(x, y, w, h, 1, cornerRadius, true);
+  renderer.fillRoundedRect(x, y, popupAccentWidth, h, cornerRadius, true, false, true, false, Color::Black);
 
-  const int textX = x + (w - textWidth) / 2;
+  const int textX = x + popupMarginX + popupAccentWidth + popupAccentGap;
   const int textY = y + popupMarginY - 2;
-  renderer.drawText(UI_12_FONT_ID, textX, textY, message, false, EpdFontFamily::REGULAR);
+  renderer.drawText(UI_12_FONT_ID, textX, textY, text.c_str(), true, EpdFontFamily::REGULAR);
   renderer.displayBuffer();
 
   return Rect{x, y, w, h};
@@ -581,17 +584,19 @@ Rect MyneUI::drawPopup(const GfxRenderer& renderer, const char* message) const {
 // ---------------------------------------------------------------------------
 
 void MyneUI::fillPopupProgress(const GfxRenderer& renderer, const Rect& layout, const int progress) const {
-  constexpr int barHeight = 4;
+  constexpr int barHeight = 6;
 
-  // Twice the margin in drawPopup to match text width
-  const int barWidth = layout.width - popupMarginX * 2;
-  const int barX = layout.x + (layout.width - barWidth) / 2;
-  // Center inside the margin of drawPopup. The - 1 is added to account for the - 2 in drawPopup.
+  const int barWidth = layout.width - popupMarginX * 2 - popupAccentWidth - popupAccentGap;
+  const int barX = layout.x + popupMarginX + popupAccentWidth + popupAccentGap;
   const int barY = layout.y + layout.height - popupMarginY / 2 - barHeight / 2 - 1;
 
-  int fillWidth = barWidth * progress / 100;
+  renderer.fillRoundedRect(barX, barY, barWidth, barHeight, barHeight / 2, Color::White);
+  renderer.drawRoundedRect(barX, barY, barWidth, barHeight, 1, barHeight / 2, true);
 
-  renderer.fillRect(barX, barY, fillWidth, barHeight, false);
+  const int fillWidth = std::max(0, std::min(barWidth - 2, (barWidth - 2) * progress / 100));
+  if (fillWidth > 0) {
+    renderer.fillRoundedRect(barX + 1, barY + 1, fillWidth, barHeight - 2, (barHeight - 2) / 2, Color::Black);
+  }
 
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }

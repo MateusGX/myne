@@ -11,49 +11,17 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <string>
+#include <vector>
 
 #include "BooksActivityUI.h"
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
-#include "components/icons/Icons.h"
 #include "fontIds.h"
 
 namespace {
-constexpr int kPad = 20;
-constexpr int kCardR = 8;
-constexpr int kInner = 20;
-
-void drawPanel(const GfxRenderer& renderer, Rect rect, bool gray = true) {
-  if (gray) {
-    renderer.fillRoundedRect(rect.x, rect.y, rect.width, rect.height, kCardR, Color::LightGray);
-  }
-  renderer.drawRoundedRect(rect.x, rect.y, rect.width, rect.height, 1, kCardR, true);
-}
-
-void drawPill(const GfxRenderer& renderer, Rect rect, const char* label, bool filled) {
-  const int lh = renderer.getLineHeight(SMALL_FONT_ID);
-  const auto safe = renderer.truncatedText(SMALL_FONT_ID, label, rect.width - 18, EpdFontFamily::BOLD);
-  const int tw = renderer.getTextWidth(SMALL_FONT_ID, safe.c_str(), EpdFontFamily::BOLD);
-  const int pillW = std::min(rect.width, tw + 18);
-  const int pillX = rect.x + rect.width - pillW;
-
-  if (filled) {
-    renderer.fillRoundedRect(pillX, rect.y, pillW, lh + 10, 5, Color::Black);
-    renderer.drawText(SMALL_FONT_ID, pillX + (pillW - tw) / 2, rect.y + 5, safe.c_str(), false, EpdFontFamily::BOLD);
-  } else {
-    renderer.drawRoundedRect(pillX, rect.y, pillW, lh + 10, 1, 5, true);
-    renderer.drawText(SMALL_FONT_ID, pillX + (pillW - tw) / 2, rect.y + 5, safe.c_str(), true, EpdFontFamily::BOLD);
-  }
-}
-
-void drawActivityBar(const GfxRenderer& renderer, Rect rect, int processedCount, bool complete) {
+void drawActivityBar(const GfxRenderer& renderer, Rect rect, int processedCount) {
   renderer.drawRoundedRect(rect.x, rect.y, rect.width, rect.height, 1, rect.height / 2, true);
-
-  if (complete) {
-    renderer.fillRoundedRect(rect.x + 2, rect.y + 2, rect.width - 4, rect.height - 4, std::max(1, rect.height / 2 - 2),
-                             Color::Black);
-    return;
-  }
 
   constexpr int dashCount = 16;
   const int innerX = rect.x + 4;
@@ -67,15 +35,46 @@ void drawActivityBar(const GfxRenderer& renderer, Rect rect, int processedCount,
   }
 }
 
-void drawBookIcon(const GfxRenderer& renderer, int x, int y) {
-  constexpr int iconSize = 64;
-  if (const uint8_t* bmp = iconForName(UIIcon::LibraryBigIcon, iconSize)) {
-    renderer.drawIcon(bmp, x, y, iconSize, iconSize);
-    return;
+void drawCenteredState(const GfxRenderer& renderer, Rect rect, const char* title, const char* detail,
+                       bool selected = false) {
+  BooksActivityUI::panel(renderer, rect, selected);
+  const int titleH = renderer.getLineHeight(UI_10_FONT_ID);
+  const int detailH = renderer.getLineHeight(SMALL_FONT_ID);
+  std::vector<std::string> detailLines;
+  if (detail && detail[0] != '\0') {
+    detailLines = renderer.wrappedText(SMALL_FONT_ID, detail, rect.width - BooksActivityUI::INNER * 2, 2);
   }
-  renderer.drawRoundedRect(x + 8, y + 4, 48, 56, 1, 6, true);
-  renderer.drawLine(x + 20, y + 16, x + 42, y + 16, 2, true);
-  renderer.drawLine(x + 20, y + 30, x + 38, y + 30, 2, true);
+  const int contentH = titleH + (detailLines.empty() ? 0 : 12 + static_cast<int>(detailLines.size()) * detailH);
+  int y = rect.y + rect.height / 2 - contentH / 2;
+  renderer.drawCenteredText(UI_10_FONT_ID, y, title, true, EpdFontFamily::BOLD);
+  y += titleH + 12;
+  for (const auto& line : detailLines) {
+    renderer.drawCenteredText(SMALL_FONT_ID, y, line.c_str());
+    y += detailH;
+  }
+}
+
+void drawSyncingCard(const GfxRenderer& renderer, Rect rect, int processedCount) {
+  BooksActivityUI::panel(renderer, rect, true);
+  const int x = rect.x + BooksActivityUI::INNER + 8;
+  const int w = rect.width - BooksActivityUI::INNER * 2 - 8;
+
+  BooksActivityUI::text(renderer, UI_10_FONT_ID, x, rect.y + 26, tr(STR_SYNCING_BOOKS), w, EpdFontFamily::BOLD);
+
+  char count[48];
+  std::snprintf(count, sizeof(count), "%d", processedCount);
+  renderer.drawCenteredText(UI_12_FONT_ID, rect.y + 84, count, true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(SMALL_FONT_ID, rect.y + 126, tr(STR_BOOKS_PROCESSED));
+
+  const int barH = 16;
+  const int barY = rect.y + rect.height - BooksActivityUI::INNER - barH;
+  drawActivityBar(renderer, Rect{x, barY, w, barH}, processedCount);
+}
+
+std::string processedText(int processedCount) {
+  char buf[64];
+  std::snprintf(buf, sizeof(buf), "%d %s", processedCount, tr(STR_BOOKS_PROCESSED));
+  return buf;
 }
 }  // namespace
 
@@ -149,80 +148,27 @@ void CatalogSyncActivity::render(RenderLock&&) {
                         Rect{BooksActivityUI::PAD, heroY, W - BooksActivityUI::PAD * 2, BooksActivityUI::HERO_H},
                         tr(STR_PHYSICAL_BOOKS), tr(STR_CATALOG_SYNC));
 
-  const int titleTop = heroY + BooksActivityUI::HERO_H + 14;
-  const int cardW = W - kPad * 2;
-  const int cardH = std::min(330, H - titleTop - metrics.buttonHintsHeight - 34);
-  const int cardX = kPad;
-  const int cardY = titleTop;
-  const int iconSize = 64;
-  const int iconX = cardX + kInner;
-  const int iconY = cardY + 36;
-  const int textX = iconX + iconSize + 22;
-  const int textW = cardW - (textX - cardX) - kInner;
-  const int lh10 = renderer.getLineHeight(UI_10_FONT_ID);
-  const int lhSm = renderer.getLineHeight(SMALL_FONT_ID);
-  const int barX = cardX + kInner;
-  const int barW = cardW - kInner * 2;
-  const int barH = 16;
-  const int barY = cardY + cardH - 82;
-
-  drawPanel(renderer, Rect{cardX, cardY, cardW, cardH});
-  drawBookIcon(renderer, iconX, iconY);
+  const int contentY = heroY + BooksActivityUI::HERO_H + BooksActivityUI::GAP + 8;
+  const int contentBottom = H - metrics.buttonHintsHeight - 16;
+  const int cardW = W - BooksActivityUI::PAD * 2;
+  const int cardH = contentBottom > contentY ? contentBottom - contentY : 190;
+  const Rect card{BooksActivityUI::PAD, contentY, cardW, cardH};
 
   switch (state_) {
     case State::SYNCING: {
-      drawPill(renderer, Rect{textX, cardY + 26, textW, lhSm + 10}, tr(STR_SYNCING_BOOKS), true);
-
-      const auto title = renderer.truncatedText(UI_10_FONT_ID, tr(STR_SYNCING_BOOKS), textW, EpdFontFamily::BOLD);
-      renderer.drawText(UI_10_FONT_ID, textX, cardY + 70, title.c_str(), true, EpdFontFamily::BOLD);
-
-      char count[48];
-      snprintf(count, sizeof(count), "%d", processedCount_);
-      renderer.drawText(UI_12_FONT_ID, textX, cardY + 70 + lh10 + 18, count, true, EpdFontFamily::BOLD);
-
-      const int countW = renderer.getTextWidth(UI_12_FONT_ID, count, EpdFontFamily::BOLD);
-      const auto label =
-          renderer.truncatedText(SMALL_FONT_ID, tr(STR_BOOKS_PROCESSED), std::max(20, textW - countW - 12));
-      renderer.drawText(SMALL_FONT_ID, textX + countW + 12, cardY + 75 + lh10 + 18, label.c_str(), true);
-
-      renderer.drawLine(cardX + kInner, barY - 22, cardX + cardW - kInner, barY - 22);
-      drawActivityBar(renderer, Rect{barX, barY, barW, barH}, processedCount_, false);
-      renderer.drawText(SMALL_FONT_ID, barX, barY + barH + 14, tr(STR_CATALOG_SYNC), true, EpdFontFamily::BOLD);
+      drawSyncingCard(renderer, card, processedCount_);
       break;
     }
 
     case State::DONE: {
-      renderer.fillRoundedRect(cardX, cardY, cardW, 12, kCardR, true, true, false, false, Color::Black);
-      drawPill(renderer, Rect{textX, cardY + 26, textW, lhSm + 10}, tr(STR_SYNC_COMPLETE), true);
-
-      const auto title = renderer.truncatedText(UI_10_FONT_ID, tr(STR_SYNC_COMPLETE), textW, EpdFontFamily::BOLD);
-      renderer.drawText(UI_10_FONT_ID, textX, cardY + 70, title.c_str(), true, EpdFontFamily::BOLD);
-
-      char buf[48];
-      snprintf(buf, sizeof(buf), "%d %s", processedCount_, tr(STR_BOOKS_PROCESSED));
-      const auto safe = renderer.truncatedText(UI_10_FONT_ID, buf, textW);
-      renderer.drawText(UI_10_FONT_ID, textX, cardY + 70 + lh10 + 18, safe.c_str(), true);
-
-      renderer.drawLine(cardX + kInner, barY - 22, cardX + cardW - kInner, barY - 22);
-      drawActivityBar(renderer, Rect{barX, barY, barW, barH}, processedCount_, true);
-      renderer.drawText(SMALL_FONT_ID, barX, barY + barH + 14, tr(STR_SYNC_COMPLETE), true, EpdFontFamily::BOLD);
+      const auto detail = processedText(processedCount_);
+      drawCenteredState(renderer, card, tr(STR_SYNC_COMPLETE), detail.c_str());
       break;
     }
 
     case State::FAILED: {
-      drawPill(renderer, Rect{textX, cardY + 26, textW, lhSm + 10}, tr(STR_SYNC_FAILED), false);
-
-      const auto title = renderer.truncatedText(UI_10_FONT_ID, tr(STR_SYNC_FAILED), textW, EpdFontFamily::BOLD);
-      renderer.drawText(UI_10_FONT_ID, textX, cardY + 70, title.c_str(), true, EpdFontFamily::BOLD);
-
-      char buf[48];
-      snprintf(buf, sizeof(buf), "%d %s", processedCount_, tr(STR_BOOKS_PROCESSED));
-      const auto safe = renderer.truncatedText(UI_10_FONT_ID, buf, textW);
-      renderer.drawText(UI_10_FONT_ID, textX, cardY + 70 + lh10 + 18, safe.c_str(), true);
-
-      renderer.drawLine(cardX + kInner, barY - 22, cardX + cardW - kInner, barY - 22);
-      renderer.drawRoundedRect(barX, barY, barW, barH, 1, barH / 2, true);
-      renderer.drawText(SMALL_FONT_ID, barX, barY + barH + 14, tr(STR_BACK), true, EpdFontFamily::BOLD);
+      const auto detail = processedText(processedCount_);
+      drawCenteredState(renderer, card, tr(STR_SYNC_FAILED), detail.c_str());
       {
         const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
         GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);

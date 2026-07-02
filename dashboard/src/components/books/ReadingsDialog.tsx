@@ -121,7 +121,7 @@ export function ReadingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="flex max-h-[85vh] max-w-lg flex-col">
+      <DialogContent className="flex max-h-[85vh] sm:max-w-lg flex-col">
         <DialogHeader>
           <DialogTitle className="pr-6 leading-snug">
             {book.title}

@@ -126,7 +126,7 @@ export function BookFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="flex max-h-[90vh] max-w-4xl flex-col overflow-hidden p-0">
+      <DialogContent className="flex max-h-[90vh] sm:max-w-4xl flex-col overflow-hidden p-0">
         <DialogHeader className="border-b border-border px-5 py-4">
           <DialogTitle>{isEditing ? "Edit Book" : "Add Books"}</DialogTitle>
         </DialogHeader>

@@ -285,6 +285,14 @@ export const setCollectionInitialVolume = (id: string, initialVolume: number) =>
     .post<{ ok: boolean }>("/api/collections/initial-volume", { id, initialVolume })
     .then((r) => r.data)
 
+export const setCollectionMetadata = (
+  id: string,
+  metadata: { note: string; expectedCount: number; initialVolume: number }
+) =>
+  api
+    .post<{ ok: boolean }>("/api/collections/metadata", { id, ...metadata })
+    .then((r) => r.data)
+
 export const getCollectionNote = (id: string) =>
   api.get<{ id: string; note: string }>("/api/collections/note", { params: { id } }).then((r) => r.data)
 

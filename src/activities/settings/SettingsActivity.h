@@ -18,6 +18,7 @@ enum class SettingAction {
   CheckForUpdates,
   SdFirmwareUpdate,
   Language,
+  Timezone,
 };
 
 struct SettingInfo {

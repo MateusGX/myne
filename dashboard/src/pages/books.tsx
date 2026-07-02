@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   BookOpen,
+  CaretDoubleDownIcon,
+  CaretDoubleUpIcon,
   CaretDown,
   CaretRight,
   ArrowSquareIn,
   ArrowSquareOut,
+  CircleNotch,
   FileXls,
   Hash,
   NotePencilIcon,
@@ -42,6 +45,7 @@ import {
   importBooks,
   setCollectionExpectedCount,
   setCollectionInitialVolume,
+  setCollectionMetadata,
   setCollectionNote,
   updateBook,
   type Book,
@@ -235,10 +239,7 @@ export function BooksPage() {
   const collectionNotes = useMemo(
     () =>
       Object.fromEntries(
-        collections.map((collection) => [
-          collection.id,
-          collection.note ?? "",
-        ])
+        collections.map((collection) => [collection.id, collection.note ?? ""])
       ),
     [collections]
   )
@@ -249,11 +250,17 @@ export function BooksPage() {
 
   useEffect(() => {
     if (!loaded || didExpandInitialCollections.current) return
-    setExpandedCollections(new Set(books.map((b) => b.collection).filter(Boolean)))
+    setExpandedCollections(
+      new Set(books.map((b) => b.collection).filter(Boolean))
+    )
     didExpandInitialCollections.current = true
   }, [books, loaded])
 
   const initialLoading = loading && !loaded
+  // `loading` also flips back on after every refresh(true) call (post
+  // save/delete/import). Once the first load has completed, show a
+  // non-blocking "refreshing" indicator instead of the full skeleton.
+  const isRefreshing = loading && loaded
 
   const collectionOptions = useMemo(
     () => [
@@ -350,11 +357,27 @@ export function BooksPage() {
     }
   }, [filtered, incompleteCollections, showIncompleteOnly])
 
+  const allExpanded =
+    groups.length > 0 &&
+    groups.every((group) => expandedCollections.has(group.name))
+
   function toggleCollection(name: string) {
     setExpandedCollections((prev) => {
       const next = new Set(prev)
       if (next.has(name)) next.delete(name)
       else next.add(name)
+      return next
+    })
+  }
+
+  function expandAllCollections() {
+    setExpandedCollections(new Set(groups.map((group) => group.name)))
+  }
+
+  function collapseAllCollections() {
+    setExpandedCollections((prev) => {
+      const next = new Set(prev)
+      for (const group of groups) next.delete(group.name)
       return next
     })
   }
@@ -457,9 +480,7 @@ export function BooksPage() {
     try {
       await setCollectionExpectedCount(collection.id, expectedCount)
       setCollections((prev) =>
-        prev.map((c) =>
-          c.id === collection.id ? { ...c, expectedCount } : c
-        )
+        prev.map((c) => (c.id === collection.id ? { ...c, expectedCount } : c))
       )
       toast.success("Expected total updated")
     } catch {
@@ -486,9 +507,7 @@ export function BooksPage() {
     try {
       await setCollectionInitialVolume(collection.id, initialVolume)
       setCollections((prev) =>
-        prev.map((c) =>
-          c.id === collection.id ? { ...c, initialVolume } : c
-        )
+        prev.map((c) => (c.id === collection.id ? { ...c, initialVolume } : c))
       )
       toast.success("Initial volume updated")
     } catch {
@@ -661,23 +680,11 @@ export function BooksPage() {
       if (collection) {
         ok =
           ok &&
-          (await setCollectionNote(collection.id, metadata.note)
-            .then(() => true)
-            .catch(() => false))
-        ok =
-          ok &&
-          (await setCollectionExpectedCount(
-            collection.id,
-            metadata.expectedCount
-          )
-            .then(() => true)
-            .catch(() => false))
-        ok =
-          ok &&
-          (await setCollectionInitialVolume(
-            collection.id,
-            metadata.initialVolume
-          )
+          (await setCollectionMetadata(collection.id, {
+            note: metadata.note,
+            expectedCount: metadata.expectedCount,
+            initialVolume: metadata.initialVolume,
+          })
             .then(() => true)
             .catch(() => false))
       }
@@ -712,11 +719,7 @@ export function BooksPage() {
   async function handleRetryFailedImport() {
     if (!importPhase || importPhase.step !== "done") return
     const { failedBooks, failedMetadata } = importPhase
-    await runImport(
-      failedBooks,
-      failedMetadata,
-      importPhase.mode ?? "import"
-    )
+    await runImport(failedBooks, failedMetadata, importPhase.mode ?? "import")
   }
 
   function handleImportClose() {
@@ -750,9 +753,17 @@ export function BooksPage() {
         title="Physical books"
         description="Manage your shelf, collections, reading sessions and import/export snapshots."
         actions={
-          <div className="grid grid-cols-2 gap-2 sm:flex">
-            <BadgeLike value={books.length} label="Books" />
-            <BadgeLike value={groups.length} label="Collections" />
+          <div className="flex flex-wrap items-center gap-2">
+            {isRefreshing && (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <CircleNotch size={14} className="animate-spin" />
+                Refreshing…
+              </span>
+            )}
+            <div className="grid grid-cols-2 gap-2 sm:flex">
+              <BadgeLike value={books.length} label="Books" />
+              <BadgeLike value={groups.length} label="Collections" />
+            </div>
           </div>
         }
       />
@@ -776,6 +787,20 @@ export function BooksPage() {
               </option>
             ))}
           </select>
+        )}
+        {groups.length > 1 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={allExpanded ? collapseAllCollections : expandAllCollections}
+          >
+            {allExpanded ? (
+              <CaretDoubleUpIcon size={16} className="mr-1" />
+            ) : (
+              <CaretDoubleDownIcon size={16} className="mr-1" />
+            )}
+            {allExpanded ? "Collapse all" : "Expand all"}
+          </Button>
         )}
         <label className="flex h-10 items-center gap-2 rounded-md border border-border px-3 text-xs text-muted-foreground">
           <Switch
@@ -863,233 +888,237 @@ export function BooksPage() {
       </div>
 
       {/* Content */}
-      {initialLoading ? (
-        <div className="space-y-3">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-28 animate-pulse rounded-lg bg-muted" />
-          ))}
-        </div>
-      ) : isEmpty ? (
-        <EmptyState
-          icon={<BookOpen size={40} weight="thin" />}
-          title={
-            books.length === 0
-              ? "No books registered yet. Add your first book!"
-              : "No books match your search."
-          }
-        />
-      ) : (
-        <div className="space-y-4">
-          {/* Collection groups */}
-          {groups.map((group) => {
-            const expanded = expandedCollections.has(group.name)
-            const collection = collectionByName.get(group.name)
-            const collId = collection?.id
-            const note = collId ? (collectionNotes[collId] ?? "") : ""
-            const isEditingNote = editingNote === group.name
-            const expectedCount = collection?.expectedCount ?? 0
-            const initialVolume = collection?.initialVolume ?? 0
-            const collectionBookCount =
-              collectionBookCounts.get(group.name) ?? group.books.length
-            const allCollectionBooks = booksByCollection.get(group.name) ?? []
-            const collectionRows = buildCollectionRows({
-              visibleBooks: group.books,
-              allCollectionBooks,
-              collection,
-              missingVolumeMode,
-              showMissingVolumes: showIncompleteOnly,
-            })
-            const canCalculateMissing =
-              showIncompleteOnly && expectedCount > 0 && initialVolume > 0
-            return (
-              <div key={group.name} className="flat-panel overflow-hidden">
-                <button
-                  onClick={() => toggleCollection(group.name)}
-                  className={`flex w-full items-center gap-3 px-5 py-4 text-left transition-colors ${
-                    expanded
-                      ? "border-b border-border bg-muted/40"
-                      : "hover:bg-muted/45"
-                  }`}
-                >
-                  {expanded ? (
-                    <CaretDown
-                      size={12}
-                      className="shrink-0 text-muted-foreground"
-                    />
-                  ) : (
-                    <CaretRight
-                      size={12}
-                      className="shrink-0 text-muted-foreground"
-                    />
-                  )}
-                  <span className="flex-1 text-base font-semibold tracking-tight">
-                    {group.name}
-                  </span>
-                  {initialVolume > 0 && (
-                    <span className="text-xs text-muted-foreground">
-                      Vol. {initialVolume}
+      <div
+        className={`transition-opacity duration-200 ${isRefreshing ? "opacity-50" : "opacity-100"}`}
+      >
+        {initialLoading ? (
+          <div className="space-y-3">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-28 animate-pulse rounded-lg bg-muted" />
+            ))}
+          </div>
+        ) : isEmpty ? (
+          <EmptyState
+            icon={<BookOpen size={40} weight="thin" />}
+            title={
+              books.length === 0
+                ? "No books registered yet. Add your first book!"
+                : "No books match your search."
+            }
+          />
+        ) : (
+          <div className="space-y-4">
+            {/* Collection groups */}
+            {groups.map((group) => {
+              const expanded = expandedCollections.has(group.name)
+              const collection = collectionByName.get(group.name)
+              const collId = collection?.id
+              const note = collId ? (collectionNotes[collId] ?? "") : ""
+              const isEditingNote = editingNote === group.name
+              const expectedCount = collection?.expectedCount ?? 0
+              const initialVolume = collection?.initialVolume ?? 0
+              const collectionBookCount =
+                collectionBookCounts.get(group.name) ?? group.books.length
+              const allCollectionBooks = booksByCollection.get(group.name) ?? []
+              const collectionRows = buildCollectionRows({
+                visibleBooks: group.books,
+                allCollectionBooks,
+                collection,
+                missingVolumeMode,
+                showMissingVolumes: showIncompleteOnly,
+              })
+              const canCalculateMissing =
+                showIncompleteOnly && expectedCount > 0 && initialVolume > 0
+              return (
+                <div key={group.name} className="flat-panel overflow-hidden">
+                  <button
+                    onClick={() => toggleCollection(group.name)}
+                    className={`flex w-full items-center gap-3 px-5 py-4 text-left transition-colors ${
+                      expanded
+                        ? "border-b border-border bg-muted/40"
+                        : "hover:bg-muted/45"
+                    }`}
+                  >
+                    {expanded ? (
+                      <CaretDown
+                        size={12}
+                        className="shrink-0 text-muted-foreground"
+                      />
+                    ) : (
+                      <CaretRight
+                        size={12}
+                        className="shrink-0 text-muted-foreground"
+                      />
+                    )}
+                    <span className="flex-1 text-base font-semibold tracking-tight">
+                      {group.name}
                     </span>
-                  )}
-                  <span className="text-xs text-muted-foreground">
-                    {expectedCount > 0
-                      ? `${collectionBookCount} / ${expectedCount}`
-                      : collectionBookCount}{" "}
-                    {collectionBookCount === 1 ? "book" : "books"}
-                  </span>
-                  <span
-                    role="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleSetInitialVolume(group.name)
-                    }}
-                    className="ml-1 flex size-5 shrink-0 items-center justify-center rounded-md text-[10px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
-                    title="Edit initial volume"
-                  >
-                    V
-                  </span>
-                  <span
-                    role="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleSetExpectedCount(group.name)
-                    }}
-                    className="ml-1 shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    title="Edit expected total"
-                  >
-                    <Hash size={12} />
-                  </span>
-                  <span
-                    role="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      startEditNote(group.name)
-                    }}
-                    className="ml-1 shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    title="Edit collection note"
-                  >
-                    <NotePencilIcon size={12} />
-                  </span>
-                  <span
-                    role="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleRenameCollection(group.name)
-                    }}
-                    className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    title="Rename collection"
-                  >
-                    <PencilSimple size={12} />
-                  </span>
-                </button>
-
-                {/* Collection note row */}
-                {isEditingNote ? (
-                  <div
-                    className="flex items-center gap-2 border-b border-border bg-muted/30 px-5 py-3"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Input
-                      autoFocus
-                      value={noteDraft}
-                      onChange={(e) => setNoteDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") saveNote(group.name)
-                        if (e.key === "Escape") setEditingNote(null)
-                      }}
-                      placeholder="Add a note for this collection…"
-                      className="h-7 flex-1 text-xs"
-                    />
-                    <Button
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() => saveNote(group.name)}
-                    >
-                      Save
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs"
-                      onClick={() => setEditingNote(null)}
-                    >
-                      <X size={12} />
-                    </Button>
-                  </div>
-                ) : note ? (
-                  <div className="flex items-center gap-2 border-b border-border bg-muted/25 px-5 py-2 text-muted-foreground">
-                    <span className="flex-1 text-xs italic">{note}</span>
-                    <button
+                    {initialVolume > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        Vol. {initialVolume}
+                      </span>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {expectedCount > 0
+                        ? `${collectionBookCount} / ${expectedCount}`
+                        : collectionBookCount}{" "}
+                      {collectionBookCount === 1 ? "book" : "books"}
+                    </span>
+                    <span
+                      role="button"
                       onClick={(e) => {
                         e.stopPropagation()
-                        deleteNote(group.name)
+                        handleSetInitialVolume(group.name)
                       }}
-                      className="shrink-0 rounded p-0.5 hover:bg-muted hover:text-destructive"
-                      title="Delete note"
+                      className="ml-1 flex size-5 shrink-0 items-center justify-center rounded-md text-[10px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
+                      title="Edit initial volume"
                     >
-                      <Trash size={11} />
-                    </button>
-                  </div>
-                ) : null}
+                      V
+                    </span>
+                    <span
+                      role="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleSetExpectedCount(group.name)
+                      }}
+                      className="ml-1 shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      title="Edit expected total"
+                    >
+                      <Hash size={12} />
+                    </span>
+                    <span
+                      role="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        startEditNote(group.name)
+                      }}
+                      className="ml-1 shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      title="Edit collection note"
+                    >
+                      <NotePencilIcon size={12} />
+                    </span>
+                    <span
+                      role="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRenameCollection(group.name)
+                      }}
+                      className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      title="Rename collection"
+                    >
+                      <PencilSimple size={12} />
+                    </span>
+                  </button>
 
-                {expanded && (
-                  <div className="divide-y divide-border bg-card">
-                    {collectionRows.length > 0 ? (
-                      collectionRows.map((row) =>
-                        row.kind === "book" ? (
-                          <BookRow
-                            key={row.key}
-                            book={row.book}
-                            onSelect={setDetailBook}
-                            onEdit={openEdit}
-                            onDelete={handleDelete}
-                          />
-                        ) : (
-                          <MissingVolumeRow
-                            key={row.key}
-                            volume={row.volume}
-                          />
+                  {/* Collection note row */}
+                  {isEditingNote ? (
+                    <div
+                      className="flex items-center gap-2 border-b border-border bg-muted/30 px-5 py-3"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Input
+                        autoFocus
+                        value={noteDraft}
+                        onChange={(e) => setNoteDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveNote(group.name)
+                          if (e.key === "Escape") setEditingNote(null)
+                        }}
+                        placeholder="Add a note for this collection…"
+                        className="h-7 flex-1 text-xs"
+                      />
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => saveNote(group.name)}
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
+                        onClick={() => setEditingNote(null)}
+                      >
+                        <X size={12} />
+                      </Button>
+                    </div>
+                  ) : note ? (
+                    <div className="flex items-center gap-2 border-b border-border bg-muted/25 px-5 py-2 text-muted-foreground">
+                      <span className="flex-1 text-xs italic">{note}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          deleteNote(group.name)
+                        }}
+                        className="shrink-0 rounded p-0.5 hover:bg-muted hover:text-destructive"
+                        title="Delete note"
+                      >
+                        <Trash size={11} />
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {expanded && (
+                    <div className="divide-y divide-border bg-card">
+                      {collectionRows.length > 0 ? (
+                        collectionRows.map((row) =>
+                          row.kind === "book" ? (
+                            <BookRow
+                              key={row.key}
+                              book={row.book}
+                              onSelect={setDetailBook}
+                              onEdit={openEdit}
+                              onDelete={handleDelete}
+                            />
+                          ) : (
+                            <MissingVolumeRow
+                              key={row.key}
+                              volume={row.volume}
+                            />
+                          )
                         )
-                      )
-                    ) : (
-                      <div className="px-4 py-3 text-xs text-muted-foreground">
-                        {canCalculateMissing
-                          ? "No missing volumes in the configured range."
-                          : "Set an initial volume to calculate missing volumes."}
-                      </div>
-                    )}
+                      ) : (
+                        <div className="px-4 py-3 text-xs text-muted-foreground">
+                          {canCalculateMissing
+                            ? "No missing volumes in the configured range."
+                            : "Set an initial volume to calculate missing volumes."}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+
+            {/* Standalone books (no collection) */}
+            {standalone.length > 0 && (
+              <div>
+                {groups.length > 0 && (
+                  <div className="flex items-center gap-3 py-1">
+                    <Separator className="flex-1" />
+                    <span className="text-xs text-muted-foreground">
+                      No collection
+                    </span>
+                    <Separator className="flex-1" />
                   </div>
                 )}
-              </div>
-            )
-          })}
-
-          {/* Standalone books (no collection) */}
-          {standalone.length > 0 && (
-            <div>
-              {groups.length > 0 && (
-                <div className="flex items-center gap-3 py-1">
-                  <Separator className="flex-1" />
-                  <span className="text-xs text-muted-foreground">
-                    No collection
-                  </span>
-                  <Separator className="flex-1" />
+                <div className="flat-panel divide-y divide-border overflow-hidden">
+                  {standalone.map((book) => (
+                    <BookRow
+                      key={book.id}
+                      book={book}
+                      onSelect={setDetailBook}
+                      onEdit={openEdit}
+                      onDelete={handleDelete}
+                    />
+                  ))}
                 </div>
-              )}
-              <div className="flat-panel divide-y divide-border overflow-hidden">
-                {standalone.map((book) => (
-                  <BookRow
-                    key={book.id}
-                    book={book}
-                    onSelect={setDetailBook}
-                    onEdit={openEdit}
-                    onDelete={handleDelete}
-                  />
-                ))}
               </div>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )}
+      </div>
 
       <BookDetailDialog
         book={detailBook}
